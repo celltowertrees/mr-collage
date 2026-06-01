@@ -1,19 +1,170 @@
-import './App.css'
-import { CubeUtil } from './utils/CubeUtil';
-
-import { Tldraw } from 'tldraw'
-import './index.css'
-
-const CustomShapes = [CubeUtil]
+import { useRef, useCallback, useEffect } from 'react';
+import Konva from 'konva';
+import { Canvas } from './components/Canvas';
+import { Toolbar } from './components/Toolbar';
+import { useCollage } from './hooks/useCollage';
+import { useImageLoader } from './hooks/useImageLoader';
+import { exportToICP } from './store';
+import './App.css';
 
 function App() {
+  const {
+    images,
+    selectedId,
+    setSelectedId,
+    tool,
+    setTool,
+    stagePosition,
+    setStagePosition,
+    stageScale,
+    setStageScale,
+    addImage,
+    updateImage,
+    deleteImage,
+    bringToFront,
+    sendToBack,
+    duplicateImage,
+  } = useCollage();
+
+  const stageRef = useRef<Konva.Stage>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const { loadFromFiles, loadFromClipboard } = useImageLoader(addImage);
+
+  const handleUploadClick = useCallback(() => {
+    fileInputRef.current?.click();
+  }, []);
+
+  const handleFileChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      if (e.target.files) {
+        loadFromFiles(e.target.files);
+        e.target.value = '';
+      }
+    },
+    [loadFromFiles]
+  );
+
+  const handleExportJPEG = useCallback(() => {
+    const stage = stageRef.current;
+    if (!stage || images.length === 0) return;
+
+    const layer = stage.getLayers()[0];
+    const rect = layer.getClientRect({ relativeTo: stage });
+
+    const pixelRatio = 2;
+    const dataUrl = stage.toDataURL({
+      x: rect.x,
+      y: rect.y,
+      width: rect.width,
+      height: rect.height,
+      pixelRatio,
+      mimeType: 'image/jpeg',
+      quality: 0.95,
+    });
+
+    const link = document.createElement('a');
+    link.download = 'collage.jpg';
+    link.href = dataUrl;
+    link.click();
+  }, [images]);
+
+  const handleExportJSON = useCallback(() => {
+    const data = exportToICP(images);
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.download = 'collage-icp.json';
+    link.href = url;
+    link.click();
+    URL.revokeObjectURL(url);
+  }, [images]);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement) return;
+
+      if (e.key === 'v' || e.key === 'V') setTool('select');
+      if (e.key === 'h' || e.key === 'H') setTool('pan');
+      if ((e.key === 'Delete' || e.key === 'Backspace') && selectedId) {
+        deleteImage(selectedId);
+      }
+      if (e.key === ' ') {
+        e.preventDefault();
+        setTool('pan');
+      }
+    };
+
+    const handleKeyUp = (e: KeyboardEvent) => {
+      if (e.key === ' ') {
+        setTool('select');
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keyup', handleKeyUp);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
+    };
+  }, [selectedId, deleteImage, setTool]);
+
+  useEffect(() => {
+    const handleResize = () => {
+      stageRef.current?.width(window.innerWidth);
+      stageRef.current?.height(window.innerHeight);
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  const selectedImage = images.find((img) => img.id === selectedId) ?? null;
+
   return (
-    <div style={{ position: 'fixed', inset: 0 }}>
-        <Tldraw shapeUtils={CustomShapes} onMount={(editor) => {
-            editor.createShapes([{ type: 'cube'}])
-        }}/>
+    <div className="app">
+      <Toolbar
+        tool={tool}
+        selectedImage={selectedImage}
+        onToolChange={setTool}
+        onUpload={handleUploadClick}
+        onUpdateImage={updateImage}
+        onDelete={deleteImage}
+        onBringToFront={bringToFront}
+        onSendToBack={sendToBack}
+        onDuplicate={duplicateImage}
+        onExportJPEG={handleExportJPEG}
+        onExportJSON={handleExportJSON}
+      />
+      <Canvas
+        images={images}
+        selectedId={selectedId}
+        tool={tool}
+        stagePosition={stagePosition}
+        stageScale={stageScale}
+        onSelect={setSelectedId}
+        onUpdateImage={updateImage}
+        onStagePositionChange={setStagePosition}
+        onStageScaleChange={setStageScale}
+        onDrop={loadFromFiles}
+        onPaste={loadFromClipboard}
+        stageRef={stageRef}
+      />
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        multiple
+        onChange={handleFileChange}
+        style={{ display: 'none' }}
+      />
+      {images.length === 0 && (
+        <div className="empty-state">
+          <p>Drop images here, paste from clipboard, or click upload</p>
+          <p className="shortcut-hint">V = Select &middot; H = Pan &middot; Space = Hold to pan &middot; Scroll = Zoom</p>
+        </div>
+      )}
     </div>
-  )
+  );
 }
 
 export default App;
