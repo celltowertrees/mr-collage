@@ -1,0 +1,37 @@
+/*
+ * MR. COLLAGE — Theme
+ * Edit these variables to restyle the toolbar and UI.
+ */
+
+:root {
+  /* ── Canvas ── */
+  --canvas-bg: #ffffff;
+
+  /* ── Toolbar ── */
+  --toolbar-bg: #1e1e2e;
+  --toolbar-border: #313244;
+  --toolbar-height: 48px;
+  --toolbar-text: #cdd6f4;
+  --toolbar-muted: #6c7086;
+  --toolbar-font-size: 12px;
+  --toolbar-label-size: 10px;
+  --toolbar-gap: 6px;
+
+  /* ── Buttons ── */
+  --btn-size: 32px;
+  --btn-radius: 6px;
+  --btn-bg: #313244;
+  --btn-hover: #45475a;
+  --btn-active: #585b70;
+
+  /* ── Accent / Danger ── */
+  --accent: #89b4fa;
+  --danger: #f38ba8;
+
+  /* ── Mask drawing ── */
+  --mask-hint-color: var(--accent);
+  --mask-preview-stroke: #2196F3;
+
+  /* ── Empty state ── */
+  --empty-state-color: #b0b0b0;
+}

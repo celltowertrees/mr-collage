@@ -1,24 +1,14 @@
+/* App.css — layout & components. Colors/sizes from theme.css */
+
 * {
   margin: 0;
   padding: 0;
   box-sizing: border-box;
 }
 
-:root {
-  --toolbar-bg: #1e1e2e;
-  --toolbar-border: #313244;
-  --toolbar-text: #cdd6f4;
-  --toolbar-muted: #6c7086;
-  --accent: #89b4fa;
-  --danger: #f38ba8;
-  --btn-bg: #313244;
-  --btn-hover: #45475a;
-  --btn-active: #585b70;
-}
-
 body {
   overflow: hidden;
-  background: #181825;
+  background: var(--canvas-bg);
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 }
 
@@ -42,16 +32,16 @@ body {
   top: 0;
   left: 0;
   right: 0;
-  height: 48px;
+  height: var(--toolbar-height);
   background: var(--toolbar-bg);
   border-bottom: 1px solid var(--toolbar-border);
   display: flex;
   align-items: center;
   padding: 0 12px;
-  gap: 6px;
+  gap: var(--toolbar-gap);
   z-index: 100;
   color: var(--toolbar-text);
-  font-size: 12px;
+  font-size: var(--toolbar-font-size);
   overflow-x: auto;
   overflow-y: hidden;
   flex-wrap: nowrap;
@@ -71,7 +61,7 @@ body {
 
 .toolbar-label {
   color: var(--toolbar-muted);
-  font-size: 10px;
+  font-size: var(--toolbar-label-size);
   text-transform: uppercase;
   letter-spacing: 0.05em;
   margin-right: 4px;
@@ -82,10 +72,10 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
+  width: var(--btn-size);
+  height: var(--btn-size);
   border: none;
-  border-radius: 6px;
+  border-radius: var(--btn-radius);
   background: transparent;
   color: var(--toolbar-text);
   cursor: pointer;
@@ -98,12 +88,12 @@ body {
 
 .toolbar-btn.active {
   background: var(--accent);
-  color: #1e1e2e;
+  color: var(--toolbar-bg);
 }
 
 .toolbar-btn.danger:hover {
   background: var(--danger);
-  color: #1e1e2e;
+  color: var(--toolbar-bg);
 }
 
 .toolbar-btn.export-btn {
@@ -116,7 +106,7 @@ body {
 
 .toolbar-btn.export-btn:hover {
   background: var(--accent);
-  color: #1e1e2e;
+  color: var(--toolbar-bg);
 }
 
 .toolbar-divider {
@@ -155,7 +145,7 @@ body {
   left: 50%;
   transform: translate(-50%, -50%);
   text-align: center;
-  color: var(--toolbar-muted);
+  color: var(--empty-state-color);
   pointer-events: none;
   user-select: none;
 }
@@ -168,4 +158,12 @@ body {
 .shortcut-hint {
   font-size: 12px !important;
   opacity: 0.6;
+}
+
+/* Mask hint */
+.mask-hint {
+  font-size: 10px;
+  color: var(--mask-hint-color);
+  white-space: nowrap;
+  margin-left: 4px;
 }

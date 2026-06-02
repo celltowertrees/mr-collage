@@ -10,21 +10,26 @@ export function useCollage() {
   const [stagePosition, setStagePosition] = useState({ x: 0, y: 0 });
   const [stageScale, setStageScale] = useState(1);
   const nextZIndex = useRef(1);
+  const initialized = useRef(false);
 
   useEffect(() => {
-    const saved = loadState();
-    if (saved) {
-      setImages(saved.images);
-      setStagePosition(saved.stagePosition);
-      setStageScale(saved.stageScale);
-      const maxZ = saved.images.reduce((max, img) => Math.max(max, img.zIndex), 0);
-      nextZIndex.current = maxZ + 1;
-    }
+    loadState().then((saved) => {
+      if (saved) {
+        setImages(saved.images);
+        setStagePosition(saved.stagePosition);
+        setStageScale(saved.stageScale);
+        const maxZ = saved.images.reduce((max, img) => Math.max(max, img.zIndex), 0);
+        nextZIndex.current = maxZ + 1;
+      }
+      // Only allow saving after load completes
+      initialized.current = true;
+    });
   }, []);
 
   useEffect(() => {
+    if (!initialized.current) return;
     const state: CanvasState = { images, stagePosition, stageScale };
-    saveState(state);
+    saveState(state).catch((err) => console.warn('Save failed:', err));
   }, [images, stagePosition, stageScale]);
 
   const addImage = useCallback((src: string, name: string, naturalWidth: number, naturalHeight: number) => {
@@ -34,8 +39,8 @@ export function useCollage() {
     const img: CollageImage = {
       id,
       src,
-      x: (-stagePosition.x + window.innerWidth / 2) / stageScale - (naturalWidth * ratio) / 2,
-      y: (-stagePosition.y + window.innerHeight / 2) / stageScale - (naturalHeight * ratio) / 2,
+      x: (-stagePosition.x + window.innerWidth / 2) / stageScale,
+      y: (-stagePosition.y + window.innerHeight / 2) / stageScale,
       width: naturalWidth,
       height: naturalHeight,
       rotation: 0,

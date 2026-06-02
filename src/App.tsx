@@ -120,6 +120,13 @@ function App() {
 
   const selectedImage = images.find((img) => img.id === selectedId) ?? null;
 
+  const handleClearMask = useCallback(
+    (id: string) => {
+      updateImage(id, { mask: undefined });
+    },
+    [updateImage]
+  );
+
   return (
     <div className="app">
       <Toolbar
@@ -132,6 +139,7 @@ function App() {
         onBringToFront={bringToFront}
         onSendToBack={sendToBack}
         onDuplicate={duplicateImage}
+        onClearMask={handleClearMask}
         onExportJPEG={handleExportJPEG}
         onExportJSON={handleExportJSON}
       />

@@ -10,6 +10,7 @@ interface ToolbarProps {
   onBringToFront: (id: string) => void;
   onSendToBack: (id: string) => void;
   onDuplicate: (id: string) => void;
+  onClearMask: (id: string) => void;
   onExportJPEG: () => void;
   onExportJSON: () => void;
 }
@@ -24,9 +25,12 @@ export function Toolbar({
   onBringToFront,
   onSendToBack,
   onDuplicate,
+  onClearMask,
   onExportJPEG,
   onExportJSON,
 }: ToolbarProps) {
+  const isMaskTool = tool.startsWith('mask-');
+
   return (
     <div className="toolbar">
       <div className="toolbar-section">
@@ -58,81 +62,132 @@ export function Toolbar({
       </div>
 
       {selectedImage && (
-        <div className="toolbar-section">
-          <span className="toolbar-label">Image</span>
+        <>
+          <div className="toolbar-section">
+            <span className="toolbar-label">Image</span>
 
-          <label className="toolbar-field">
-            <span>Opacity</span>
-            <input
-              type="range"
-              min="0"
-              max="1"
-              step="0.05"
-              value={selectedImage.opacity}
-              onChange={(e) =>
-                onUpdateImage(selectedImage.id, { opacity: parseFloat(e.target.value) })
-              }
-            />
-            <span className="toolbar-value">{Math.round(selectedImage.opacity * 100)}%</span>
-          </label>
+            <label className="toolbar-field">
+              <span>Opacity</span>
+              <input
+                type="range"
+                min="0"
+                max="1"
+                step="0.05"
+                value={selectedImage.opacity}
+                onChange={(e) =>
+                  onUpdateImage(selectedImage.id, { opacity: parseFloat(e.target.value) })
+                }
+              />
+              <span className="toolbar-value">{Math.round(selectedImage.opacity * 100)}%</span>
+            </label>
 
-          <label className="toolbar-field">
-            <span>Rotation</span>
-            <input
-              type="range"
-              min="0"
-              max="360"
-              step="1"
-              value={selectedImage.rotation}
-              onChange={(e) =>
-                onUpdateImage(selectedImage.id, { rotation: parseFloat(e.target.value) })
-              }
-            />
-            <span className="toolbar-value">{Math.round(selectedImage.rotation)}&deg;</span>
-          </label>
+            <label className="toolbar-field">
+              <span>Rotation</span>
+              <input
+                type="range"
+                min="0"
+                max="360"
+                step="1"
+                value={selectedImage.rotation}
+                onChange={(e) =>
+                  onUpdateImage(selectedImage.id, { rotation: parseFloat(e.target.value) })
+                }
+              />
+              <span className="toolbar-value">{Math.round(selectedImage.rotation)}&deg;</span>
+            </label>
 
-          <div className="toolbar-divider" />
+            <div className="toolbar-divider" />
 
-          <button
-            className="toolbar-btn"
-            onClick={() => onBringToFront(selectedImage.id)}
-            title="Bring to Front"
-          >
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-              <rect x="1" y="6" width="8" height="8" rx="1" opacity="0.3" />
-              <rect x="5" y="2" width="8" height="8" rx="1" />
-            </svg>
-          </button>
-          <button
-            className="toolbar-btn"
-            onClick={() => onSendToBack(selectedImage.id)}
-            title="Send to Back"
-          >
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-              <rect x="5" y="2" width="8" height="8" rx="1" opacity="0.3" />
-              <rect x="1" y="6" width="8" height="8" rx="1" />
-            </svg>
-          </button>
-          <button
-            className="toolbar-btn"
-            onClick={() => onDuplicate(selectedImage.id)}
-            title="Duplicate"
-          >
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-              <rect x="1" y="4" width="9" height="9" rx="1" fill="none" stroke="currentColor" strokeWidth="1.5" />
-              <rect x="5" y="1" width="9" height="9" rx="1" fill="none" stroke="currentColor" strokeWidth="1.5" />
-            </svg>
-          </button>
-          <button
-            className="toolbar-btn danger"
-            onClick={() => onDelete(selectedImage.id)}
-            title="Delete"
-          >
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-              <path d="M5 2V1h6v1h4v2H1V2h4zm1 4v7h1V6H6zm3 0v7h1V6H9zM2 5l1 10h10l1-10H2z" />
-            </svg>
-          </button>
-        </div>
+            <button
+              className="toolbar-btn"
+              onClick={() => onBringToFront(selectedImage.id)}
+              title="Bring to Front"
+            >
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                <rect x="1" y="6" width="8" height="8" rx="1" opacity="0.3" />
+                <rect x="5" y="2" width="8" height="8" rx="1" />
+              </svg>
+            </button>
+            <button
+              className="toolbar-btn"
+              onClick={() => onSendToBack(selectedImage.id)}
+              title="Send to Back"
+            >
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                <rect x="5" y="2" width="8" height="8" rx="1" opacity="0.3" />
+                <rect x="1" y="6" width="8" height="8" rx="1" />
+              </svg>
+            </button>
+            <button
+              className="toolbar-btn"
+              onClick={() => onDuplicate(selectedImage.id)}
+              title="Duplicate"
+            >
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                <rect x="1" y="4" width="9" height="9" rx="1" fill="none" stroke="currentColor" strokeWidth="1.5" />
+                <rect x="5" y="1" width="9" height="9" rx="1" fill="none" stroke="currentColor" strokeWidth="1.5" />
+              </svg>
+            </button>
+            <button
+              className="toolbar-btn danger"
+              onClick={() => onDelete(selectedImage.id)}
+              title="Delete"
+            >
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                <path d="M5 2V1h6v1h4v2H1V2h4zm1 4v7h1V6H6zm3 0v7h1V6H9zM2 5l1 10h10l1-10H2z" />
+              </svg>
+            </button>
+          </div>
+
+          <div className="toolbar-section">
+            <span className="toolbar-label">Mask</span>
+            <button
+              className={`toolbar-btn ${tool === 'mask-circle' ? 'active' : ''}`}
+              onClick={() => onToolChange(tool === 'mask-circle' ? 'select' : 'mask-circle')}
+              title="Circle Mask"
+            >
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+                <circle cx="8" cy="8" r="6" />
+              </svg>
+            </button>
+            <button
+              className={`toolbar-btn ${tool === 'mask-rect' ? 'active' : ''}`}
+              onClick={() => onToolChange(tool === 'mask-rect' ? 'select' : 'mask-rect')}
+              title="Rectangle Mask"
+            >
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+                <rect x="2" y="3" width="12" height="10" rx="1" />
+              </svg>
+            </button>
+            <button
+              className={`toolbar-btn ${tool === 'mask-polygon' ? 'active' : ''}`}
+              onClick={() => onToolChange(tool === 'mask-polygon' ? 'select' : 'mask-polygon')}
+              title="Freeform Mask (click points, double-click to finish)"
+            >
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+                <polygon points="8,1 14,6 12,14 4,14 2,6" />
+              </svg>
+            </button>
+            {selectedImage.mask && (
+              <button
+                className="toolbar-btn danger"
+                onClick={() => onClearMask(selectedImage.id)}
+                title="Clear Mask"
+              >
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                  <path d="M3.5 3.5l9 9m0-9l-9 9" stroke="currentColor" strokeWidth="2" fill="none" />
+                </svg>
+              </button>
+            )}
+            {isMaskTool && (
+              <span className="mask-hint">
+                {tool === 'mask-polygon'
+                  ? 'Click to add points, double-click to finish'
+                  : 'Click and drag to draw mask'}
+              </span>
+            )}
+          </div>
+        </>
       )}
 
       <div className="toolbar-section toolbar-right">

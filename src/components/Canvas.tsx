@@ -1,8 +1,9 @@
 import { useRef, useEffect, useCallback } from 'react';
-import { Stage, Layer } from 'react-konva';
+import { Stage, Layer, Circle, Rect, Line } from 'react-konva';
 import Konva from 'konva';
-import { CollageImage, Tool } from '../types';
+import { CollageImage, MaskData, Tool } from '../types';
 import { CollageImageNode } from './CollageImageNode';
+import { useMaskDrawer } from '../hooks/useMaskDrawer';
 
 interface CanvasProps {
   images: CollageImage[];
@@ -19,6 +20,13 @@ interface CanvasProps {
   stageRef: React.RefObject<Konva.Stage | null>;
 }
 
+const PREVIEW_STYLE = {
+  stroke: '#2196F3',
+  strokeWidth: 2,
+  dash: [6, 4],
+  listening: false,
+};
+
 export function Canvas({
   images,
   selectedId,
@@ -34,6 +42,22 @@ export function Canvas({
   stageRef,
 }: CanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const selectedImage = images.find((img) => img.id === selectedId) ?? null;
+  const isMaskTool = tool.startsWith('mask-');
+
+  const handleMaskComplete = useCallback(
+    (imageId: string, mask: MaskData) => {
+      onUpdateImage(imageId, { mask });
+    },
+    [onUpdateImage]
+  );
+
+  const maskDrawer = useMaskDrawer({
+    tool,
+    targetImage: selectedImage,
+    stageRef,
+    onMaskComplete: handleMaskComplete,
+  });
 
   useEffect(() => {
     const handler = (e: ClipboardEvent) => onPaste(e);
@@ -81,13 +105,42 @@ export function Canvas({
     }
   }, [onDrop]);
 
+  // Click handler — only used for selection, not mask drawing
   const handleStageClick = useCallback((e: Konva.KonvaEventObject<MouseEvent>) => {
+    if (isMaskTool) return; // mask uses mousedown/mouseup, ignore click
     if (e.target === e.target.getStage()) {
       onSelect(null);
     }
-  }, [onSelect]);
+  }, [onSelect, isMaskTool]);
+
+  // MouseDown — mask drawing starts here
+  const handleStageMouseDown = useCallback((e: Konva.KonvaEventObject<MouseEvent>) => {
+    if (isMaskTool) {
+      maskDrawer.handleMouseDown(e);
+    }
+  }, [isMaskTool, maskDrawer]);
+
+  const getCursor = () => {
+    if (tool === 'pan') return 'grab';
+    if (isMaskTool) return 'crosshair';
+    return 'default';
+  };
 
   const sorted = [...images].sort((a, b) => a.zIndex - b.zIndex);
+
+  // Render mask preview shape
+  const preview = maskDrawer.getPreview();
+  const renderPreview = () => {
+    if (!preview) return null;
+    switch (preview.type) {
+      case 'circle':
+        return <Circle name="mask-preview" {...preview.props} {...PREVIEW_STYLE} />;
+      case 'rect':
+        return <Rect name="mask-preview" {...preview.props} {...PREVIEW_STYLE} />;
+      case 'polygon':
+        return <Line name="mask-preview" {...preview.props} {...PREVIEW_STYLE} closed={false} />;
+    }
+  };
 
   return (
     <div
@@ -107,13 +160,17 @@ export function Canvas({
         draggable={tool === 'pan'}
         onClick={handleStageClick}
         onTap={handleStageClick}
+        onMouseDown={handleStageMouseDown}
+        onMouseMove={isMaskTool ? maskDrawer.handleMouseMove : undefined}
+        onMouseUp={isMaskTool ? maskDrawer.handleMouseUp : undefined}
+        onDblClick={isMaskTool ? maskDrawer.handleDblClick : undefined}
         onWheel={handleWheel}
         onDragEnd={(e) => {
           if (e.target === e.target.getStage()) {
             onStagePositionChange({ x: e.target.x(), y: e.target.y() });
           }
         }}
-        style={{ cursor: tool === 'pan' ? 'grab' : 'default' }}
+        style={{ cursor: getCursor() }}
       >
         <Layer>
           {sorted.map((img) => (
@@ -126,6 +183,7 @@ export function Canvas({
               onChange={(changes) => onUpdateImage(img.id, changes)}
             />
           ))}
+          {renderPreview()}
         </Layer>
       </Stage>
     </div>
