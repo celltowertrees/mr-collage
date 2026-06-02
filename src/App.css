@@ -1,42 +1,169 @@
-#root {
-  max-width: 1280px;
-  margin: 0 auto;
-  padding: 2rem;
+/* App.css — layout & components. Colors/sizes from theme.css */
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  overflow: hidden;
+  background: var(--canvas-bg);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+.app {
+  width: 100vw;
+  height: 100vh;
+  position: relative;
+}
+
+.canvas-container {
+  width: 100%;
+  height: 100%;
+  position: absolute;
+  top: 0;
+  left: 0;
+}
+
+/* Toolbar */
+.toolbar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: var(--toolbar-height);
+  background: var(--toolbar-bg);
+  border-bottom: 1px solid var(--toolbar-border);
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  gap: var(--toolbar-gap);
+  z-index: 100;
+  color: var(--toolbar-text);
+  font-size: var(--toolbar-font-size);
+  overflow-x: auto;
+  overflow-y: hidden;
+  flex-wrap: nowrap;
+}
+
+.toolbar-section {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.toolbar-right {
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.toolbar-label {
+  color: var(--toolbar-muted);
+  font-size: var(--toolbar-label-size);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-right: 4px;
+  user-select: none;
+}
+
+.toolbar-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--btn-size);
+  height: var(--btn-size);
+  border: none;
+  border-radius: var(--btn-radius);
+  background: transparent;
+  color: var(--toolbar-text);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.toolbar-btn:hover {
+  background: var(--btn-hover);
+}
+
+.toolbar-btn.active {
+  background: var(--accent);
+  color: var(--toolbar-bg);
+}
+
+.toolbar-btn.danger:hover {
+  background: var(--danger);
+  color: var(--toolbar-bg);
+}
+
+.toolbar-btn.export-btn {
+  width: auto;
+  padding: 0 10px;
+  font-size: 11px;
+  font-weight: 600;
+  background: var(--btn-bg);
+}
+
+.toolbar-btn.export-btn:hover {
+  background: var(--accent);
+  color: var(--toolbar-bg);
+}
+
+.toolbar-divider {
+  width: 1px;
+  height: 24px;
+  background: var(--toolbar-border);
+  margin: 0 4px;
+}
+
+.toolbar-field {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--toolbar-muted);
+  font-size: 11px;
+  cursor: default;
+}
+
+.toolbar-field input[type='range'] {
+  width: 64px;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.toolbar-value {
+  width: 36px;
+  text-align: right;
+  color: var(--toolbar-text);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Empty state */
+.empty-state {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
   text-align: center;
+  color: var(--empty-state-color);
+  pointer-events: none;
+  user-select: none;
 }
 
-.logo {
-  height: 6em;
-  padding: 1.5em;
-  will-change: filter;
-  transition: filter 300ms;
-}
-.logo:hover {
-  filter: drop-shadow(0 0 2em #646cffaa);
-}
-.logo.react:hover {
-  filter: drop-shadow(0 0 2em #61dafbaa);
+.empty-state p {
+  font-size: 16px;
+  margin-bottom: 8px;
 }
 
-@keyframes logo-spin {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
+.shortcut-hint {
+  font-size: 12px !important;
+  opacity: 0.6;
 }
 
-@media (prefers-reduced-motion: no-preference) {
-  a:nth-of-type(2) .logo {
-    animation: logo-spin infinite 20s linear;
-  }
-}
-
-.card {
-  padding: 2em;
-}
-
-.read-the-docs {
-  color: #888;
+/* Mask hint */
+.mask-hint {
+  font-size: 10px;
+  color: var(--mask-hint-color);
+  white-space: nowrap;
+  margin-left: 4px;
 }
