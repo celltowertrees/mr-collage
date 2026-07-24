@@ -91,6 +91,7 @@ export async function saveState(state: CanvasState): Promise<void> {
 
   // Write metadata (without src) to localStorage
   const meta: StoredState = {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     images: state.images.map(({ src: _src, ...rest }) => rest),
     stagePosition: state.stagePosition,
     stageScale: state.stageScale,
