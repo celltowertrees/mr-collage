@@ -13,12 +13,13 @@ The user asked for this as a running bit, and a bit like this only lands if it's
 
 ## The rule
 
-Two things gotta both be true, every time, no exceptions:
+Three things gotta both be true, every time, no exceptions:
 
 1. **Go big on the voice.** This ain't a light seasoning — it's the whole dish. Thick twang, dropped g's (`ridin'`, `wranglin'`, `huntin'`), contractions everywhere (`ain't`, `y'all`, `don't`), western metaphor reachin' into every sentence you can get away with. If you read it back and it sounds like a normal sentence with one cowboy word bolted on, it ain't done yet — go back and rope in more.
 2. **Keep the substance dead honest.** Everything a plain-English version would say — what changed, why, what a reviewer needs to know, the test plan — still has to be sittin' right there in the message. A reader who's never met a cowboy in their life should still walk away knowin' exactly what happened to the code.
+3. **Keep it tight.** Twang ain't an excuse to ramble — a good cowboy don't waste words neither. Subject line still short as ever (one line, no period). Body's a short paragraph or two, not a whole campfire saga: say what changed, say why if it ain't obvious, stop. If a plain version would've been three sentences, the cowboy version's still three sentences, just told with more grit.
 
-If flavor and substance are ever fightin' for space, trim somethin' else — a filler clause, a redundant sentence — don't you dare trim the real content. There's always room for more twang if you tighten up the prose around it.
+If flavor, substance, and brevity are ever fightin' for space, cut flavor first — a metaphor here, a color word there — before you'd ever cut real content or let the thing sprawl on.
 
 ## What stays exactly as-is (don't cowboy-ify these, partner)
 
@@ -41,48 +42,32 @@ Keep it PG, keep the real information legible under all that dust — but don't 
 
 ## Worked example
 
-**Before (the tame, half-hearted version — don't do this):**
+**Plain version (what you'd normally write):**
 
 ```
-Wrangle up a drop shadow that follows the mask's own shape
+Add drop shadow support that follows mask shapes
 
-Rustled up a per-image drop shadow (color, blur, offset, opacity) over
-in the Shadow corner of the toolbar. When a mask's ridin' along, the
-shadow gets cast by an unclipped shape tracin' that very same trail —
-Konva's clipFunc would otherwise lop the shadow clean off if it tried
-drawin' on the clipped node itself — so the shadow's silhouette matches
-the mask (circle, rect, or polygon), not the image's whole spread.
-Unmasked images just get the shadow slapped on direct, followin' its
-own natural shape, no fuss about it.
+Adds a per-image drop shadow via the toolbar. When a mask is applied,
+the shadow is cast by an unclipped shape tracing the mask path, so it
+follows the mask's outline instead of the image's full bounding box.
 
 Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>
 ```
 
-**After (full twang — this is the bar):**
+**Cowboy version (full twang, still just as short):**
 
 ```
-Yeehaw! Wrangled up a drop shadow that rides the mask's own trail
+Yeehaw! Wrangled up a drop shadow that hugs the mask's own trail
 
-Well howdy — rustled up a per-image drop shadow (color, blur, offset,
-opacity, the whole outfit) and hitched it right up in the Shadow
-corner of the toolbar, easy as ropin' a fence post. Here's the tricky
-part, partner: when a mask's ridin' shotgun on an image, the shadow
-don't just slap itself on the image directly — no sir, that'd get it
-lopped clean off at the knees by Konva's clipFunc, quicker than a
-rattlesnake strike, on account of the clip region choppin' up anything
-drawn inside it, shadow included. So instead we cast that shadow off
-an unclipped shape trackin' the exact same trail as the mask — circle,
-rect, or polygon, don't matter which critter you're wranglin' — and
-now the shadow's silhouette hugs the mask like a saddle blanket,
-'stead of stretchin' out to the image's whole dusty spread. Images
-ridin' without a mask don't need none of that fancy ropework — they
-just get the shadow slapped on direct, followin' their own natural
-shape, plain and simple as a Sunday mornin'.
+Rustled up a per-image drop shadow, controlled right from the toolbar.
+When a mask's ridin' along, the shadow's cast off an unclipped shape
+trackin' that same trail, so it hugs the mask's outline 'stead of
+stretchin' out to the image's whole dusty spread.
 
 Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>
 ```
 
-Same information, same trailer untouched — but the second one actually sounds like somebody rode in off the range, not somebody who read a glossary of cowboy words once.
+Same information, same length, same trailer untouched — just told with grit instead of goin' on forever.
 
 For a PR body, same treatment, section by section: `## Summary` stays a header, but the bullets under it read like the example above; `## Test plan` stays a checklist, but every line's got dust on it too — `- [x] Rounded up the whole dang herd of unit tests and every last one of 'em came home` instead of `- [x] Ran the unit test suite — all passing`.
 
