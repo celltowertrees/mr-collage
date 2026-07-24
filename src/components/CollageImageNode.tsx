@@ -1,5 +1,5 @@
 import { useRef, useEffect, useState } from 'react';
-import { Image as KonvaImage, Transformer, Group } from 'react-konva';
+import { Image as KonvaImage, Transformer, Group, Shape } from 'react-konva';
 import Konva from 'konva';
 import { CollageImage, MaskData, Tool } from '../types';
 
@@ -11,26 +11,41 @@ interface Props {
   onChange: (changes: Partial<CollageImage>) => void;
 }
 
+function tracePath(ctx: Konva.Context, mask: MaskData) {
+  ctx.beginPath();
+  switch (mask.type) {
+    case 'circle':
+      ctx.arc(mask.cx, mask.cy, mask.radius, 0, Math.PI * 2);
+      break;
+    case 'rect':
+      ctx.rect(mask.x, mask.y, mask.width, mask.height);
+      break;
+    case 'polygon':
+      if (mask.points.length < 3) return false;
+      ctx.moveTo(mask.points[0].x, mask.points[0].y);
+      for (let i = 1; i < mask.points.length; i++) {
+        ctx.lineTo(mask.points[i].x, mask.points[i].y);
+      }
+      ctx.closePath();
+      break;
+  }
+  return true;
+}
+
 function buildClipFunc(mask: MaskData) {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  return (ctx: any) => {
-    ctx.beginPath();
-    switch (mask.type) {
-      case 'circle':
-        ctx.arc(mask.cx, mask.cy, mask.radius, 0, Math.PI * 2);
-        break;
-      case 'rect':
-        ctx.rect(mask.x, mask.y, mask.width, mask.height);
-        break;
-      case 'polygon':
-        if (mask.points.length < 3) return;
-        ctx.moveTo(mask.points[0].x, mask.points[0].y);
-        for (let i = 1; i < mask.points.length; i++) {
-          ctx.lineTo(mask.points[i].x, mask.points[i].y);
-        }
-        ctx.closePath();
-        break;
-    }
+  return (ctx: Konva.Context) => {
+    tracePath(ctx, mask);
+  };
+}
+
+// Draws a solid, unclipped fill of the mask shape so its native canvas shadow
+// (which must extend past the mask outline) isn't cut off by the image's own
+// clip region. The masked image is drawn on top and exactly covers the fill,
+// leaving only the shadow visible around the masked silhouette.
+function buildMaskShadowSceneFunc(mask: MaskData) {
+  return (ctx: Konva.Context, shape: Konva.Shape) => {
+    if (tracePath(ctx, mask) === false) return;
+    ctx.fillStrokeShape(shape);
   };
 }
 
@@ -58,17 +73,41 @@ export function CollageImageNode({ image, isSelected, tool, onSelect, onChange }
   const isMaskTool = tool.startsWith('mask-');
   const isSelectable = tool === 'select' || isMaskTool;
 
+  const shadow = image.shadow;
+  const shadowActive = shadow?.enabled ?? false;
+
+  const transform = {
+    x: image.x,
+    y: image.y,
+    offsetX: image.width / 2,
+    offsetY: image.height / 2,
+    scaleX: image.scaleX,
+    scaleY: image.scaleY,
+    rotation: image.rotation,
+  };
+
   return (
     <>
+      {shadowActive && image.mask && shadow && (
+        <Group {...transform} listening={false}>
+          <Shape
+            width={image.width}
+            height={image.height}
+            fill="black"
+            sceneFunc={buildMaskShadowSceneFunc(image.mask)}
+            shadowEnabled
+            shadowColor={shadow.color}
+            shadowBlur={shadow.blur}
+            shadowOffsetX={shadow.offsetX}
+            shadowOffsetY={shadow.offsetY}
+            shadowOpacity={shadow.opacity}
+            perfectDrawEnabled={false}
+          />
+        </Group>
+      )}
       <Group
         ref={groupRef}
-        x={image.x}
-        y={image.y}
-        offsetX={image.width / 2}
-        offsetY={image.height / 2}
-        scaleX={image.scaleX}
-        scaleY={image.scaleY}
-        rotation={image.rotation}
+        {...transform}
         draggable={tool === 'select'}
         onClick={onSelect}
         onTap={onSelect}
@@ -94,6 +133,12 @@ export function CollageImageNode({ image, isSelected, tool, onSelect, onChange }
           width={image.width}
           height={image.height}
           opacity={image.opacity}
+          shadowEnabled={shadowActive && !image.mask}
+          shadowColor={shadow?.color}
+          shadowBlur={shadow?.blur}
+          shadowOffsetX={shadow?.offsetX}
+          shadowOffsetY={shadow?.offsetY}
+          shadowOpacity={shadow?.opacity}
         />
       </Group>
       {isSelected && isSelectable && (

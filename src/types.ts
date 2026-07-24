@@ -20,6 +20,15 @@ export interface PolygonMask {
 
 export type MaskData = CircleMask | RectMask | PolygonMask;
 
+export interface ShadowData {
+  enabled: boolean;
+  color: string;
+  blur: number;
+  offsetX: number;
+  offsetY: number;
+  opacity: number;
+}
+
 export interface CollageImage {
   id: string;
   src: string;
@@ -34,6 +43,7 @@ export interface CollageImage {
   zIndex: number;
   name: string;
   mask?: MaskData;
+  shadow?: ShadowData;
 }
 
 export interface CanvasState {
