@@ -20,6 +20,10 @@ async function imageCount(page: Page) {
   return (await readState(page)).images?.length ?? 0;
 }
 
+async function firstImageOpacity(page: Page) {
+  return (await readState(page)).images?.[0]?.opacity;
+}
+
 test.beforeEach(async ({ page }) => {
   await page.goto('/');
   await page.evaluate(() => localStorage.clear());
@@ -84,7 +88,7 @@ test.describe('Undo/Redo History', () => {
 
   test('rapid, continuous slider edits coalesce into a single undo step', async ({ page }) => {
     await uploadFixtureImage(page);
-    await expect.poll(async () => (await readState(page)).images[0].opacity).toBe(1);
+    await expect.poll(() => firstImageOpacity(page)).toBe(1);
 
     // Simulate dragging the opacity slider through several intermediate
     // values in quick succession, like a real drag would fire.
@@ -92,10 +96,10 @@ test.describe('Undo/Redo History', () => {
     await opacity.fill('0.8');
     await opacity.fill('0.6');
     await opacity.fill('0.4');
-    await expect.poll(async () => (await readState(page)).images[0].opacity).toBeCloseTo(0.4);
+    await expect.poll(() => firstImageOpacity(page)).toBeCloseTo(0.4);
 
     // One undo reverts the entire drag, not one intermediate value at a time.
     await page.keyboard.press('Control+z');
-    await expect.poll(async () => (await readState(page)).images[0].opacity).toBe(1);
+    await expect.poll(() => firstImageOpacity(page)).toBe(1);
   });
 });
