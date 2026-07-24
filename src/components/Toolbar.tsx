@@ -1,4 +1,13 @@
-import { CollageImage, Tool } from '../types';
+import { CollageImage, ShadowData, Tool } from '../types';
+
+const DEFAULT_SHADOW: ShadowData = {
+  enabled: true,
+  color: '#000000',
+  blur: 12,
+  offsetX: 6,
+  offsetY: 6,
+  opacity: 0.5,
+};
 
 interface ToolbarProps {
   tool: Tool;
@@ -30,6 +39,22 @@ export function Toolbar({
   onExportJSON,
 }: ToolbarProps) {
   const isMaskTool = tool.startsWith('mask-');
+
+  const shadow = selectedImage?.shadow;
+
+  const toggleShadow = () => {
+    if (!selectedImage) return;
+    const current = selectedImage.shadow;
+    onUpdateImage(selectedImage.id, {
+      shadow: { ...(current ?? DEFAULT_SHADOW), enabled: !current?.enabled },
+    });
+  };
+
+  const updateShadow = (changes: Partial<ShadowData>) => {
+    if (!selectedImage) return;
+    const current = selectedImage.shadow ?? DEFAULT_SHADOW;
+    onUpdateImage(selectedImage.id, { shadow: { ...current, ...changes } });
+  };
 
   return (
     <div className="toolbar">
@@ -185,6 +210,80 @@ export function Toolbar({
                   ? 'Click to add points, double-click to finish'
                   : 'Click and drag to draw mask'}
               </span>
+            )}
+          </div>
+
+          <div className="toolbar-section">
+            <span className="toolbar-label">Shadow</span>
+            <button
+              className={`toolbar-btn ${shadow?.enabled ? 'active' : ''}`}
+              onClick={toggleShadow}
+              title={shadow?.enabled ? 'Disable Drop Shadow' : 'Enable Drop Shadow'}
+            >
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                <rect x="2" y="2" width="9" height="9" rx="1.5" fill="currentColor" />
+                <rect x="5" y="5" width="9" height="9" rx="1.5" fill="currentColor" opacity="0.35" />
+              </svg>
+            </button>
+            {shadow?.enabled && (
+              <>
+                <label className="toolbar-field">
+                  <span>Color</span>
+                  <input
+                    type="color"
+                    value={shadow.color}
+                    onChange={(e) => updateShadow({ color: e.target.value })}
+                  />
+                </label>
+                <label className="toolbar-field">
+                  <span>Blur</span>
+                  <input
+                    type="range"
+                    min="0"
+                    max="60"
+                    step="1"
+                    value={shadow.blur}
+                    onChange={(e) => updateShadow({ blur: parseFloat(e.target.value) })}
+                  />
+                  <span className="toolbar-value">{Math.round(shadow.blur)}</span>
+                </label>
+                <label className="toolbar-field">
+                  <span>Offset X</span>
+                  <input
+                    type="range"
+                    min="-50"
+                    max="50"
+                    step="1"
+                    value={shadow.offsetX}
+                    onChange={(e) => updateShadow({ offsetX: parseFloat(e.target.value) })}
+                  />
+                  <span className="toolbar-value">{Math.round(shadow.offsetX)}</span>
+                </label>
+                <label className="toolbar-field">
+                  <span>Offset Y</span>
+                  <input
+                    type="range"
+                    min="-50"
+                    max="50"
+                    step="1"
+                    value={shadow.offsetY}
+                    onChange={(e) => updateShadow({ offsetY: parseFloat(e.target.value) })}
+                  />
+                  <span className="toolbar-value">{Math.round(shadow.offsetY)}</span>
+                </label>
+                <label className="toolbar-field">
+                  <span>Opacity</span>
+                  <input
+                    type="range"
+                    min="0"
+                    max="1"
+                    step="0.05"
+                    value={shadow.opacity}
+                    onChange={(e) => updateShadow({ opacity: parseFloat(e.target.value) })}
+                  />
+                  <span className="toolbar-value">{Math.round(shadow.opacity * 100)}%</span>
+                </label>
+              </>
             )}
           </div>
         </>

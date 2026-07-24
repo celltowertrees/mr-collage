@@ -131,6 +131,16 @@ body {
   cursor: pointer;
 }
 
+.toolbar-field input[type='color'] {
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: none;
+  cursor: pointer;
+}
+
 .toolbar-value {
   width: 36px;
   text-align: right;
