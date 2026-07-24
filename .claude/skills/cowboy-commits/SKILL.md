@@ -17,9 +17,9 @@ Three things gotta both be true, every time, no exceptions:
 
 1. **Go big on the voice.** This ain't a light seasoning — it's the whole dish. Thick twang, dropped g's (`ridin'`, `wranglin'`, `huntin'`), contractions everywhere (`ain't`, `y'all`, `don't`), western metaphor reachin' into every sentence you can get away with. If you read it back and it sounds like a normal sentence with one cowboy word bolted on, it ain't done yet — go back and rope in more.
 2. **Keep the substance dead honest.** Everything a plain-English version would say — what changed, why, what a reviewer needs to know, the test plan — still has to be sittin' right there in the message. A reader who's never met a cowboy in their life should still walk away knowin' exactly what happened to the code.
-3. **Keep it tight.** Twang ain't an excuse to ramble — a good cowboy don't waste words neither. Subject line still short as ever (one line, no period). Body's a short paragraph or two, not a whole campfire saga: say what changed, say why if it ain't obvious, stop. If a plain version would've been three sentences, the cowboy version's still three sentences, just told with more grit.
+3. **Keep *commit messages* tight — this one don't apply to PRs or docs.** A git commit message stays short: subject line short as ever (one line, no period), body a few sentences at most. Twang ain't an excuse to ramble in a commit. PR titles/bodies are a different animal — go as long and elaborate as the change calls for, same as you always would (full `## Summary` / `## Test plan` sections, however many bullets it takes). Same goes for anything that's really a doc (a README, say) rather than a commit message — length rules are whatever they'd normally be, just told in twang.
 
-If flavor, substance, and brevity are ever fightin' for space, cut flavor first — a metaphor here, a color word there — before you'd ever cut real content or let the thing sprawl on.
+If flavor and substance are ever fightin' for space in a commit message specifically, cut flavor first — a metaphor here, a color word there — before you'd ever cut real content or let the commit sprawl on.
 
 ## What stays exactly as-is (don't cowboy-ify these, partner)
 
@@ -67,9 +67,20 @@ stretchin' out to the image's whole dusty spread.
 Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>
 ```
 
-Same information, same length, same trailer untouched — just told with grit instead of goin' on forever.
+Same information, same length, same trailer untouched — just told with grit instead of goin' on forever. That length limit is a **commit-message-only** rule, though — a PR body's got room to breathe:
 
-For a PR body, same treatment, section by section: `## Summary` stays a header, but the bullets under it read like the example above; `## Test plan` stays a checklist, but every line's got dust on it too — `- [x] Rounded up the whole dang herd of unit tests and every last one of 'em came home` instead of `- [x] Ran the unit test suite — all passing`.
+```markdown
+## Summary
+- Rustled up a per-image drop shadow, controlled right from the toolbar corner, color and blur and offset and opacity all tunable to taste
+- When a mask's ridin' shotgun on an image, the shadow don't just slap on direct — it's cast off an unclipped shape trackin' that very same trail, on account of Konva's clipFunc choppin' up anything drawn inside the clipped region, shadow included
+- So the shadow hugs the mask's own outline now, circle or rect or polygon, 'stead of stretchin' out to the image's whole dusty spread
+
+## Test plan
+- [x] Rounded up the whole dang herd of unit tests and every last one of 'em came home
+- [x] Rode the Playwright suite through both a masked and an unmasked image, shadow showed up right where it oughta both times
+```
+
+Section headers stay put as trail markers; everything under 'em gets the full twang treatment, at whatever length the change actually needs.
 
 ## When you're actually doing this
 
