@@ -8,5 +8,8 @@ export default defineConfig({
   test: {
     environment: 'jsdom',
     globals: true,
+    // Playwright owns e2e/**/*.spec.ts — keep Vitest scoped to unit tests
+    // under src/ so it doesn't try to run (or fail on) Playwright specs.
+    include: ['src/**/*.{test,spec}.{ts,tsx}'],
   },
 })
