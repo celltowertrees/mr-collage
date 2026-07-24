@@ -1,6 +1,6 @@
 ---
 name: log-feature-request
-description: Use this skill whenever the user asks Claude to build, add, fix, or change how this codebase behaves — phrases like "I'd like to be able to...", "add a feature", "I want to add", "can we build", "it would be great if", "can you make it so", "fix it so that", or any request that adds or changes observable, testable behavior (new UI capability, storage/persistence changes, architecture changes with user-visible effects). Logs the request as a standardized changelog entry in CLAUDE.md once the work is implemented, so CLAUDE.md stays a running record of the app's testable surface area — what it does, why, and where to look — for writing tests against later.
+description: Use this skill whenever the user asks Claude to build, add, fix, or change how this codebase behaves — phrases like "I'd like to be able to...", "add a feature", "I want to add", "can we build", "it would be great if", "can you make it so", "fix it so that", or any request that adds or changes observable, testable behavior (new UI capability, storage/persistence changes, architecture changes with user-visible effects). Drafts Gherkin scenarios for the request and writes a real failing test from them (Vitest or Playwright, whichever fits) BEFORE the feature itself is implemented, then logs the request as a standardized CLAUDE.md changelog entry once the feature is done and the test passes — so CLAUDE.md stays a running record of the app's testable surface area, and every entry is backed by a real test from day one instead of a test written later.
 ---
 
 # Log Feature Request
@@ -26,12 +26,21 @@ Skip things that have no behavior of their own to test:
 
 If you're unsure whether something counts, err toward logging it — a short unnecessary entry costs little, but a missing one loses history and leaves behavior undocumented for future tests.
 
-## Workflow
+## Workflow: test-first, not test-eventually
 
-1. **At request time**, note today's date (from the `currentDate` context if available, otherwise ask or infer) and a one-line summary of what the user asked for. Don't write to CLAUDE.md yet — you don't know the implementation details until the work is done.
-2. **Do the feature work as normal** — plan, implement, verify.
-3. **Once the feature is complete**, append an entry to the `## Features` section of `CLAUDE.md` (create the file and section if they don't exist yet — see template below) describing the resulting behavior as Gherkin scenarios. Not a design doc — just enough that someone (or a future test) can read the scenarios and know exactly what to check.
-4. Mention to the user that you've logged it, in passing (one short clause is enough — don't make a big deal of it).
+This is the part that makes the changelog worth more than a wiki page: the test for a new scenario gets written — and confirmed failing — **before** the feature exists, not backfilled after. That's the difference between "documented so tests could theoretically be written later" and "every entry in CLAUDE.md is already backed by a real, currently-green test." Skipping straight to implementation and writing the test after is the one thing this skill exists to prevent.
+
+1. **At request time**, note today's date (from the `currentDate` context if available, otherwise ask or infer), a one-line summary of what the user asked for, and draft the Gherkin `Scenario`s for the behavior being requested — the happy path plus any obvious edge cases. This is the same Gherkin that'll eventually go in CLAUDE.md; writing it now, before any code, is what turns it into a real spec instead of a retroactive description.
+2. **Turn those scenarios into a real test, before touching the feature code.** Pick the right layer:
+   - Pure logic — no rendering, no DOM, no canvas (data transforms, storage, exports) → a Vitest test under `src/__tests__/*.test.ts`, following the pattern in `src/__tests__/store.test.ts`.
+   - Anything involving Konva rendering, canvas pixels, or toolbar/UI interaction → a Playwright spec under `e2e/*.spec.ts`, following the patterns in `e2e/masking.spec.ts` and `e2e/drop-shadow.spec.ts` (pixel sampling for visual behavior, `expect.poll` after interactions that write to state asynchronously, etc.).
+   Each Gherkin `Scenario` should map to one test case (or one clear assertion within a test) — don't write vaguer tests than the scenarios already describe.
+3. **Run the new test and confirm it fails.** A failing test is the checkpoint that proves the test actually exercises the not-yet-built behavior, rather than trivially passing against nothing. If it passes before the feature exists, the test isn't testing the right thing — fix the test, not the "problem."
+4. **Now implement the feature** — plan, implement, iterate — until the new test(s) pass, and the full existing suite (`npm test`, `npm run test:e2e`) still passes too.
+5. **Once everything's green**, append an entry to the `## Features` section of `CLAUDE.md` (create the file and section if they don't exist yet — see template below) using the same Gherkin scenarios from step 1 (adjust only if implementation revealed the scenario itself was wrong, not just to describe mechanics), plus a pointer to the test file(s) that cover it.
+6. Mention to the user, in passing, that you've logged it and where the test lives (one short clause — don't make a big deal of it).
+
+If a scenario is genuinely impossible to pin down before any code exists — some exploratory spike is needed to even know what the right behavior is — it's fine to prototype first, but write the test the moment the behavior is clear and confirm it fails before finishing the implementation. That should be the rare exception, not the default.
 
 ## CLAUDE.md structure
 
@@ -45,7 +54,7 @@ If `CLAUDE.md` doesn't exist yet, create it with at least this section (other se
 
 ## Entry format
 
-Append each new entry to the end of the `## Features` section using this exact template. The implementation is written as **Gherkin** (`Feature` / `Scenario` / `Given`/`When`/`Then`) instead of prose — the point is that each entry doubles as a spec someone can turn directly into an automated test later, so describe *behavior* (inputs, actions, observable outcomes), not internal mechanics.
+Append each new entry to the end of the `## Features` section using this exact template. The implementation is written as **Gherkin** (`Feature` / `Scenario` / `Given`/`When`/`Then`) instead of prose — because by the time you're logging it, these scenarios are already the real spec a real test was written from (see the workflow above), not a description written after the fact. Describe *behavior* (inputs, actions, observable outcomes), not internal mechanics.
 
 ````markdown
 ### <Feature Title>
@@ -54,7 +63,7 @@ Append each new entry to the end of the `## Features` section using this exact t
 
 ```gherkin
 Feature: <Feature Title>
-  # <key files/components touched, comma-separated — a Gherkin comment>
+  # <key source files touched> — tested in <test file(s), e.g. src/__tests__/foo.test.ts or e2e/foo.spec.ts>
 
   Scenario: <short description of one behavior>
     Given <starting state>
@@ -68,7 +77,7 @@ Feature: <Feature Title>
 ```
 ````
 
-Cover the feature's distinct behaviors as separate `Scenario`s — the happy path, plus meaningful edge cases or failure modes (e.g. "mask present" vs "no mask", "storage succeeds" vs "blob is missing on load"). Two to four scenarios is typical; don't force scenarios that don't exist just to pad the list, and don't describe implementation details (function names, data structures) inside `Given`/`When`/`Then` — those belong in the file-pointer comment, not the behavior spec.
+Cover the feature's distinct behaviors as separate `Scenario`s — the happy path, plus meaningful edge cases or failure modes (e.g. "mask present" vs "no mask", "storage succeeds" vs "blob is missing on load"). Two to four scenarios is typical; don't force scenarios that don't exist just to pad the list, and don't describe implementation details (function names, data structures) inside `Given`/`When`/`Then` — those belong in the file-pointer comment, not the behavior spec. Every scenario listed here should correspond to a passing test — if you find yourself writing a scenario with no test behind it, go write that test before finishing up.
 
 **Example:**
 
@@ -79,7 +88,7 @@ Cover the feature's distinct behaviors as separate `Scenario`s — the happy pat
 
 ```gherkin
 Feature: Drop Shadow on Masked Objects
-  # src/types.ts, src/components/CollageImageNode.tsx, src/components/Toolbar.tsx, src/store.ts
+  # src/types.ts, src/components/CollageImageNode.tsx, src/components/Toolbar.tsx, src/store.ts — tested in e2e/drop-shadow.spec.ts
 
   Scenario: Shadow on an unmasked image
     Given an image has no mask applied
