@@ -24,6 +24,10 @@ function App() {
     bringToFront,
     sendToBack,
     duplicateImage,
+    undo,
+    redo,
+    canUndo,
+    canRedo,
   } = useCollage();
 
   const stageRef = useRef<Konva.Stage>(null);
@@ -82,6 +86,17 @@ function App() {
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Undo/redo bypasses the input-element guard below: this app has no
+      // freeform text fields, so there's no native text-undo to conflict
+      // with, and sliders/color pickers keep focus after a drag — the most
+      // common moment a user reaches for Ctrl+Z.
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
+        e.preventDefault();
+        if (e.shiftKey) redo();
+        else undo();
+        return;
+      }
+
       if (e.target instanceof HTMLInputElement) return;
 
       if (e.key === 'v' || e.key === 'V') setTool('select');
@@ -107,7 +122,7 @@ function App() {
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
     };
-  }, [selectedId, deleteImage, setTool]);
+  }, [selectedId, deleteImage, setTool, undo, redo]);
 
   useEffect(() => {
     const handleResize = () => {
@@ -136,6 +151,10 @@ function App() {
         onUpload={handleUploadClick}
         onUpdateImage={updateImage}
         onDelete={deleteImage}
+        onUndo={undo}
+        onRedo={redo}
+        canUndo={canUndo}
+        canRedo={canRedo}
         onBringToFront={bringToFront}
         onSendToBack={sendToBack}
         onDuplicate={duplicateImage}
