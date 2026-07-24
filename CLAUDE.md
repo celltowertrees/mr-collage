@@ -139,3 +139,37 @@ Feature: Drop Shadow on Masked Objects
     When the user exports the collage as ICP JSON
     Then the image's shadow settings are included in the exported data
 ```
+
+### Undo/Redo History
+- **Requested:** 2026-07-24
+- **Ask:** Add a history management system so changes can be undone with Ctrl+Z.
+
+```gherkin
+Feature: Undo/Redo History
+  # src/hooks/useHistory.ts, src/hooks/useCollage.ts, src/App.tsx, src/components/Toolbar.tsx — tested in src/__tests__/history.test.ts, e2e/history.spec.ts
+
+  Scenario: Undo reverts the most recent change
+    Given the collage has just been changed (e.g. an image was added, moved, or deleted)
+    When the user presses Ctrl+Z (or Cmd+Z)
+    Then the canvas returns to its state before that change
+
+  Scenario: Redo reapplies an undone change
+    Given a change was just undone
+    When the user presses Ctrl+Shift+Z (or Cmd+Shift+Z)
+    Then the canvas returns to the state it was in before the undo
+
+  Scenario: Making a new change after an undo clears the redo history
+    Given a change was just undone
+    When the user makes a new change instead of redoing
+    Then the previously undone change can no longer be redone
+
+  Scenario: Undo/redo is a no-op when there is nothing to undo/redo
+    Given no changes have been made (or all changes have already been undone)
+    When the user presses Ctrl+Z
+    Then the canvas is unaffected and nothing throws
+
+  Scenario: Rapid, continuous edits coalesce into a single undo step
+    Given the user is continuously adjusting a value (like an opacity or shadow slider)
+    When the user presses Ctrl+Z once after finishing the adjustment
+    Then the whole adjustment is undone in one step, not one step per intermediate value
+```

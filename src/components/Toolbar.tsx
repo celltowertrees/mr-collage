@@ -14,8 +14,16 @@ interface ToolbarProps {
   selectedImage: CollageImage | null;
   onToolChange: (tool: Tool) => void;
   onUpload: () => void;
-  onUpdateImage: (id: string, changes: Partial<CollageImage>) => void;
+  onUpdateImage: (
+    id: string,
+    changes: Partial<CollageImage>,
+    options?: { coalesce?: boolean }
+  ) => void;
   onDelete: (id: string) => void;
+  onUndo: () => void;
+  onRedo: () => void;
+  canUndo: boolean;
+  canRedo: boolean;
   onBringToFront: (id: string) => void;
   onSendToBack: (id: string) => void;
   onDuplicate: (id: string) => void;
@@ -31,6 +39,10 @@ export function Toolbar({
   onUpload,
   onUpdateImage,
   onDelete,
+  onUndo,
+  onRedo,
+  canUndo,
+  canRedo,
   onBringToFront,
   onSendToBack,
   onDuplicate,
@@ -53,7 +65,11 @@ export function Toolbar({
   const updateShadow = (changes: Partial<ShadowData>) => {
     if (!selectedImage) return;
     const current = selectedImage.shadow ?? DEFAULT_SHADOW;
-    onUpdateImage(selectedImage.id, { shadow: { ...current, ...changes } });
+    onUpdateImage(
+      selectedImage.id,
+      { shadow: { ...current, ...changes } },
+      { coalesce: true }
+    );
   };
 
   return (
@@ -84,6 +100,27 @@ export function Toolbar({
             <path d="M8 1L4 5h3v5h2V5h3L8 1zM2 12v2h12v-2H2z" />
           </svg>
         </button>
+        <div className="toolbar-divider" />
+        <button
+          className="toolbar-btn"
+          onClick={onUndo}
+          disabled={!canUndo}
+          title="Undo (Ctrl+Z)"
+        >
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+            <path d="M4 3L1 6l3 3V7c3.3 0 6 1.8 6 5-1-2.5-3-3.5-6-3.5V10L1 6z" />
+          </svg>
+        </button>
+        <button
+          className="toolbar-btn"
+          onClick={onRedo}
+          disabled={!canRedo}
+          title="Redo (Ctrl+Shift+Z)"
+        >
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+            <path d="M12 3l3 3-3 3V7c-3.3 0-6 1.8-6 5 1-2.5 3-3.5 6-3.5V10l3-4z" />
+          </svg>
+        </button>
       </div>
 
       {selectedImage && (
@@ -100,7 +137,11 @@ export function Toolbar({
                 step="0.05"
                 value={selectedImage.opacity}
                 onChange={(e) =>
-                  onUpdateImage(selectedImage.id, { opacity: parseFloat(e.target.value) })
+                  onUpdateImage(
+                    selectedImage.id,
+                    { opacity: parseFloat(e.target.value) },
+                    { coalesce: true }
+                  )
                 }
               />
               <span className="toolbar-value">{Math.round(selectedImage.opacity * 100)}%</span>
@@ -115,7 +156,11 @@ export function Toolbar({
                 step="1"
                 value={selectedImage.rotation}
                 onChange={(e) =>
-                  onUpdateImage(selectedImage.id, { rotation: parseFloat(e.target.value) })
+                  onUpdateImage(
+                    selectedImage.id,
+                    { rotation: parseFloat(e.target.value) },
+                    { coalesce: true }
+                  )
                 }
               />
               <span className="toolbar-value">{Math.round(selectedImage.rotation)}&deg;</span>

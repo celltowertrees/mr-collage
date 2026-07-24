@@ -2,9 +2,18 @@ import { useState, useCallback, useEffect, useRef } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { CollageImage, CanvasState, Tool } from '../types';
 import { saveState, loadState } from '../store';
+import { useHistory } from './useHistory';
 
 export function useCollage() {
-  const [images, setImages] = useState<CollageImage[]>([]);
+  const {
+    present: images,
+    set: setImages,
+    undo,
+    redo,
+    reset: resetImages,
+    canUndo,
+    canRedo,
+  } = useHistory<CollageImage[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [tool, setTool] = useState<Tool>('select');
   const [stagePosition, setStagePosition] = useState({ x: 0, y: 0 });
@@ -15,7 +24,7 @@ export function useCollage() {
   useEffect(() => {
     loadState().then((saved) => {
       if (saved) {
-        setImages(saved.images);
+        resetImages(saved.images);
         setStagePosition(saved.stagePosition);
         setStageScale(saved.stageScale);
         const maxZ = saved.images.reduce((max, img) => Math.max(max, img.zIndex), 0);
@@ -24,7 +33,7 @@ export function useCollage() {
       // Only allow saving after load completes
       initialized.current = true;
     });
-  }, []);
+  }, [resetImages]);
 
   useEffect(() => {
     if (!initialized.current) return;
@@ -52,29 +61,35 @@ export function useCollage() {
     };
     setImages((prev) => [...prev, img]);
     setSelectedId(id);
-  }, [stagePosition, stageScale]);
+  }, [stagePosition, stageScale, setImages]);
 
-  const updateImage = useCallback((id: string, changes: Partial<CollageImage>) => {
-    setImages((prev) => prev.map((img) => (img.id === id ? { ...img, ...changes } : img)));
-  }, []);
+  const updateImage = useCallback(
+    (id: string, changes: Partial<CollageImage>, options?: { coalesce?: boolean }) => {
+      setImages(
+        (prev) => prev.map((img) => (img.id === id ? { ...img, ...changes } : img)),
+        options
+      );
+    },
+    [setImages]
+  );
 
   const deleteImage = useCallback((id: string) => {
     setImages((prev) => prev.filter((img) => img.id !== id));
     setSelectedId((prev) => (prev === id ? null : prev));
-  }, []);
+  }, [setImages]);
 
   const bringToFront = useCallback((id: string) => {
     setImages((prev) =>
       prev.map((img) => (img.id === id ? { ...img, zIndex: nextZIndex.current++ } : img))
     );
-  }, []);
+  }, [setImages]);
 
   const sendToBack = useCallback((id: string) => {
     setImages((prev) => {
       const minZ = prev.reduce((min, img) => Math.min(min, img.zIndex), Infinity);
       return prev.map((img) => (img.id === id ? { ...img, zIndex: minZ - 1 } : img));
     });
-  }, []);
+  }, [setImages]);
 
   const duplicateImage = useCallback((id: string) => {
     setImages((prev) => {
@@ -90,7 +105,7 @@ export function useCollage() {
       setSelectedId(newImg.id);
       return [...prev, newImg];
     });
-  }, []);
+  }, [setImages]);
 
   return {
     images,
@@ -109,5 +124,9 @@ export function useCollage() {
     bringToFront,
     sendToBack,
     duplicateImage,
+    undo,
+    redo,
+    canUndo,
+    canRedo,
   };
 }
