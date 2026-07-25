@@ -146,6 +146,7 @@ export function exportToICP(images: CollageImage[]): object {
           ...(img.mask ? { mask: img.mask } : {}),
           ...(img.shadow?.enabled ? { shadow: img.shadow } : {}),
           ...(img.blendMode ? { blendMode: img.blendMode } : {}),
+          ...(img.crop ? { crop: img.crop } : {}),
         },
       })),
     },

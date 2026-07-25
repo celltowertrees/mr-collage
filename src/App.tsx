@@ -4,6 +4,8 @@ import { Canvas } from './components/Canvas';
 import { Toolbar } from './components/Toolbar';
 import { useCollage } from './hooks/useCollage';
 import { useImageLoader } from './hooks/useImageLoader';
+import { useCropDrawer } from './hooks/useCropDrawer';
+import { localToStage } from './utils/geometry';
 import { exportToICP } from './store';
 import './App.css';
 
@@ -36,6 +38,33 @@ function App() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { loadFromFiles, loadFromClipboard } = useImageLoader(addImage);
+
+  const selectedImage = selectedIds.length === 1 ? images.find((img) => img.id === selectedIds[0]) ?? null : null;
+
+  const cropDrawer = useCropDrawer({
+    active: tool === 'crop',
+    targetImage: selectedImage,
+    stageRef,
+  });
+
+  const applyCrop = useCallback(() => {
+    if (!selectedImage || !cropDrawer.committedRect) return;
+    const rect = cropDrawer.committedRect;
+    const prevCrop = selectedImage.crop ?? { x: 0, y: 0, width: selectedImage.width, height: selectedImage.height };
+    const center = localToStage(rect.x + rect.width / 2, rect.y + rect.height / 2, selectedImage);
+    updateImage(selectedImage.id, {
+      x: center.x,
+      y: center.y,
+      width: rect.width,
+      height: rect.height,
+      crop: { x: prevCrop.x + rect.x, y: prevCrop.y + rect.y, width: rect.width, height: rect.height },
+    });
+    setTool('select');
+  }, [selectedImage, cropDrawer.committedRect, updateImage, setTool]);
+
+  const cancelCrop = useCallback(() => {
+    setTool('select');
+  }, [setTool]);
 
   const handleUploadClick = useCallback(() => {
     fileInputRef.current?.click();
@@ -163,8 +192,6 @@ function App() {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  const selectedImage = selectedIds.length === 1 ? images.find((img) => img.id === selectedIds[0]) ?? null : null;
-
   const handleClearMask = useCallback(
     (id: string) => {
       updateImage(id, { mask: undefined });
@@ -201,6 +228,9 @@ function App() {
         onClearMask={handleClearMask}
         onExportJPEG={handleExportJPEG}
         onExportJSON={handleExportJSON}
+        hasPendingCrop={cropDrawer.committedRect !== null}
+        onApplyCrop={applyCrop}
+        onCancelCrop={cancelCrop}
       />
       <Canvas
         images={images}
@@ -216,6 +246,10 @@ function App() {
         onDrop={loadFromFiles}
         onPaste={loadFromClipboard}
         stageRef={stageRef}
+        onCropMouseDown={cropDrawer.handleMouseDown}
+        onCropMouseMove={cropDrawer.handleMouseMove}
+        onCropMouseUp={cropDrawer.handleMouseUp}
+        cropPreviewRect={cropDrawer.getPreviewRect()}
       />
       <input
         ref={fileInputRef}

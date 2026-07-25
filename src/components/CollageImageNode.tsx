@@ -73,7 +73,8 @@ export function CollageImageNode({ image, isSelected, tool, onSelect, onChange, 
   if (!img) return null;
 
   const isMaskTool = tool.startsWith('mask-');
-  const isSelectable = tool === 'select' || isMaskTool;
+  const isCropTool = tool === 'crop';
+  const isSelectable = tool === 'select' || isMaskTool || isCropTool;
 
   const shadow = image.shadow;
   const shadowActive = shadow?.enabled ?? false;
@@ -138,6 +139,7 @@ export function CollageImageNode({ image, isSelected, tool, onSelect, onChange, 
           image={img}
           width={image.width}
           height={image.height}
+          crop={image.crop}
           opacity={image.opacity}
           globalCompositeOperation={image.blendMode ?? 'source-over'}
           shadowEnabled={shadowActive && !image.mask}
@@ -153,8 +155,8 @@ export function CollageImageNode({ image, isSelected, tool, onSelect, onChange, 
           ref={trRef}
           rotateEnabled={true}
           enabledAnchors={
-            isMaskTool
-              ? [] // disable resizing while in mask drawing mode
+            isMaskTool || isCropTool
+              ? [] // disable resizing while in mask/crop drawing mode
               : [
                   'top-left',
                   'top-right',
