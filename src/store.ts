@@ -1,4 +1,4 @@
-import { CanvasState, CollageImage } from './types';
+import { CanvasState, CollageImage, MaskData } from './types';
 
 const STORAGE_KEY = 'mr-collage-state';
 const DB_NAME = 'mr-collage-db';
@@ -151,4 +151,206 @@ export function exportToICP(images: CollageImage[]): object {
       })),
     },
   };
+}
+
+// ── Static HTML Export ──
+// Renders the current viewport (pan + zoom) as absolutely-positioned <div>s
+// instead of a canvas, so the output is a plain, portable HTML file.
+//
+// PARITY CONTRACT: this is a second, independent implementation of how a
+// CollageImage looks — Konva (CollageImageNode.tsx) renders the same data
+// through Canvas 2D, this file renders it through CSS. The two engines don't
+// share code and don't share transform/filter semantics, so nothing keeps
+// them in sync automatically. Whenever CollageImageNode.tsx changes how a
+// visual property is drawn, or a new one is added, the equivalent here needs
+// a matching update — verify against the *canvas's actual behavior*, not
+// just intuition (that's how the shadow-scaling bug below happened: CSS
+// drop-shadow's offset/blur are in the element's own pre-transform space,
+// but Canvas 2D draws shadows through the full transform matrix, so a
+// resized image's shadow grows with it on canvas but silently didn't here
+// until it was scaled by hand). Add a Vitest case in
+// exportToStaticHTML.test.ts pinning the exact expected CSS for anything new
+// — a full pixel-diff between the two renderers was tried and abandoned
+// because CSS `filter` doesn't survive the DOM->canvas rasterization needed
+// to sample HTML pixels for comparison (confirmed empirically: a live
+// drop-shadow renders fine on screen but produces zero shadow pixels once
+// piped through an SVG foreignObject -> canvas, which is the only way to
+// read pixel values back out of rendered HTML), so per-property unit tests
+// pinned to verified canvas behavior are the real safety net here, not an
+// automated visual diff.
+
+export interface ExportViewport {
+  x: number;
+  y: number;
+  scale: number;
+  width: number;
+  height: number;
+}
+
+function hexToRgba(hex: string, alpha: number): string {
+  const clean = hex.replace('#', '');
+  const full = clean.length === 3 ? clean.split('').map((c) => c + c).join('') : clean;
+  const value = parseInt(full, 16);
+  const r = (value >> 16) & 255;
+  const g = (value >> 8) & 255;
+  const b = value & 255;
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
+// Mask coordinates live in the image's own unscaled 0..width / 0..height
+// space, which is exactly the box a frame div renders at (its CSS
+// width/height already carry the viewport zoom and image scale), so mask
+// coords convert straight to percentages of that box.
+function maskToClipPath(mask: MaskData, width: number, height: number): string {
+  const pctX = (v: number) => `${(v / width) * 100}%`;
+  const pctY = (v: number) => `${(v / height) * 100}%`;
+  switch (mask.type) {
+    case 'circle':
+      return `ellipse(${pctX(mask.radius)} ${pctY(mask.radius)} at ${pctX(mask.cx)} ${pctY(mask.cy)})`;
+    case 'rect': {
+      const x0 = pctX(mask.x);
+      const y0 = pctY(mask.y);
+      const x1 = pctX(mask.x + mask.width);
+      const y1 = pctY(mask.y + mask.height);
+      return `polygon(${x0} ${y0}, ${x1} ${y0}, ${x1} ${y1}, ${x0} ${y1})`;
+    }
+    case 'polygon':
+      return `polygon(${mask.points.map((p) => `${pctX(p.x)} ${pctY(p.y)}`).join(', ')})`;
+  }
+}
+
+function escapeAttr(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+// Rotation tilts the image's true screen-space bounding box away from its
+// unrotated frame rect, so culling needs the corners rotated around the
+// center rather than the frame's own left/top/width/height.
+function isVisibleInViewport(img: CollageImage, viewport: ExportViewport): boolean {
+  const screenWidth = img.width * img.scaleX * viewport.scale;
+  const screenHeight = img.height * img.scaleY * viewport.scale;
+  const centerX = img.x * viewport.scale + viewport.x;
+  const centerY = img.y * viewport.scale + viewport.y;
+  const rad = (img.rotation * Math.PI) / 180;
+  const cos = Math.cos(rad);
+  const sin = Math.sin(rad);
+  const hw = screenWidth / 2;
+  const hh = screenHeight / 2;
+  const corners = [
+    [-hw, -hh],
+    [hw, -hh],
+    [hw, hh],
+    [-hw, hh],
+  ].map(([x, y]) => ({
+    x: centerX + x * cos - y * sin,
+    y: centerY + x * sin + y * cos,
+  }));
+  const minX = Math.min(...corners.map((p) => p.x));
+  const maxX = Math.max(...corners.map((p) => p.x));
+  const minY = Math.min(...corners.map((p) => p.y));
+  const maxY = Math.max(...corners.map((p) => p.y));
+
+  return maxX > 0 && minX < viewport.width && maxY > 0 && minY < viewport.height;
+}
+
+function renderImageNode(
+  img: CollageImage,
+  viewport: ExportViewport,
+  naturalSize?: { width: number; height: number }
+): string {
+  const screenWidth = img.width * img.scaleX * viewport.scale;
+  const screenHeight = img.height * img.scaleY * viewport.scale;
+  const centerX = img.x * viewport.scale + viewport.x;
+  const centerY = img.y * viewport.scale + viewport.y;
+  const left = centerX - screenWidth / 2;
+  const top = centerY - screenHeight / 2;
+
+  const frameStyles = [
+    'position: absolute',
+    `left: ${left}px`,
+    `top: ${top}px`,
+    `width: ${screenWidth}px`,
+    `height: ${screenHeight}px`,
+    `transform: rotate(${img.rotation}deg)`,
+    'transform-origin: center center',
+    `opacity: ${img.opacity}`,
+    `z-index: ${img.zIndex}`,
+  ];
+
+  if (img.mask) {
+    frameStyles.push(`clip-path: ${maskToClipPath(img.mask, img.width, img.height)}`);
+  }
+
+  if (img.shadow?.enabled) {
+    const { color, blur, offsetX, offsetY, opacity } = img.shadow;
+    const shadowColor = hexToRgba(color, opacity);
+    // Canvas 2D shadow properties are drawn through the node's full transform
+    // matrix, so on the canvas a resized image's shadow grows/shrinks with
+    // it (verified empirically: ctx.scale(3,3) triples a shadow's blur and
+    // offset, not just the shape). CSS drop-shadow's offset/blur are in the
+    // element's own pre-transform space and only inherit the *rotation* for
+    // free via the enclosing `transform: rotate()` — the scale still has to
+    // be applied by hand here, per axis for offset and as their average for
+    // blur (drop-shadow has no separate x/y blur radius).
+    const shadowScaleX = viewport.scale * img.scaleX;
+    const shadowScaleY = viewport.scale * img.scaleY;
+    const shadowScaleAvg = (shadowScaleX + shadowScaleY) / 2;
+    frameStyles.push(
+      `filter: drop-shadow(${offsetX * shadowScaleX}px ${offsetY * shadowScaleY}px ${blur * shadowScaleAvg}px ${shadowColor})`
+    );
+  }
+
+  if (img.blendMode) {
+    frameStyles.push(`mix-blend-mode: ${img.blendMode}`);
+  }
+
+  let imgStyle: string;
+  if (img.crop && naturalSize) {
+    // Source-pixel-to-screen-pixel scale already bakes in the viewport zoom
+    // and the image's own scaleX/scaleY via screenWidth/screenHeight, so the
+    // full (uncropped) image just needs to be blown up by that same ratio
+    // and nudged so the cropped region lands at (0,0).
+    const scaleX = screenWidth / img.crop.width;
+    const scaleY = screenHeight / img.crop.height;
+    const imgWidth = naturalSize.width * scaleX;
+    const imgHeight = naturalSize.height * scaleY;
+    const imgLeft = -img.crop.x * scaleX;
+    const imgTop = -img.crop.y * scaleY;
+    imgStyle = `position: absolute; left: ${imgLeft}px; top: ${imgTop}px; width: ${imgWidth}px; height: ${imgHeight}px; max-width: none`;
+  } else {
+    imgStyle = 'position: absolute; left: 0; top: 0; width: 100%; height: 100%';
+  }
+
+  return `  <div class="collage-object" id="${img.id}" style="${frameStyles.join('; ')}">
+    <div style="position: relative; width: 100%; height: 100%; overflow: hidden">
+      <img src="${img.src}" alt="${escapeAttr(img.name)}" style="${imgStyle}" />
+    </div>
+  </div>`;
+}
+
+export function exportToStaticHTML(
+  images: CollageImage[],
+  viewport: ExportViewport,
+  naturalSizes: Record<string, { width: number; height: number }> = {}
+): string {
+  const visible = images.filter((img) => isVisibleInViewport(img, viewport));
+  const sorted = visible.sort((a, b) => a.zIndex - b.zIndex);
+  const nodes = sorted.map((img) => renderImageNode(img, viewport, naturalSizes[img.id])).join('\n');
+
+  return `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Collage Export</title>
+<style>
+  html, body { margin: 0; padding: 0; background: #ffffff; }
+</style>
+</head>
+<body>
+<div class="collage-viewport" style="position: relative; width: ${viewport.width}px; height: ${viewport.height}px; overflow: hidden">
+${nodes}
+</div>
+</body>
+</html>
+`;
 }

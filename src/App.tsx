@@ -6,7 +6,7 @@ import { useCollage } from './hooks/useCollage';
 import { useImageLoader } from './hooks/useImageLoader';
 import { useCropDrawer } from './hooks/useCropDrawer';
 import { localToStage } from './utils/geometry';
-import { exportToICP } from './store';
+import { exportToICP, exportToStaticHTML } from './store';
 import './App.css';
 
 function App() {
@@ -134,6 +134,44 @@ function App() {
     URL.revokeObjectURL(url);
   }, [images]);
 
+  const handleExportHTML = useCallback(async () => {
+    const stage = stageRef.current;
+    if (!stage || images.length === 0) return;
+
+    // Only cropped images need their natural (pre-crop) pixel size to scale
+    // the <img> element up so the cropped region fills its display box.
+    const naturalSizes: Record<string, { width: number; height: number }> = {};
+    await Promise.all(
+      images
+        .filter((img) => img.crop)
+        .map(
+          (img) =>
+            new Promise<void>((resolve) => {
+              const el = new window.Image();
+              el.onload = () => {
+                naturalSizes[img.id] = { width: el.naturalWidth, height: el.naturalHeight };
+                resolve();
+              };
+              el.src = img.src;
+            })
+        )
+    );
+
+    const html = exportToStaticHTML(
+      images,
+      { x: stagePosition.x, y: stagePosition.y, scale: stageScale, width: stage.width(), height: stage.height() },
+      naturalSizes
+    );
+
+    const blob = new Blob([html], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.download = 'collage.html';
+    link.href = url;
+    link.click();
+    URL.revokeObjectURL(url);
+  }, [images, stagePosition, stageScale]);
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       // Undo/redo bypasses the input-element guard below: this app has no
@@ -228,6 +266,7 @@ function App() {
         onClearMask={handleClearMask}
         onExportJPEG={handleExportJPEG}
         onExportJSON={handleExportJSON}
+        onExportHTML={handleExportHTML}
         hasPendingCrop={cropDrawer.committedRect !== null}
         onApplyCrop={applyCrop}
         onCancelCrop={cancelCrop}

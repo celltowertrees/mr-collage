@@ -193,6 +193,7 @@ interface ToolbarProps {
   onClearMask: (id: string) => void;
   onExportJPEG: () => void;
   onExportJSON: () => void;
+  onExportHTML: () => void;
   hasPendingCrop: boolean;
   onApplyCrop: () => void;
   onCancelCrop: () => void;
@@ -215,6 +216,7 @@ export function Toolbar({
   onClearMask,
   onExportJPEG,
   onExportJSON,
+  onExportHTML,
   hasPendingCrop,
   onApplyCrop,
   onCancelCrop,
@@ -496,6 +498,9 @@ export function Toolbar({
         </ToolButton>
         <ToolButton onClick={onExportJSON} title="Export ICP JSON" className="export-btn">
           JSON
+        </ToolButton>
+        <ToolButton onClick={onExportHTML} title="Export HTML" className="export-btn">
+          HTML
         </ToolButton>
       </div>
     </div>

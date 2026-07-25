@@ -289,3 +289,37 @@ Feature: Crop an Image
     When the user exports the collage as ICP JSON
     Then the image's crop rectangle is included in the exported data
 ```
+
+### Export Scene to Static HTML
+- **Requested:** 2026-07-25
+- **Ask:** Export the current viewport to a valid, static HTML file with objects positioned relative to the viewport and all their styles retained.
+
+```gherkin
+Feature: Export Scene to Static HTML
+  # src/store.ts, src/components/Toolbar.tsx, src/App.tsx — tested in src/__tests__/exportToStaticHTML.test.ts
+
+  Scenario: Export the current viewport as static HTML
+    Given at least one image is on the canvas within the current viewport
+    When the user clicks "Export HTML"
+    Then an HTML file downloads with each image positioned and sized to match its on-screen position relative to the current pan and zoom
+
+  Scenario: Objects entirely outside the viewport are omitted from the markup
+    Given an image's position places it entirely outside the current viewport bounds
+    When the user exports HTML
+    Then that image is left out of the exported markup entirely, rather than included but hidden
+
+  Scenario: Objects that partially overlap the viewport are still included
+    Given an image straddles the edge of the current viewport, partly on screen and partly off
+    When the user exports HTML
+    Then that image is included in the exported markup at its viewport-relative position
+
+  Scenario: Exported HTML preserves visual styling
+    Given an image has a mask, shadow, blend mode, crop, opacity, and z-index set
+    When the user exports HTML
+    Then the exported element reproduces the mask as a clip-path, the shadow as a drop-shadow filter that follows the mask shape, the blend mode as mix-blend-mode, the crop by scaling and offsetting the image within an overflow-hidden frame, and the opacity and stacking order
+
+  Scenario: Images are embedded self-contained
+    Given the collage contains images
+    When the user exports HTML
+    Then each image's data URL is embedded directly in an <img> tag, with no external file references
+```
