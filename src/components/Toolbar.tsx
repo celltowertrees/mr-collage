@@ -38,6 +38,9 @@ interface ToolbarProps {
   onClearMask: (id: string) => void;
   onExportJPEG: () => void;
   onExportJSON: () => void;
+  hasPendingCrop: boolean;
+  onApplyCrop: () => void;
+  onCancelCrop: () => void;
 }
 
 export function Toolbar({
@@ -57,6 +60,9 @@ export function Toolbar({
   onClearMask,
   onExportJPEG,
   onExportJSON,
+  hasPendingCrop,
+  onApplyCrop,
+  onCancelCrop,
 }: ToolbarProps) {
   const isMaskTool = tool.startsWith('mask-');
 
@@ -327,6 +333,39 @@ export function Toolbar({
                   ? 'Click to add points, double-click to finish'
                   : 'Click and drag to draw mask'}
               </span>
+            )}
+          </div>
+
+          <div className="toolbar-section">
+            <span className="toolbar-label">Crop</span>
+            <button
+              className={`toolbar-btn ${tool === 'crop' ? 'active' : ''}`}
+              onClick={() => onToolChange(tool === 'crop' ? 'select' : 'crop')}
+              title="Crop"
+            >
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+                <path d="M4 1v10a1 1 0 0 0 1 1h10M1 4h10a1 1 0 0 1 1 1v10" />
+              </svg>
+            </button>
+            {tool === 'crop' && (
+              <>
+                <button
+                  className="toolbar-btn"
+                  onClick={onApplyCrop}
+                  disabled={!hasPendingCrop}
+                  title="Apply Crop"
+                >
+                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M2 8l4 4 8-8" />
+                  </svg>
+                </button>
+                <button className="toolbar-btn danger" onClick={onCancelCrop} title="Cancel Crop">
+                  <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                    <path d="M3.5 3.5l9 9m0-9l-9 9" stroke="currentColor" strokeWidth="2" fill="none" />
+                  </svg>
+                </button>
+                <span className="mask-hint">Click and drag to draw the crop area</span>
+              </>
             )}
           </div>
 

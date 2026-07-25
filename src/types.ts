@@ -20,6 +20,13 @@ export interface PolygonMask {
 
 export type MaskData = CircleMask | RectMask | PolygonMask;
 
+export interface CropRect {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
 export const BLEND_MODES = [
   'normal',
   'multiply',
@@ -66,6 +73,7 @@ export interface CollageImage {
   mask?: MaskData;
   shadow?: ShadowData;
   blendMode?: Exclude<BlendMode, 'normal'>;
+  crop?: CropRect;
 }
 
 export interface CanvasState {
@@ -74,4 +82,4 @@ export interface CanvasState {
   stageScale: number;
 }
 
-export type Tool = 'select' | 'pan' | 'mask-circle' | 'mask-rect' | 'mask-polygon';
+export type Tool = 'select' | 'pan' | 'mask-circle' | 'mask-rect' | 'mask-polygon' | 'crop';

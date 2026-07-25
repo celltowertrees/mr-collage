@@ -260,3 +260,32 @@ Feature: CSS Blend Mode on Selected Object
     When the user exports the collage as ICP JSON
     Then the image's blend mode is included in the exported data
 ```
+
+### Crop an Image
+- **Requested:** 2026-07-25
+- **Ask:** Let an image be cropped, trimming it down to a smaller region instead of just masking it.
+
+```gherkin
+Feature: Crop an Image
+  # src/types.ts, src/utils/geometry.ts, src/hooks/useCropDrawer.ts, src/components/CollageImageNode.tsx, src/components/Canvas.tsx, src/components/Toolbar.tsx, src/App.tsx, src/store.ts — tested in e2e/crop.spec.ts
+
+  Scenario: Draw and apply a crop
+    Given an image is selected and the Crop tool is active
+    When the user drags a rectangle over part of the image and clicks "Apply Crop"
+    Then the image's displayed content and bounding box shrink to just that dragged region
+
+  Scenario: Cropped image keeps its cropped region anchored in place
+    Given an image is selected and the Crop tool is active
+    When the user drags a crop rectangle that isn't centered on the image and applies it
+    Then the cropped region stays at the same canvas position after the crop is applied
+
+  Scenario: Cancel a crop
+    Given an image is selected, the Crop tool is active, and a crop rectangle has been drawn
+    When the user clicks "Cancel Crop" instead of applying
+    Then the image is unchanged and the tool returns to Select
+
+  Scenario: Export includes crop data
+    Given an image has been cropped
+    When the user exports the collage as ICP JSON
+    Then the image's crop rectangle is included in the exported data
+```

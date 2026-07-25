@@ -19,7 +19,18 @@ interface CanvasProps {
   onDrop: (files: FileList) => void;
   onPaste: (e: ClipboardEvent) => void;
   stageRef: React.RefObject<Konva.Stage | null>;
+  onCropMouseDown: (e: Konva.KonvaEventObject<MouseEvent>) => void;
+  onCropMouseMove: () => void;
+  onCropMouseUp: () => void;
+  cropPreviewRect: { x: number; y: number; width: number; height: number; rotation: number } | null;
 }
+
+const CROP_PREVIEW_STYLE = {
+  stroke: '#4CAF50',
+  strokeWidth: 2,
+  dash: [6, 4],
+  listening: false,
+};
 
 const PREVIEW_STYLE = {
   stroke: '#2196F3',
@@ -55,10 +66,15 @@ export function Canvas({
   onDrop,
   onPaste,
   stageRef,
+  onCropMouseDown,
+  onCropMouseMove,
+  onCropMouseUp,
+  cropPreviewRect,
 }: CanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const selectedImage = selectedIds.length === 1 ? images.find((img) => img.id === selectedIds[0]) ?? null : null;
   const isMaskTool = tool.startsWith('mask-');
+  const isCropTool = tool === 'crop';
   const isSelectTool = tool === 'select';
 
   const marqueeStartRef = useRef<{ x: number; y: number } | null>(null);
@@ -145,7 +161,7 @@ export function Canvas({
 
   // Click handler — only used for selection, not mask drawing
   const handleStageClick = useCallback((e: Konva.KonvaEventObject<MouseEvent>) => {
-    if (isMaskTool) return; // mask uses mousedown/mouseup, ignore click
+    if (isMaskTool || isCropTool) return; // both use mousedown/mouseup, ignore click
     // A marquee drag's mouseup is immediately followed by a Konva `click` on
     // the same target — swallow that one click so it doesn't clear the
     // selection the marquee just made.
@@ -156,12 +172,16 @@ export function Canvas({
     if (e.target === e.target.getStage()) {
       onSelect([]);
     }
-  }, [onSelect, isMaskTool]);
+  }, [onSelect, isMaskTool, isCropTool]);
 
-  // MouseDown — mask drawing and marquee selection both start here
+  // MouseDown — mask/crop drawing and marquee selection all start here
   const handleStageMouseDown = useCallback((e: Konva.KonvaEventObject<MouseEvent>) => {
     if (isMaskTool) {
       maskDrawer.handleMouseDown(e);
+      return;
+    }
+    if (isCropTool) {
+      onCropMouseDown(e);
       return;
     }
     const stage = stageRef.current;
@@ -169,11 +189,15 @@ export function Canvas({
       const pointer = stage.getPointerPosition();
       if (pointer) marqueeStartRef.current = pointer;
     }
-  }, [isMaskTool, isSelectTool, maskDrawer, stageRef]);
+  }, [isMaskTool, isCropTool, isSelectTool, maskDrawer, onCropMouseDown, stageRef]);
 
   const handleStageMouseMove = useCallback(() => {
     if (isMaskTool) {
       maskDrawer.handleMouseMove();
+      return;
+    }
+    if (isCropTool) {
+      onCropMouseMove();
       return;
     }
     const stage = stageRef.current;
@@ -188,11 +212,15 @@ export function Canvas({
       width: Math.abs(current.x - start.x),
       height: Math.abs(current.y - start.y),
     });
-  }, [isMaskTool, maskDrawer, stageRef, toContentPoint]);
+  }, [isMaskTool, isCropTool, maskDrawer, onCropMouseMove, stageRef, toContentPoint]);
 
   const handleStageMouseUp = useCallback(() => {
     if (isMaskTool) {
       maskDrawer.handleMouseUp();
+      return;
+    }
+    if (isCropTool) {
+      onCropMouseUp();
       return;
     }
     const start = marqueeStartRef.current;
@@ -226,11 +254,11 @@ export function Canvas({
 
     suppressNextClickRef.current = true;
     onSelect(overlapped);
-  }, [isMaskTool, maskDrawer, stageRef, toContentPoint, images, onSelect]);
+  }, [isMaskTool, isCropTool, onCropMouseUp, maskDrawer, stageRef, toContentPoint, images, onSelect]);
 
   const getCursor = () => {
     if (tool === 'pan') return 'grab';
-    if (isMaskTool) return 'crosshair';
+    if (isMaskTool || isCropTool) return 'crosshair';
     return 'default';
   };
 
@@ -293,6 +321,9 @@ export function Canvas({
             />
           ))}
           {renderPreview()}
+          {isCropTool && cropPreviewRect && (
+            <Rect name="crop-preview" {...cropPreviewRect} {...CROP_PREVIEW_STYLE} />
+          )}
           {marqueeRect && <Rect name="marquee" {...marqueeRect} {...MARQUEE_STYLE} />}
         </Layer>
       </Stage>
