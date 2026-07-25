@@ -56,23 +56,42 @@ function App() {
     if (!stage || images.length === 0) return;
 
     const layer = stage.getLayers()[0];
-    const rect = layer.getClientRect({ relativeTo: stage });
+    // No `relativeTo`: getClientRect() defaults to absolute/screen coordinates,
+    // which is the same space stage.toDataURL()'s x/y/width/height expect
+    // (they include the stage's current pan and zoom). Passing `relativeTo: stage`
+    // stripped that transform out, so the crop region didn't match the content.
+    const rect = layer.getClientRect();
 
+    const padding = 40;
     const pixelRatio = 2;
     const dataUrl = stage.toDataURL({
-      x: rect.x,
-      y: rect.y,
-      width: rect.width,
-      height: rect.height,
+      x: rect.x - padding,
+      y: rect.y - padding,
+      width: rect.width + padding * 2,
+      height: rect.height + padding * 2,
       pixelRatio,
-      mimeType: 'image/jpeg',
-      quality: 0.95,
+      mimeType: 'image/png',
     });
 
-    const link = document.createElement('a');
-    link.download = 'collage.jpg';
-    link.href = dataUrl;
-    link.click();
+    // JPEG has no alpha channel, so transparent canvas pixels would otherwise
+    // composite to black. Draw the PNG capture over a white background first.
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = img.width;
+      canvas.height = img.height;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(img, 0, 0);
+
+      const link = document.createElement('a');
+      link.download = 'collage.jpg';
+      link.href = canvas.toDataURL('image/jpeg', 0.95);
+      link.click();
+    };
+    img.src = dataUrl;
   }, [images]);
 
   const handleExportJSON = useCallback(() => {
