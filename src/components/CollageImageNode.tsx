@@ -139,6 +139,7 @@ export function CollageImageNode({ image, isSelected, tool, onSelect, onChange, 
           width={image.width}
           height={image.height}
           opacity={image.opacity}
+          globalCompositeOperation={image.blendMode ?? 'source-over'}
           shadowEnabled={shadowActive && !image.mask}
           shadowColor={shadow?.color}
           shadowBlur={shadow?.blur}

@@ -231,3 +231,32 @@ Feature: Multi-Select and Group Move
     When the user clicks on an empty area of the canvas
     Then the selection is cleared and dragging an image afterward moves only that image
 ```
+
+### CSS Blend Mode on Selected Object
+- **Requested:** 2026-07-25
+- **Ask:** Let any CSS blend mode be applied to the selected object, via a separate popup menu.
+
+```gherkin
+Feature: CSS Blend Mode on Selected Object
+  # src/types.ts, src/components/Toolbar.tsx, src/components/CollageImageNode.tsx, src/store.ts — tested in e2e/blend-mode.spec.ts
+
+  Scenario: Open the blend mode popup
+    Given an image is selected
+    When the user clicks the Blend Mode button in the toolbar
+    Then a popup menu listing the available blend modes appears
+
+  Scenario: Apply a blend mode to the selected image
+    Given an image is selected and the blend mode popup is open
+    When the user picks a blend mode (e.g. "Multiply")
+    Then the image is composited against the layer beneath it using that blend mode, and the popup closes
+
+  Scenario: Reset to Normal
+    Given an image has a non-normal blend mode applied
+    When the user picks "Normal" from the blend mode popup
+    Then the image renders with plain (non-blended) compositing again
+
+  Scenario: Export includes blend mode data
+    Given an image has a non-normal blend mode applied
+    When the user exports the collage as ICP JSON
+    Then the image's blend mode is included in the exported data
+```

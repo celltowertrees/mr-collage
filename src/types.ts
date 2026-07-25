@@ -20,6 +20,27 @@ export interface PolygonMask {
 
 export type MaskData = CircleMask | RectMask | PolygonMask;
 
+export const BLEND_MODES = [
+  'normal',
+  'multiply',
+  'screen',
+  'overlay',
+  'darken',
+  'lighten',
+  'color-dodge',
+  'color-burn',
+  'hard-light',
+  'soft-light',
+  'difference',
+  'exclusion',
+  'hue',
+  'saturation',
+  'color',
+  'luminosity',
+] as const;
+
+export type BlendMode = (typeof BLEND_MODES)[number];
+
 export interface ShadowData {
   enabled: boolean;
   color: string;
@@ -44,6 +65,7 @@ export interface CollageImage {
   name: string;
   mask?: MaskData;
   shadow?: ShadowData;
+  blendMode?: Exclude<BlendMode, 'normal'>;
 }
 
 export interface CanvasState {

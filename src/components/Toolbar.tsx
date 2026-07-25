@@ -1,4 +1,5 @@
-import { CollageImage, ShadowData, Tool } from '../types';
+import { useEffect, useRef, useState } from 'react';
+import { BLEND_MODES, BlendMode, CollageImage, ShadowData, Tool } from '../types';
 
 const DEFAULT_SHADOW: ShadowData = {
   enabled: true,
@@ -8,6 +9,13 @@ const DEFAULT_SHADOW: ShadowData = {
   offsetY: 6,
   opacity: 0.5,
 };
+
+function formatBlendModeLabel(mode: BlendMode): string {
+  return mode
+    .split('-')
+    .map((word) => word[0].toUpperCase() + word.slice(1))
+    .join(' ');
+}
 
 interface ToolbarProps {
   tool: Tool;
@@ -51,6 +59,26 @@ export function Toolbar({
   onExportJSON,
 }: ToolbarProps) {
   const isMaskTool = tool.startsWith('mask-');
+
+  const [blendMenuPos, setBlendMenuPos] = useState<{ top: number; left: number } | null>(null);
+  const blendMenuRef = useRef<HTMLDivElement>(null);
+  const blendButtonRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (!blendMenuPos) return;
+    const handleOutsideClick = (e: MouseEvent) => {
+      const target = e.target as Node;
+      if (
+        blendMenuRef.current &&
+        !blendMenuRef.current.contains(target) &&
+        !blendButtonRef.current?.contains(target)
+      ) {
+        setBlendMenuPos(null);
+      }
+    };
+    document.addEventListener('mousedown', handleOutsideClick);
+    return () => document.removeEventListener('mousedown', handleOutsideClick);
+  }, [blendMenuPos]);
 
   const shadow = selectedImage?.shadow;
 
@@ -165,6 +193,50 @@ export function Toolbar({
               />
               <span className="toolbar-value">{Math.round(selectedImage.rotation)}&deg;</span>
             </label>
+
+            <div className="blend-mode-field">
+              <button
+                ref={blendButtonRef}
+                className={`toolbar-btn export-btn ${blendMenuPos ? 'active' : ''}`}
+                onClick={() => {
+                  if (blendMenuPos) {
+                    setBlendMenuPos(null);
+                    return;
+                  }
+                  const rect = blendButtonRef.current?.getBoundingClientRect();
+                  if (rect) setBlendMenuPos({ top: rect.bottom + 6, left: rect.left });
+                }}
+                title="Blend Mode"
+              >
+                {formatBlendModeLabel(selectedImage.blendMode ?? 'normal')}
+              </button>
+              {blendMenuPos && (
+                <div
+                  ref={blendMenuRef}
+                  className="blend-mode-popup"
+                  role="menu"
+                  style={{ top: blendMenuPos.top, left: blendMenuPos.left }}
+                >
+                  {BLEND_MODES.map((mode) => (
+                    <button
+                      key={mode}
+                      role="menuitem"
+                      className={`blend-mode-option ${
+                        (selectedImage.blendMode ?? 'normal') === mode ? 'active' : ''
+                      }`}
+                      onClick={() => {
+                        onUpdateImage(selectedImage.id, {
+                          blendMode: mode === 'normal' ? undefined : mode,
+                        });
+                        setBlendMenuPos(null);
+                      }}
+                    >
+                      {formatBlendModeLabel(mode)}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
 
             <div className="toolbar-divider" />
 
