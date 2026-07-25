@@ -5,13 +5,6 @@ import { fileURLToPath } from 'url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const FIXTURE = path.join(__dirname, 'fixtures', 'orange-square.png');
 
-async function uploadFixtureImage(page: Page) {
-  await page.locator('input[type="file"]').setInputFiles(FIXTURE);
-  // addImage() auto-selects the new image, which is what makes the
-  // per-image toolbar (Bring to Front, etc.) appear.
-  await expect(page.getByTitle('Bring to Front')).toBeVisible();
-}
-
 function readState(page: Page) {
   return page.evaluate(() => JSON.parse(localStorage.getItem('mr-collage-state') ?? '{}'));
 }
@@ -20,6 +13,17 @@ async function firstImagePosition(page: Page) {
   const state = await readState(page);
   const img = state.images?.[0];
   return img ? { x: img.x, y: img.y } : undefined;
+}
+
+async function uploadFixtureImage(page: Page) {
+  await page.locator('input[type="file"]').setInputFiles(FIXTURE);
+  // addImage() auto-selects the new image, which is what makes the
+  // per-image toolbar (Bring to Front, etc.) appear.
+  await expect(page.getByTitle('Bring to Front')).toBeVisible();
+  // Saving to localStorage happens in a separate effect, async from the
+  // state update that shows the toolbar above — wait for it to land so
+  // callers can safely read the image's starting position right after.
+  await expect.poll(() => firstImagePosition(page)).toBeDefined();
 }
 
 test.beforeEach(async ({ page }) => {
