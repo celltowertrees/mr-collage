@@ -12,6 +12,22 @@ body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 }
 
+/* Frutiger Aero glass scrollbars */
+::-webkit-scrollbar {
+  width: 12px;
+  height: 12px;
+}
+
+::-webkit-scrollbar-track {
+  background: #dceeff;
+}
+
+::-webkit-scrollbar-thumb {
+  background: linear-gradient(to bottom, #eaf6ff, #9fcdf2 45%, #6fa8dd 50%, #4a86c0);
+  border-radius: 8px;
+  border: 1px solid #3a6fa8;
+}
+
 .app {
   width: 100vw;
   height: 100vh;
@@ -35,13 +51,19 @@ body {
   height: var(--toolbar-height);
   background: var(--toolbar-bg);
   border-bottom: 1px solid var(--toolbar-border);
+  border-radius: 0 0 16px 16px;
+  box-shadow:
+    0 3px 8px rgba(0, 20, 60, 0.55),
+    inset 0 1px 0 rgba(255, 255, 255, 0.6);
   display: flex;
   align-items: center;
-  padding: 0 12px;
+  padding: 0 14px;
   gap: var(--toolbar-gap);
   z-index: 100;
   color: var(--toolbar-text);
+  font-family: var(--toolbar-font);
   font-size: var(--toolbar-font-size);
+  text-shadow: 0 1px 1px rgba(0, 20, 60, 0.65);
   overflow-x: auto;
   overflow-y: hidden;
   flex-wrap: nowrap;
@@ -74,46 +96,71 @@ body {
   justify-content: center;
   width: var(--btn-size);
   height: var(--btn-size);
-  border: none;
+  border: 1px solid var(--btn-border);
   border-radius: var(--btn-radius);
-  background: transparent;
-  color: var(--toolbar-text);
+  background: var(--btn-bg);
+  color: var(--btn-text);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    inset 0 -1px 2px rgba(20, 60, 110, 0.25),
+    0 1px 2px rgba(0, 10, 40, 0.35);
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.6);
   cursor: pointer;
-  transition: background 0.15s;
+  transition: background 0.15s, box-shadow 0.1s, transform 0.05s;
 }
 
 .toolbar-btn:hover {
   background: var(--btn-hover);
 }
 
+.toolbar-btn:active {
+  background: var(--btn-active);
+  box-shadow:
+    inset 0 1px 3px rgba(0, 10, 40, 0.55),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.25);
+  transform: translateY(1px);
+}
+
+.toolbar-btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+  transform: none;
+}
+
 .toolbar-btn.active {
   background: var(--accent);
-  color: var(--toolbar-bg);
+  border-color: var(--accent-border);
+  color: #0a4a1e;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.7);
 }
 
 .toolbar-btn.danger:hover {
   background: var(--danger);
-  color: var(--toolbar-bg);
+  border-color: var(--danger-border);
+  color: #5a0a0a;
 }
 
 .toolbar-btn.export-btn {
   width: auto;
-  padding: 0 10px;
+  padding: 0 12px;
   font-size: 11px;
-  font-weight: 600;
+  font-weight: 700;
+  letter-spacing: 0.03em;
   background: var(--btn-bg);
 }
 
 .toolbar-btn.export-btn:hover {
   background: var(--accent);
-  color: var(--toolbar-bg);
+  border-color: var(--accent-border);
+  color: #0a4a1e;
 }
 
 .toolbar-divider {
-  width: 1px;
-  height: 24px;
-  background: var(--toolbar-border);
-  margin: 0 4px;
+  width: 2px;
+  height: 26px;
+  background: rgba(5, 20, 60, 0.55);
+  border-right: 1px solid rgba(255, 255, 255, 0.35);
+  margin: 0 5px;
 }
 
 .toolbar-field {
@@ -127,7 +174,7 @@ body {
 
 .toolbar-field input[type='range'] {
   width: 64px;
-  accent-color: var(--accent);
+  accent-color: #5fdd82;
   cursor: pointer;
 }
 
@@ -135,10 +182,11 @@ body {
   width: 22px;
   height: 22px;
   padding: 0;
-  border: none;
+  border: 1px solid var(--btn-border);
   border-radius: 4px;
   background: none;
   cursor: pointer;
+  box-shadow: inset 0 1px 2px rgba(0, 10, 40, 0.4);
 }
 
 .toolbar-value {
@@ -156,6 +204,8 @@ body {
   transform: translate(-50%, -50%);
   text-align: center;
   color: var(--empty-state-color);
+  font-family: var(--toolbar-font);
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.8);
   pointer-events: none;
   user-select: none;
 }
