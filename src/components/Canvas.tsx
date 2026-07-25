@@ -1,4 +1,4 @@
-import { useRef, useEffect, useCallback } from 'react';
+import { useRef, useState, useEffect, useCallback } from 'react';
 import { Stage, Layer, Circle, Rect, Line } from 'react-konva';
 import Konva from 'konva';
 import { CollageImage, MaskData, Tool } from '../types';
@@ -7,12 +7,13 @@ import { useMaskDrawer } from '../hooks/useMaskDrawer';
 
 interface CanvasProps {
   images: CollageImage[];
-  selectedId: string | null;
+  selectedIds: string[];
   tool: Tool;
   stagePosition: { x: number; y: number };
   stageScale: number;
-  onSelect: (id: string | null) => void;
+  onSelect: (ids: string[]) => void;
   onUpdateImage: (id: string, changes: Partial<CollageImage>) => void;
+  onMoveSelected: (draggedId: string, dx: number, dy: number) => void;
   onStagePositionChange: (pos: { x: number; y: number }) => void;
   onStageScaleChange: (scale: number) => void;
   onDrop: (files: FileList) => void;
@@ -27,14 +28,28 @@ const PREVIEW_STYLE = {
   listening: false,
 };
 
+const MARQUEE_STYLE = {
+  fill: 'rgba(33, 150, 243, 0.1)',
+  stroke: '#2196F3',
+  strokeWidth: 1,
+  listening: false,
+};
+
+type MarqueeRect = { x: number; y: number; width: number; height: number };
+
+// Minimum drag distance (in screen px) before a mousedown-drag-mouseup on
+// empty canvas counts as a marquee rather than a plain click-to-deselect.
+const MARQUEE_DRAG_THRESHOLD = 3;
+
 export function Canvas({
   images,
-  selectedId,
+  selectedIds,
   tool,
   stagePosition,
   stageScale,
   onSelect,
   onUpdateImage,
+  onMoveSelected,
   onStagePositionChange,
   onStageScaleChange,
   onDrop,
@@ -42,8 +57,31 @@ export function Canvas({
   stageRef,
 }: CanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const selectedImage = images.find((img) => img.id === selectedId) ?? null;
+  const selectedImage = selectedIds.length === 1 ? images.find((img) => img.id === selectedIds[0]) ?? null : null;
   const isMaskTool = tool.startsWith('mask-');
+  const isSelectTool = tool === 'select';
+
+  const marqueeStartRef = useRef<{ x: number; y: number } | null>(null);
+  const [marqueeRect, setMarqueeRect] = useState<MarqueeRect | null>(null);
+  // Suppresses the stage `click` that Konva fires right after a marquee's
+  // mouseup — otherwise handleStageClick would immediately clear the
+  // selection the marquee just made.
+  const suppressNextClickRef = useRef(false);
+
+  // Converts a pointer position (screen px, relative to the stage container)
+  // into content coordinates — the same space image.x/image.y live in —
+  // matching the manual conversion handleWheel already does for zooming.
+  const toContentPoint = useCallback(
+    (pointer: { x: number; y: number }) => {
+      const stage = stageRef.current;
+      if (!stage) return pointer;
+      return {
+        x: (pointer.x - stage.x()) / stage.scaleX(),
+        y: (pointer.y - stage.y()) / stage.scaleY(),
+      };
+    },
+    [stageRef]
+  );
 
   const handleMaskComplete = useCallback(
     (imageId: string, mask: MaskData) => {
@@ -108,17 +146,87 @@ export function Canvas({
   // Click handler — only used for selection, not mask drawing
   const handleStageClick = useCallback((e: Konva.KonvaEventObject<MouseEvent>) => {
     if (isMaskTool) return; // mask uses mousedown/mouseup, ignore click
+    // A marquee drag's mouseup is immediately followed by a Konva `click` on
+    // the same target — swallow that one click so it doesn't clear the
+    // selection the marquee just made.
+    if (suppressNextClickRef.current) {
+      suppressNextClickRef.current = false;
+      return;
+    }
     if (e.target === e.target.getStage()) {
-      onSelect(null);
+      onSelect([]);
     }
   }, [onSelect, isMaskTool]);
 
-  // MouseDown — mask drawing starts here
+  // MouseDown — mask drawing and marquee selection both start here
   const handleStageMouseDown = useCallback((e: Konva.KonvaEventObject<MouseEvent>) => {
     if (isMaskTool) {
       maskDrawer.handleMouseDown(e);
+      return;
     }
-  }, [isMaskTool, maskDrawer]);
+    const stage = stageRef.current;
+    if (isSelectTool && stage && e.target === stage) {
+      const pointer = stage.getPointerPosition();
+      if (pointer) marqueeStartRef.current = pointer;
+    }
+  }, [isMaskTool, isSelectTool, maskDrawer, stageRef]);
+
+  const handleStageMouseMove = useCallback(() => {
+    if (isMaskTool) {
+      maskDrawer.handleMouseMove();
+      return;
+    }
+    const stage = stageRef.current;
+    if (!marqueeStartRef.current || !stage) return;
+    const pointer = stage.getPointerPosition();
+    if (!pointer) return;
+    const start = toContentPoint(marqueeStartRef.current);
+    const current = toContentPoint(pointer);
+    setMarqueeRect({
+      x: Math.min(start.x, current.x),
+      y: Math.min(start.y, current.y),
+      width: Math.abs(current.x - start.x),
+      height: Math.abs(current.y - start.y),
+    });
+  }, [isMaskTool, maskDrawer, stageRef, toContentPoint]);
+
+  const handleStageMouseUp = useCallback(() => {
+    if (isMaskTool) {
+      maskDrawer.handleMouseUp();
+      return;
+    }
+    const start = marqueeStartRef.current;
+    marqueeStartRef.current = null;
+    setMarqueeRect(null);
+    if (!start) return;
+
+    const stage = stageRef.current;
+    const pointer = stage?.getPointerPosition();
+    if (!stage || !pointer) return;
+
+    const dragDistance = Math.hypot(pointer.x - start.x, pointer.y - start.y);
+    if (dragDistance < MARQUEE_DRAG_THRESHOLD) return; // a plain click; handleStageClick deselects
+
+    const startContent = toContentPoint(start);
+    const currentContent = toContentPoint(pointer);
+    const rect = {
+      x: Math.min(startContent.x, currentContent.x),
+      y: Math.min(startContent.y, currentContent.y),
+      width: Math.abs(currentContent.x - startContent.x),
+      height: Math.abs(currentContent.y - startContent.y),
+    };
+
+    const overlapped = images
+      .filter((img) => {
+        const node = stage.findOne(`#${img.id}`);
+        const box = node?.getClientRect({ relativeTo: stage });
+        return box ? Konva.Util.haveIntersection(rect, box) : false;
+      })
+      .map((img) => img.id);
+
+    suppressNextClickRef.current = true;
+    onSelect(overlapped);
+  }, [isMaskTool, maskDrawer, stageRef, toContentPoint, images, onSelect]);
 
   const getCursor = () => {
     if (tool === 'pan') return 'grab';
@@ -161,8 +269,8 @@ export function Canvas({
         onClick={handleStageClick}
         onTap={handleStageClick}
         onMouseDown={handleStageMouseDown}
-        onMouseMove={isMaskTool ? maskDrawer.handleMouseMove : undefined}
-        onMouseUp={isMaskTool ? maskDrawer.handleMouseUp : undefined}
+        onMouseMove={handleStageMouseMove}
+        onMouseUp={handleStageMouseUp}
         onDblClick={isMaskTool ? maskDrawer.handleDblClick : undefined}
         onWheel={handleWheel}
         onDragEnd={(e) => {
@@ -177,13 +285,15 @@ export function Canvas({
             <CollageImageNode
               key={img.id}
               image={img}
-              isSelected={img.id === selectedId}
+              isSelected={selectedIds.includes(img.id)}
               tool={tool}
-              onSelect={() => onSelect(img.id)}
+              onSelect={() => onSelect([img.id])}
               onChange={(changes) => onUpdateImage(img.id, changes)}
+              onMove={(dx, dy) => onMoveSelected(img.id, dx, dy)}
             />
           ))}
           {renderPreview()}
+          {marqueeRect && <Rect name="marquee" {...marqueeRect} {...MARQUEE_STYLE} />}
         </Layer>
       </Stage>
     </div>

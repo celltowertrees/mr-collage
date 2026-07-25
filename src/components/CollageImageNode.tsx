@@ -9,6 +9,7 @@ interface Props {
   tool: Tool;
   onSelect: () => void;
   onChange: (changes: Partial<CollageImage>) => void;
+  onMove: (dx: number, dy: number) => void;
 }
 
 function tracePath(ctx: Konva.Context, mask: MaskData) {
@@ -49,10 +50,11 @@ function buildMaskShadowSceneFunc(mask: MaskData) {
   };
 }
 
-export function CollageImageNode({ image, isSelected, tool, onSelect, onChange }: Props) {
+export function CollageImageNode({ image, isSelected, tool, onSelect, onChange, onMove }: Props) {
   const groupRef = useRef<Konva.Group>(null);
   const imageRef = useRef<Konva.Image>(null);
   const trRef = useRef<Konva.Transformer>(null);
+  const dragStartRef = useRef({ x: image.x, y: image.y });
   const [img, setImg] = useState<HTMLImageElement | null>(null);
 
   useEffect(() => {
@@ -107,12 +109,16 @@ export function CollageImageNode({ image, isSelected, tool, onSelect, onChange }
       )}
       <Group
         ref={groupRef}
+        id={image.id}
         {...transform}
         draggable={tool === 'select'}
         onClick={onSelect}
         onTap={onSelect}
+        onDragStart={() => {
+          dragStartRef.current = { x: image.x, y: image.y };
+        }}
         onDragEnd={(e) => {
-          onChange({ x: e.target.x(), y: e.target.y() });
+          onMove(e.target.x() - dragStartRef.current.x, e.target.y() - dragStartRef.current.y);
         }}
         onTransformEnd={() => {
           const node = groupRef.current;
