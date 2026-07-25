@@ -79,22 +79,16 @@ body {
   flex-shrink: 0;
 }
 
-.toolbar-label {
-  color: var(--toolbar-muted);
-  font-size: var(--toolbar-label-size);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  margin-right: 4px;
-  user-select: none;
-}
-
 .toolbar-btn {
   display: flex;
   align-items: center;
   justify-content: center;
   width: var(--btn-size);
   height: var(--btn-size);
-  border: 1px solid var(--btn-border);
+  border-style: solid;
+  border-width: 1px;
+  /* top right bottom left — light top-left, dark bottom-right reads as raised */
+  border-color: var(--btn-bevel-light) var(--btn-bevel-dark) var(--btn-bevel-dark) var(--btn-bevel-light);
   border-radius: var(--btn-radius);
   background: var(--btn-bg);
   color: var(--btn-text);
@@ -117,8 +111,9 @@ body {
 
 .toolbar-btn.active {
   background: var(--accent);
-  border-color: var(--accent-border);
   color: var(--accent-text);
+  /* Inverted bevel — dark top-left, light bottom-right reads as pressed in */
+  border-color: var(--btn-bevel-dark) var(--btn-bevel-light) var(--btn-bevel-light) var(--btn-bevel-dark);
 }
 
 .toolbar-btn.active:hover {
