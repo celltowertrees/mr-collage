@@ -1,52 +1,47 @@
 /*
  * MR. COLLAGE — Theme
- * Frutiger Aero / Windows XP "Luna" styling: glossy gradients, bevels, glass.
+ * Neutral, minimal styling: flat surfaces, subtle borders, one accent color.
  * Edit these variables to restyle the toolbar and UI.
  */
 
 :root {
   /* ── Canvas ── */
-  --canvas-bg: #ffffff;
+  --canvas-bg: #f4f4f5;
 
-  /* ── Toolbar (Luna blue glass bar) ── */
-  --toolbar-bg: linear-gradient(
-    to bottom,
-    #bfe0ff 0%,
-    #6fb3f2 8%,
-    #2f7ee8 16%,
-    #1660d6 45%,
-    #0d4bc4 50%,
-    #0a3fa8 65%,
-    #123a86 100%
-  );
-  --toolbar-border: #082a6e;
-  --toolbar-height: 54px;
-  --toolbar-text: #eef6ff;
-  --toolbar-muted: #bcdcff;
+  /* ── Toolbar ── */
+  --toolbar-bg: #ffffff;
+  --toolbar-border: #e4e4e7;
+  --toolbar-height: 52px;
+  --toolbar-text: #18181b;
+  --toolbar-muted: #8a8a92;
   --toolbar-font-size: 12px;
   --toolbar-label-size: 10px;
   --toolbar-gap: 6px;
-  --toolbar-font: 'Trebuchet MS', 'Segoe UI', Tahoma, sans-serif;
+  --toolbar-font: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 
-  /* ── Buttons (glossy gumdrops) ── */
-  --btn-size: 32px;
-  --btn-radius: 9px;
-  --btn-bg: linear-gradient(to bottom, #fbfeff 0%, #d7ecfe 45%, #a9d4f7 50%, #7fb8ee 100%);
-  --btn-hover: linear-gradient(to bottom, #ffffff 0%, #e6f4ff 45%, #bfe0fb 50%, #93c8f2 100%);
-  --btn-active: linear-gradient(to bottom, #6fa8e0 0%, #4a86c4 50%, #3a6fa8 100%);
-  --btn-border: rgba(10, 50, 110, 0.55);
-  --btn-text: #0a2a52;
+  /* ── Buttons ── */
+  --btn-size: 30px;
+  --btn-radius: 6px;
+  --btn-bg: #ffffff;
+  --btn-hover: #f4f4f5;
+  --btn-active: #e4e4e7;
+  --btn-border: #d4d4d8;
+  --btn-text: #3f3f46;
 
-  /* ── Accent / Danger (glossy green & red gumdrops) ── */
-  --accent: linear-gradient(to bottom, #eaffed 0%, #b7f5c4 45%, #5fdd82 50%, #2bbf58 100%);
-  --accent-border: rgba(10, 90, 30, 0.5);
-  --danger: linear-gradient(to bottom, #ffecec 0%, #ffb3b3 45%, #ff6b6b 50%, #e23f3f 100%);
-  --danger-border: rgba(110, 10, 10, 0.5);
+  /* ── Accent / Danger ── */
+  --accent: #2563eb;
+  --accent-hover: #1d4ed8;
+  --accent-text: #ffffff;
+  --accent-border: #2563eb;
+  --danger: #dc2626;
+  --danger-hover: #b91c1c;
+  --danger-text: #ffffff;
+  --danger-border: #dc2626;
 
   /* ── Mask drawing ── */
-  --mask-hint-color: #eaffed;
-  --mask-preview-stroke: #38c6ff;
+  --mask-hint-color: #8a8a92;
+  --mask-preview-stroke: #2563eb;
 
   /* ── Empty state ── */
-  --empty-state-color: #4a7aa8;
+  --empty-state-color: #a1a1aa;
 }
