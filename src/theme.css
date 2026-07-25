@@ -1,5 +1,6 @@
 /*
  * MR. COLLAGE — Theme
+ * Frutiger Aero / Windows XP "Luna" styling: glossy gradients, bevels, glass.
  * Edit these variables to restyle the toolbar and UI.
  */
 
@@ -7,31 +8,45 @@
   /* ── Canvas ── */
   --canvas-bg: #ffffff;
 
-  /* ── Toolbar ── */
-  --toolbar-bg: #1e1e2e;
-  --toolbar-border: #313244;
-  --toolbar-height: 48px;
-  --toolbar-text: #cdd6f4;
-  --toolbar-muted: #6c7086;
+  /* ── Toolbar (Luna blue glass bar) ── */
+  --toolbar-bg: linear-gradient(
+    to bottom,
+    #bfe0ff 0%,
+    #6fb3f2 8%,
+    #2f7ee8 16%,
+    #1660d6 45%,
+    #0d4bc4 50%,
+    #0a3fa8 65%,
+    #123a86 100%
+  );
+  --toolbar-border: #082a6e;
+  --toolbar-height: 54px;
+  --toolbar-text: #eef6ff;
+  --toolbar-muted: #bcdcff;
   --toolbar-font-size: 12px;
   --toolbar-label-size: 10px;
   --toolbar-gap: 6px;
+  --toolbar-font: 'Trebuchet MS', 'Segoe UI', Tahoma, sans-serif;
 
-  /* ── Buttons ── */
+  /* ── Buttons (glossy gumdrops) ── */
   --btn-size: 32px;
-  --btn-radius: 6px;
-  --btn-bg: #313244;
-  --btn-hover: #45475a;
-  --btn-active: #585b70;
+  --btn-radius: 9px;
+  --btn-bg: linear-gradient(to bottom, #fbfeff 0%, #d7ecfe 45%, #a9d4f7 50%, #7fb8ee 100%);
+  --btn-hover: linear-gradient(to bottom, #ffffff 0%, #e6f4ff 45%, #bfe0fb 50%, #93c8f2 100%);
+  --btn-active: linear-gradient(to bottom, #6fa8e0 0%, #4a86c4 50%, #3a6fa8 100%);
+  --btn-border: rgba(10, 50, 110, 0.55);
+  --btn-text: #0a2a52;
 
-  /* ── Accent / Danger ── */
-  --accent: #89b4fa;
-  --danger: #f38ba8;
+  /* ── Accent / Danger (glossy green & red gumdrops) ── */
+  --accent: linear-gradient(to bottom, #eaffed 0%, #b7f5c4 45%, #5fdd82 50%, #2bbf58 100%);
+  --accent-border: rgba(10, 90, 30, 0.5);
+  --danger: linear-gradient(to bottom, #ffecec 0%, #ffb3b3 45%, #ff6b6b 50%, #e23f3f 100%);
+  --danger-border: rgba(110, 10, 10, 0.5);
 
   /* ── Mask drawing ── */
-  --mask-hint-color: var(--accent);
-  --mask-preview-stroke: #2196F3;
+  --mask-hint-color: #eaffed;
+  --mask-preview-stroke: #38c6ff;
 
   /* ── Empty state ── */
-  --empty-state-color: #b0b0b0;
+  --empty-state-color: #4a7aa8;
 }
