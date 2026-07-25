@@ -202,3 +202,32 @@ Feature: Arrow Key Nudge
     When the user presses Ctrl+Z once
     Then the whole burst of nudges is undone in one step, not one pixel at a time
 ```
+
+### Multi-Select and Group Move
+- **Requested:** 2026-07-25
+- **Ask:** Select a group of objects on the canvas and move them all at the same time.
+
+```gherkin
+Feature: Multi-Select and Group Move
+  # src/components/Canvas.tsx, src/components/CollageImageNode.tsx, src/hooks/useCollage.ts, src/App.tsx — tested in e2e/multi-select.spec.ts
+
+  Scenario: Marquee-select multiple images and move them together
+    Given multiple images are on the canvas
+    When the user drags a selection box over them and then drags any one of the selected images
+    Then all selected images move by the same amount, preserving their positions relative to each other
+
+  Scenario: Images outside the marquee are unaffected by a group move
+    Given a marquee selection box overlaps only some of the images on the canvas
+    When the user drags one of the selected images
+    Then only the images inside the selection box move; the others stay in place
+
+  Scenario: Nudge a multi-selection with the arrow keys
+    Given multiple images are selected via a marquee
+    When the user presses an arrow key
+    Then all selected images move 1 pixel in that direction together
+
+  Scenario: Clicking empty canvas clears the selection
+    Given multiple images are selected via a marquee
+    When the user clicks on an empty area of the canvas
+    Then the selection is cleared and dragging an image afterward moves only that image
+```

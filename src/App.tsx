@@ -10,8 +10,8 @@ import './App.css';
 function App() {
   const {
     images,
-    selectedId,
-    setSelectedId,
+    selectedIds,
+    setSelectedIds,
     tool,
     setTool,
     stagePosition,
@@ -20,7 +20,8 @@ function App() {
     setStageScale,
     addImage,
     updateImage,
-    nudgeImage,
+    moveImages,
+    nudgeImages,
     deleteImage,
     bringToFront,
     sendToBack,
@@ -102,20 +103,20 @@ function App() {
 
       if (e.key === 'v' || e.key === 'V') setTool('select');
       if (e.key === 'h' || e.key === 'H') setTool('pan');
-      if ((e.key === 'Delete' || e.key === 'Backspace') && selectedId) {
-        deleteImage(selectedId);
+      if ((e.key === 'Delete' || e.key === 'Backspace') && selectedIds.length > 0) {
+        deleteImage(selectedIds);
       }
       if (e.key === ' ') {
         e.preventDefault();
         setTool('pan');
       }
-      if (selectedId) {
+      if (selectedIds.length > 0) {
         const nudge = { ArrowUp: [0, -1], ArrowDown: [0, 1], ArrowLeft: [-1, 0], ArrowRight: [1, 0] }[
           e.key
         ];
         if (nudge) {
           e.preventDefault();
-          nudgeImage(selectedId, nudge[0], nudge[1]);
+          nudgeImages(selectedIds, nudge[0], nudge[1]);
         }
       }
     };
@@ -132,7 +133,7 @@ function App() {
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
     };
-  }, [selectedId, nudgeImage, deleteImage, setTool, undo, redo]);
+  }, [selectedIds, nudgeImages, deleteImage, setTool, undo, redo]);
 
   useEffect(() => {
     const handleResize = () => {
@@ -143,13 +144,23 @@ function App() {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  const selectedImage = images.find((img) => img.id === selectedId) ?? null;
+  const selectedImage = selectedIds.length === 1 ? images.find((img) => img.id === selectedIds[0]) ?? null : null;
 
   const handleClearMask = useCallback(
     (id: string) => {
       updateImage(id, { mask: undefined });
     },
     [updateImage]
+  );
+
+  // A dragged image moves the whole selection if it's part of one, so
+  // dragging any selected image carries the rest of the group with it.
+  const handleMoveSelected = useCallback(
+    (draggedId: string, dx: number, dy: number) => {
+      const ids = selectedIds.includes(draggedId) ? selectedIds : [draggedId];
+      moveImages(ids, dx, dy);
+    },
+    [selectedIds, moveImages]
   );
 
   return (
@@ -174,12 +185,13 @@ function App() {
       />
       <Canvas
         images={images}
-        selectedId={selectedId}
+        selectedIds={selectedIds}
         tool={tool}
         stagePosition={stagePosition}
         stageScale={stageScale}
-        onSelect={setSelectedId}
+        onSelect={setSelectedIds}
         onUpdateImage={updateImage}
+        onMoveSelected={handleMoveSelected}
         onStagePositionChange={setStagePosition}
         onStageScaleChange={setStageScale}
         onDrop={loadFromFiles}

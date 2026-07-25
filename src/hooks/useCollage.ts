@@ -14,7 +14,7 @@ export function useCollage() {
     canUndo,
     canRedo,
   } = useHistory<CollageImage[]>([]);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [tool, setTool] = useState<Tool>('select');
   const [stagePosition, setStagePosition] = useState({ x: 0, y: 0 });
   const [stageScale, setStageScale] = useState(1);
@@ -67,7 +67,7 @@ export function useCollage() {
       name,
     };
     setImages((prev) => [...prev, img]);
-    setSelectedId(id);
+    setSelectedIds([id]);
   }, [stagePosition, stageScale, setImages]);
 
   const updateImage = useCallback(
@@ -80,9 +80,10 @@ export function useCollage() {
     [setImages]
   );
 
-  const deleteImage = useCallback((id: string) => {
-    setImages((prev) => prev.filter((img) => img.id !== id));
-    setSelectedId((prev) => (prev === id ? null : prev));
+  const deleteImage = useCallback((id: string | string[]) => {
+    const ids = Array.isArray(id) ? id : [id];
+    setImages((prev) => prev.filter((img) => !ids.includes(img.id)));
+    setSelectedIds((prev) => prev.filter((sid) => !ids.includes(sid)));
   }, [setImages]);
 
   const bringToFront = useCallback((id: string) => {
@@ -98,18 +99,23 @@ export function useCollage() {
     });
   }, [setImages]);
 
-  const nudgeImage = useCallback(
-    (id: string, dx: number, dy: number) => {
+  const moveImages = useCallback(
+    (ids: string[], dx: number, dy: number, options?: { coalesce?: boolean }) => {
       // Applies the delta via the functional updater (not updateImage's
-      // stale-closure `image.x`) so back-to-back nudges fired before a
-      // re-render — e.g. holding the key down — each build on the other
-      // instead of collapsing into a single +1 step.
+      // stale-closure `image.x`) so back-to-back moves fired before a
+      // re-render — e.g. holding an arrow key down — each build on the other
+      // instead of collapsing into a single step.
       setImages(
-        (prev) => prev.map((img) => (img.id === id ? { ...img, x: img.x + dx, y: img.y + dy } : img)),
-        { coalesce: true }
+        (prev) => prev.map((img) => (ids.includes(img.id) ? { ...img, x: img.x + dx, y: img.y + dy } : img)),
+        options
       );
     },
     [setImages]
+  );
+
+  const nudgeImages = useCallback(
+    (ids: string[], dx: number, dy: number) => moveImages(ids, dx, dy, { coalesce: true }),
+    [moveImages]
   );
 
   const duplicateImage = useCallback((id: string) => {
@@ -123,7 +129,7 @@ export function useCollage() {
         y: source.y + 20,
         zIndex: nextZIndex.current++,
       };
-      setSelectedId(newImg.id);
+      setSelectedIds([newImg.id]);
       return [...prev, newImg];
     });
   }, [setImages]);
@@ -131,8 +137,8 @@ export function useCollage() {
   return {
     images,
     setImages,
-    selectedId,
-    setSelectedId,
+    selectedIds,
+    setSelectedIds,
     tool,
     setTool,
     stagePosition,
@@ -141,7 +147,8 @@ export function useCollage() {
     setStageScale,
     addImage,
     updateImage,
-    nudgeImage,
+    moveImages,
+    nudgeImages,
     deleteImage,
     bringToFront,
     sendToBack,
