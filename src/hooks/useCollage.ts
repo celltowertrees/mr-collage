@@ -98,6 +98,20 @@ export function useCollage() {
     });
   }, [setImages]);
 
+  const nudgeImage = useCallback(
+    (id: string, dx: number, dy: number) => {
+      // Applies the delta via the functional updater (not updateImage's
+      // stale-closure `image.x`) so back-to-back nudges fired before a
+      // re-render — e.g. holding the key down — each build on the other
+      // instead of collapsing into a single +1 step.
+      setImages(
+        (prev) => prev.map((img) => (img.id === id ? { ...img, x: img.x + dx, y: img.y + dy } : img)),
+        { coalesce: true }
+      );
+    },
+    [setImages]
+  );
+
   const duplicateImage = useCallback((id: string) => {
     setImages((prev) => {
       const source = prev.find((img) => img.id === id);
@@ -127,6 +141,7 @@ export function useCollage() {
     setStageScale,
     addImage,
     updateImage,
+    nudgeImage,
     deleteImage,
     bringToFront,
     sendToBack,
