@@ -264,7 +264,6 @@ export function Toolbar({
   return (
     <div className="toolbar">
       <div className="toolbar-section">
-        <span className="toolbar-label">Tools</span>
         <ToolButton active={tool === 'select'} onClick={() => onToolChange('select')} title="Select (V)">
           <SelectIcon />
         </ToolButton>
@@ -284,11 +283,9 @@ export function Toolbar({
         </ToolButton>
       </div>
 
-      {selectedImage && (
+      {selectedImage && tool !== 'pan' && (
         <>
           <div className="toolbar-section">
-            <span className="toolbar-label">Image</span>
-
             <SliderField
               label="Opacity"
               min={0}
@@ -375,7 +372,7 @@ export function Toolbar({
           </div>
 
           <div className="toolbar-section">
-            <span className="toolbar-label">Mask</span>
+            <div className="toolbar-divider" />
             <ToolButton
               active={tool === 'mask-circle'}
               onClick={() => onToolChange(tool === 'mask-circle' ? 'select' : 'mask-circle')}
@@ -409,10 +406,10 @@ export function Toolbar({
                   : 'Click and drag to draw mask'}
               </span>
             )}
+            <div className="toolbar-divider" />
           </div>
 
           <div className="toolbar-section">
-            <span className="toolbar-label">Crop</span>
             <ToolButton
               active={tool === 'crop'}
               onClick={() => onToolChange(tool === 'crop' ? 'select' : 'crop')}
@@ -434,7 +431,6 @@ export function Toolbar({
           </div>
 
           <div className="toolbar-section">
-            <span className="toolbar-label">Shadow</span>
             <ToolButton
               active={shadow?.enabled}
               onClick={toggleShadow}
@@ -495,7 +491,6 @@ export function Toolbar({
       )}
 
       <div className="toolbar-section toolbar-right">
-        <span className="toolbar-label">Export</span>
         <ToolButton onClick={onExportJPEG} title="Export JPEG" className="export-btn">
           JPEG
         </ToolButton>

@@ -6,7 +6,7 @@
 
 :root {
   /* ── Canvas ── */
-  --canvas-bg: #f4f4f5;
+  --canvas-bg: #ffffff;
 
   /* ── Toolbar ── */
   --toolbar-bg: #ffffff;
@@ -15,7 +15,6 @@
   --toolbar-text: #18181b;
   --toolbar-muted: #8a8a92;
   --toolbar-font-size: 12px;
-  --toolbar-label-size: 10px;
   --toolbar-gap: 6px;
   --toolbar-font: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 
@@ -27,6 +26,9 @@
   --btn-active: #e4e4e7;
   --btn-border: #d4d4d8;
   --btn-text: #3f3f46;
+  /* Subtle 3D bevel: light on the raised edge, dark on the sunken edge. */
+  --btn-bevel-light: rgba(255, 255, 255, 0.9);
+  --btn-bevel-dark: rgba(0, 0, 0, 0.16);
 
   /* ── Accent / Danger ── */
   --accent: #2563eb;
