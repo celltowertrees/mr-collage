@@ -122,6 +122,11 @@ test.describe('Drop Shadow on Masked Objects', () => {
     await page.getByLabel('Offset Y').fill('-15');
     await shadowSection.getByLabel('Opacity').fill('0.9');
 
+    // The last fill's state update is committed by React and persisted to
+    // localStorage by a separate useEffect (see the `saveQueue` comment in
+    // useCollage.ts) — reading localStorage right away races that save.
+    await expect.poll(async () => (await readState(page)).images[0].shadow?.opacity).toBeCloseTo(0.9);
+
     const shadow = (await readState(page)).images[0].shadow;
     expect(shadow.blur).toBe(40);
     expect(shadow.offsetX).toBe(20);
