@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { forwardRef, useEffect, useRef, useState, type ReactNode } from 'react';
 import { BLEND_MODES, BlendMode, CollageImage, ShadowData, Tool } from '../types';
 
 const DEFAULT_SHADOW: ShadowData = {
@@ -15,6 +15,161 @@ function formatBlendModeLabel(mode: BlendMode): string {
     .split('-')
     .map((word) => word[0].toUpperCase() + word.slice(1))
     .join(' ');
+}
+
+// ---- Icons ----
+
+const SelectIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+    <path d="M1 1l5.5 14 2.2-5.8L14.5 7z" />
+  </svg>
+);
+
+const PanIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+    <path d="M8 1l-3 3h2v3H4V5L1 8l3 3v-2h3v3H5l3 3 3-3h-2V9h3v2l3-3-3-3v2H9V4h2z" />
+  </svg>
+);
+
+const UploadIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+    <path d="M8 1L4 5h3v5h2V5h3L8 1zM2 12v2h12v-2H2z" />
+  </svg>
+);
+
+const UndoIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+    <path d="M4 3L1 6l3 3V7c3.3 0 6 1.8 6 5-1-2.5-3-3.5-6-3.5V10L1 6z" />
+  </svg>
+);
+
+const RedoIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+    <path d="M12 3l3 3-3 3V7c-3.3 0-6 1.8-6 5 1-2.5 3-3.5 6-3.5V10l3-4z" />
+  </svg>
+);
+
+const BringToFrontIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+    <rect x="1" y="6" width="8" height="8" rx="1" opacity="0.3" />
+    <rect x="5" y="2" width="8" height="8" rx="1" />
+  </svg>
+);
+
+const SendToBackIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+    <rect x="5" y="2" width="8" height="8" rx="1" opacity="0.3" />
+    <rect x="1" y="6" width="8" height="8" rx="1" />
+  </svg>
+);
+
+const DuplicateIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+    <rect x="1" y="4" width="9" height="9" rx="1" />
+    <rect x="5" y="1" width="9" height="9" rx="1" />
+  </svg>
+);
+
+const DeleteIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+    <path d="M5 2V1h6v1h4v2H1V2h4zm1 4v7h1V6H6zm3 0v7h1V6H9zM2 5l1 10h10l1-10H2z" />
+  </svg>
+);
+
+const CircleMaskIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+    <circle cx="8" cy="8" r="6" />
+  </svg>
+);
+
+const RectMaskIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+    <rect x="2" y="3" width="12" height="10" rx="1" />
+  </svg>
+);
+
+const PolygonMaskIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+    <polygon points="8,1 14,6 12,14 4,14 2,6" />
+  </svg>
+);
+
+const XIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2">
+    <path d="M3.5 3.5l9 9m0-9l-9 9" />
+  </svg>
+);
+
+const CropIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+    <path d="M4 1v10a1 1 0 0 0 1 1h10M1 4h10a1 1 0 0 1 1 1v10" />
+  </svg>
+);
+
+const CheckIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2">
+    <path d="M2 8l4 4 8-8" />
+  </svg>
+);
+
+const ShadowIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+    <rect x="2" y="2" width="9" height="9" rx="1.5" fill="currentColor" />
+    <rect x="5" y="5" width="9" height="9" rx="1.5" fill="currentColor" opacity="0.35" />
+  </svg>
+);
+
+// ---- Shared toolbar primitives ----
+
+interface ToolButtonProps {
+  onClick: () => void;
+  title: string;
+  active?: boolean;
+  danger?: boolean;
+  disabled?: boolean;
+  className?: string;
+  children: ReactNode;
+}
+
+const ToolButton = forwardRef<HTMLButtonElement, ToolButtonProps>(function ToolButton(
+  { onClick, title, active, danger, disabled, className, children },
+  ref
+) {
+  const classes = ['toolbar-btn', active && 'active', danger && 'danger', className]
+    .filter(Boolean)
+    .join(' ');
+  return (
+    <button ref={ref} className={classes} onClick={onClick} disabled={disabled} title={title}>
+      {children}
+    </button>
+  );
+});
+
+interface SliderFieldProps {
+  label: string;
+  value: number;
+  min: number;
+  max: number;
+  step: number;
+  display: string;
+  onChange: (value: number) => void;
+}
+
+function SliderField({ label, value, min, max, step, display, onChange }: SliderFieldProps) {
+  return (
+    <label className="toolbar-field">
+      <span>{label}</span>
+      <input
+        type="range"
+        min={min}
+        max={max}
+        step={step}
+        value={value}
+        onChange={(e) => onChange(parseFloat(e.target.value))}
+      />
+      <span className="toolbar-value">{display}</span>
+    </label>
+  );
 }
 
 interface ToolbarProps {
@@ -110,51 +265,23 @@ export function Toolbar({
     <div className="toolbar">
       <div className="toolbar-section">
         <span className="toolbar-label">Tools</span>
-        <button
-          className={`toolbar-btn ${tool === 'select' ? 'active' : ''}`}
-          onClick={() => onToolChange('select')}
-          title="Select (V)"
-        >
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-            <path d="M1 1l5.5 14 2.2-5.8L14.5 7z" />
-          </svg>
-        </button>
-        <button
-          className={`toolbar-btn ${tool === 'pan' ? 'active' : ''}`}
-          onClick={() => onToolChange('pan')}
-          title="Pan (H)"
-        >
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-            <path d="M8 1l-3 3h2v3H4V5L1 8l3 3v-2h3v3H5l3 3 3-3h-2V9h3v2l3-3-3-3v2H9V4h2z" />
-          </svg>
-        </button>
+        <ToolButton active={tool === 'select'} onClick={() => onToolChange('select')} title="Select (V)">
+          <SelectIcon />
+        </ToolButton>
+        <ToolButton active={tool === 'pan'} onClick={() => onToolChange('pan')} title="Pan (H)">
+          <PanIcon />
+        </ToolButton>
         <div className="toolbar-divider" />
-        <button className="toolbar-btn" onClick={onUpload} title="Upload Image">
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-            <path d="M8 1L4 5h3v5h2V5h3L8 1zM2 12v2h12v-2H2z" />
-          </svg>
-        </button>
+        <ToolButton onClick={onUpload} title="Upload Image">
+          <UploadIcon />
+        </ToolButton>
         <div className="toolbar-divider" />
-        <button
-          className="toolbar-btn"
-          onClick={onUndo}
-          disabled={!canUndo}
-          title="Undo (Ctrl+Z)"
-        >
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-            <path d="M4 3L1 6l3 3V7c3.3 0 6 1.8 6 5-1-2.5-3-3.5-6-3.5V10L1 6z" />
-          </svg>
-        </button>
-        <button
-          className="toolbar-btn"
-          onClick={onRedo}
-          disabled={!canRedo}
-          title="Redo (Ctrl+Shift+Z)"
-        >
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-            <path d="M12 3l3 3-3 3V7c-3.3 0-6 1.8-6 5 1-2.5 3-3.5 6-3.5V10l3-4z" />
-          </svg>
-        </button>
+        <ToolButton onClick={onUndo} disabled={!canUndo} title="Undo (Ctrl+Z)">
+          <UndoIcon />
+        </ToolButton>
+        <ToolButton onClick={onRedo} disabled={!canRedo} title="Redo (Ctrl+Shift+Z)">
+          <RedoIcon />
+        </ToolButton>
       </div>
 
       {selectedImage && (
@@ -162,48 +289,33 @@ export function Toolbar({
           <div className="toolbar-section">
             <span className="toolbar-label">Image</span>
 
-            <label className="toolbar-field">
-              <span>Opacity</span>
-              <input
-                type="range"
-                min="0"
-                max="1"
-                step="0.05"
-                value={selectedImage.opacity}
-                onChange={(e) =>
-                  onUpdateImage(
-                    selectedImage.id,
-                    { opacity: parseFloat(e.target.value) },
-                    { coalesce: true }
-                  )
-                }
-              />
-              <span className="toolbar-value">{Math.round(selectedImage.opacity * 100)}%</span>
-            </label>
+            <SliderField
+              label="Opacity"
+              min={0}
+              max={1}
+              step={0.05}
+              value={selectedImage.opacity}
+              display={`${Math.round(selectedImage.opacity * 100)}%`}
+              onChange={(value) =>
+                onUpdateImage(selectedImage.id, { opacity: value }, { coalesce: true })
+              }
+            />
 
-            <label className="toolbar-field">
-              <span>Rotation</span>
-              <input
-                type="range"
-                min="0"
-                max="360"
-                step="1"
-                value={selectedImage.rotation}
-                onChange={(e) =>
-                  onUpdateImage(
-                    selectedImage.id,
-                    { rotation: parseFloat(e.target.value) },
-                    { coalesce: true }
-                  )
-                }
-              />
-              <span className="toolbar-value">{Math.round(selectedImage.rotation)}&deg;</span>
-            </label>
+            <SliderField
+              label="Rotation"
+              min={0}
+              max={360}
+              step={1}
+              value={selectedImage.rotation}
+              display={`${Math.round(selectedImage.rotation)}°`}
+              onChange={(value) =>
+                onUpdateImage(selectedImage.id, { rotation: value }, { coalesce: true })
+              }
+            />
 
             <div className="blend-mode-field">
-              <button
+              <ToolButton
                 ref={blendButtonRef}
-                className={`toolbar-btn export-btn ${blendMenuPos ? 'active' : ''}`}
                 onClick={() => {
                   if (blendMenuPos) {
                     setBlendMenuPos(null);
@@ -213,9 +325,11 @@ export function Toolbar({
                   if (rect) setBlendMenuPos({ top: rect.bottom + 6, left: rect.left });
                 }}
                 title="Blend Mode"
+                active={!!blendMenuPos}
+                className="export-btn"
               >
                 {formatBlendModeLabel(selectedImage.blendMode ?? 'normal')}
-              </button>
+              </ToolButton>
               {blendMenuPos && (
                 <div
                   ref={blendMenuRef}
@@ -246,86 +360,47 @@ export function Toolbar({
 
             <div className="toolbar-divider" />
 
-            <button
-              className="toolbar-btn"
-              onClick={() => onBringToFront(selectedImage.id)}
-              title="Bring to Front"
-            >
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-                <rect x="1" y="6" width="8" height="8" rx="1" opacity="0.3" />
-                <rect x="5" y="2" width="8" height="8" rx="1" />
-              </svg>
-            </button>
-            <button
-              className="toolbar-btn"
-              onClick={() => onSendToBack(selectedImage.id)}
-              title="Send to Back"
-            >
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-                <rect x="5" y="2" width="8" height="8" rx="1" opacity="0.3" />
-                <rect x="1" y="6" width="8" height="8" rx="1" />
-              </svg>
-            </button>
-            <button
-              className="toolbar-btn"
-              onClick={() => onDuplicate(selectedImage.id)}
-              title="Duplicate"
-            >
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-                <rect x="1" y="4" width="9" height="9" rx="1" fill="none" stroke="currentColor" strokeWidth="1.5" />
-                <rect x="5" y="1" width="9" height="9" rx="1" fill="none" stroke="currentColor" strokeWidth="1.5" />
-              </svg>
-            </button>
-            <button
-              className="toolbar-btn danger"
-              onClick={() => onDelete(selectedImage.id)}
-              title="Delete"
-            >
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-                <path d="M5 2V1h6v1h4v2H1V2h4zm1 4v7h1V6H6zm3 0v7h1V6H9zM2 5l1 10h10l1-10H2z" />
-              </svg>
-            </button>
+            <ToolButton onClick={() => onBringToFront(selectedImage.id)} title="Bring to Front">
+              <BringToFrontIcon />
+            </ToolButton>
+            <ToolButton onClick={() => onSendToBack(selectedImage.id)} title="Send to Back">
+              <SendToBackIcon />
+            </ToolButton>
+            <ToolButton onClick={() => onDuplicate(selectedImage.id)} title="Duplicate">
+              <DuplicateIcon />
+            </ToolButton>
+            <ToolButton danger onClick={() => onDelete(selectedImage.id)} title="Delete">
+              <DeleteIcon />
+            </ToolButton>
           </div>
 
           <div className="toolbar-section">
             <span className="toolbar-label">Mask</span>
-            <button
-              className={`toolbar-btn ${tool === 'mask-circle' ? 'active' : ''}`}
+            <ToolButton
+              active={tool === 'mask-circle'}
               onClick={() => onToolChange(tool === 'mask-circle' ? 'select' : 'mask-circle')}
               title="Circle Mask"
             >
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
-                <circle cx="8" cy="8" r="6" />
-              </svg>
-            </button>
-            <button
-              className={`toolbar-btn ${tool === 'mask-rect' ? 'active' : ''}`}
+              <CircleMaskIcon />
+            </ToolButton>
+            <ToolButton
+              active={tool === 'mask-rect'}
               onClick={() => onToolChange(tool === 'mask-rect' ? 'select' : 'mask-rect')}
               title="Rectangle Mask"
             >
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
-                <rect x="2" y="3" width="12" height="10" rx="1" />
-              </svg>
-            </button>
-            <button
-              className={`toolbar-btn ${tool === 'mask-polygon' ? 'active' : ''}`}
+              <RectMaskIcon />
+            </ToolButton>
+            <ToolButton
+              active={tool === 'mask-polygon'}
               onClick={() => onToolChange(tool === 'mask-polygon' ? 'select' : 'mask-polygon')}
               title="Freeform Mask (click points, double-click to finish)"
             >
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
-                <polygon points="8,1 14,6 12,14 4,14 2,6" />
-              </svg>
-            </button>
+              <PolygonMaskIcon />
+            </ToolButton>
             {selectedImage.mask && (
-              <button
-                className="toolbar-btn danger"
-                onClick={() => onClearMask(selectedImage.id)}
-                title="Clear Mask"
-              >
-                <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-                  <path d="M3.5 3.5l9 9m0-9l-9 9" stroke="currentColor" strokeWidth="2" fill="none" />
-                </svg>
-              </button>
+              <ToolButton danger onClick={() => onClearMask(selectedImage.id)} title="Clear Mask">
+                <XIcon />
+              </ToolButton>
             )}
             {isMaskTool && (
               <span className="mask-hint">
@@ -338,32 +413,21 @@ export function Toolbar({
 
           <div className="toolbar-section">
             <span className="toolbar-label">Crop</span>
-            <button
-              className={`toolbar-btn ${tool === 'crop' ? 'active' : ''}`}
+            <ToolButton
+              active={tool === 'crop'}
               onClick={() => onToolChange(tool === 'crop' ? 'select' : 'crop')}
               title="Crop"
             >
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
-                <path d="M4 1v10a1 1 0 0 0 1 1h10M1 4h10a1 1 0 0 1 1 1v10" />
-              </svg>
-            </button>
+              <CropIcon />
+            </ToolButton>
             {tool === 'crop' && (
               <>
-                <button
-                  className="toolbar-btn"
-                  onClick={onApplyCrop}
-                  disabled={!hasPendingCrop}
-                  title="Apply Crop"
-                >
-                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M2 8l4 4 8-8" />
-                  </svg>
-                </button>
-                <button className="toolbar-btn danger" onClick={onCancelCrop} title="Cancel Crop">
-                  <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-                    <path d="M3.5 3.5l9 9m0-9l-9 9" stroke="currentColor" strokeWidth="2" fill="none" />
-                  </svg>
-                </button>
+                <ToolButton onClick={onApplyCrop} disabled={!hasPendingCrop} title="Apply Crop">
+                  <CheckIcon />
+                </ToolButton>
+                <ToolButton danger onClick={onCancelCrop} title="Cancel Crop">
+                  <XIcon />
+                </ToolButton>
                 <span className="mask-hint">Click and drag to draw the crop area</span>
               </>
             )}
@@ -371,16 +435,13 @@ export function Toolbar({
 
           <div className="toolbar-section">
             <span className="toolbar-label">Shadow</span>
-            <button
-              className={`toolbar-btn ${shadow?.enabled ? 'active' : ''}`}
+            <ToolButton
+              active={shadow?.enabled}
               onClick={toggleShadow}
               title={shadow?.enabled ? 'Disable Drop Shadow' : 'Enable Drop Shadow'}
             >
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                <rect x="2" y="2" width="9" height="9" rx="1.5" fill="currentColor" />
-                <rect x="5" y="5" width="9" height="9" rx="1.5" fill="currentColor" opacity="0.35" />
-              </svg>
-            </button>
+              <ShadowIcon />
+            </ToolButton>
             {shadow?.enabled && (
               <>
                 <label className="toolbar-field">
@@ -391,54 +452,42 @@ export function Toolbar({
                     onChange={(e) => updateShadow({ color: e.target.value })}
                   />
                 </label>
-                <label className="toolbar-field">
-                  <span>Blur</span>
-                  <input
-                    type="range"
-                    min="0"
-                    max="60"
-                    step="1"
-                    value={shadow.blur}
-                    onChange={(e) => updateShadow({ blur: parseFloat(e.target.value) })}
-                  />
-                  <span className="toolbar-value">{Math.round(shadow.blur)}</span>
-                </label>
-                <label className="toolbar-field">
-                  <span>Offset X</span>
-                  <input
-                    type="range"
-                    min="-50"
-                    max="50"
-                    step="1"
-                    value={shadow.offsetX}
-                    onChange={(e) => updateShadow({ offsetX: parseFloat(e.target.value) })}
-                  />
-                  <span className="toolbar-value">{Math.round(shadow.offsetX)}</span>
-                </label>
-                <label className="toolbar-field">
-                  <span>Offset Y</span>
-                  <input
-                    type="range"
-                    min="-50"
-                    max="50"
-                    step="1"
-                    value={shadow.offsetY}
-                    onChange={(e) => updateShadow({ offsetY: parseFloat(e.target.value) })}
-                  />
-                  <span className="toolbar-value">{Math.round(shadow.offsetY)}</span>
-                </label>
-                <label className="toolbar-field">
-                  <span>Opacity</span>
-                  <input
-                    type="range"
-                    min="0"
-                    max="1"
-                    step="0.05"
-                    value={shadow.opacity}
-                    onChange={(e) => updateShadow({ opacity: parseFloat(e.target.value) })}
-                  />
-                  <span className="toolbar-value">{Math.round(shadow.opacity * 100)}%</span>
-                </label>
+                <SliderField
+                  label="Blur"
+                  min={0}
+                  max={60}
+                  step={1}
+                  value={shadow.blur}
+                  display={`${Math.round(shadow.blur)}`}
+                  onChange={(value) => updateShadow({ blur: value })}
+                />
+                <SliderField
+                  label="Offset X"
+                  min={-50}
+                  max={50}
+                  step={1}
+                  value={shadow.offsetX}
+                  display={`${Math.round(shadow.offsetX)}`}
+                  onChange={(value) => updateShadow({ offsetX: value })}
+                />
+                <SliderField
+                  label="Offset Y"
+                  min={-50}
+                  max={50}
+                  step={1}
+                  value={shadow.offsetY}
+                  display={`${Math.round(shadow.offsetY)}`}
+                  onChange={(value) => updateShadow({ offsetY: value })}
+                />
+                <SliderField
+                  label="Opacity"
+                  min={0}
+                  max={1}
+                  step={0.05}
+                  value={shadow.opacity}
+                  display={`${Math.round(shadow.opacity * 100)}%`}
+                  onChange={(value) => updateShadow({ opacity: value })}
+                />
               </>
             )}
           </div>
@@ -447,12 +496,12 @@ export function Toolbar({
 
       <div className="toolbar-section toolbar-right">
         <span className="toolbar-label">Export</span>
-        <button className="toolbar-btn export-btn" onClick={onExportJPEG} title="Export JPEG">
+        <ToolButton onClick={onExportJPEG} title="Export JPEG" className="export-btn">
           JPEG
-        </button>
-        <button className="toolbar-btn export-btn" onClick={onExportJSON} title="Export ICP JSON">
+        </ToolButton>
+        <ToolButton onClick={onExportJSON} title="Export ICP JSON" className="export-btn">
           JSON
-        </button>
+        </ToolButton>
       </div>
     </div>
   );
