@@ -173,3 +173,32 @@ Feature: Undo/Redo History
     When the user presses Ctrl+Z once after finishing the adjustment
     Then the whole adjustment is undone in one step, not one step per intermediate value
 ```
+
+### Arrow Key Nudge
+- **Requested:** 2026-07-25
+- **Ask:** Move the selected object pixel by pixel with the arrow keys.
+
+```gherkin
+Feature: Arrow Key Nudge
+  # src/App.tsx, src/hooks/useCollage.ts — tested in e2e/arrow-nudge.spec.ts
+
+  Scenario: Nudge the selected image with arrow keys
+    Given an image is selected
+    When the user presses an arrow key (Up, Down, Left, or Right)
+    Then the image moves 1 pixel in that direction
+
+  Scenario: Arrow keys do nothing when no image is selected
+    Given no image is selected
+    When the user presses an arrow key
+    Then nothing on the canvas moves and nothing throws
+
+  Scenario: Back-to-back nudges each accumulate
+    Given an image is selected
+    When several arrow key presses fire in quick succession (e.g. holding the key down)
+    Then each press moves the image by 1 more pixel rather than the burst collapsing into a single pixel of movement
+
+  Scenario: Rapid, repeated nudges coalesce into a single undo step
+    Given the user has just nudged the selected image several times in a row
+    When the user presses Ctrl+Z once
+    Then the whole burst of nudges is undone in one step, not one pixel at a time
+```

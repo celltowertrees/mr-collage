@@ -20,6 +20,7 @@ function App() {
     setStageScale,
     addImage,
     updateImage,
+    nudgeImage,
     deleteImage,
     bringToFront,
     sendToBack,
@@ -108,6 +109,15 @@ function App() {
         e.preventDefault();
         setTool('pan');
       }
+      if (selectedId) {
+        const nudge = { ArrowUp: [0, -1], ArrowDown: [0, 1], ArrowLeft: [-1, 0], ArrowRight: [1, 0] }[
+          e.key
+        ];
+        if (nudge) {
+          e.preventDefault();
+          nudgeImage(selectedId, nudge[0], nudge[1]);
+        }
+      }
     };
 
     const handleKeyUp = (e: KeyboardEvent) => {
@@ -122,7 +132,7 @@ function App() {
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
     };
-  }, [selectedId, deleteImage, setTool, undo, redo]);
+  }, [selectedId, nudgeImage, deleteImage, setTool, undo, redo]);
 
   useEffect(() => {
     const handleResize = () => {
