@@ -20,6 +20,11 @@ export function useCollage() {
   const [stageScale, setStageScale] = useState(1);
   const nextZIndex = useRef(1);
   const initialized = useRef(false);
+  // Each save chains onto the last so overlapping saveState() calls (fired in
+  // quick succession, e.g. by coalesced slider updates) resolve in the order
+  // they were scheduled — otherwise an earlier call's IndexedDB round-trip
+  // could finish after a later one's and overwrite localStorage with stale data.
+  const saveQueue = useRef(Promise.resolve());
 
   useEffect(() => {
     loadState().then((saved) => {
@@ -38,7 +43,9 @@ export function useCollage() {
   useEffect(() => {
     if (!initialized.current) return;
     const state: CanvasState = { images, stagePosition, stageScale };
-    saveState(state).catch((err) => console.warn('Save failed:', err));
+    saveQueue.current = saveQueue.current.then(() =>
+      saveState(state).catch((err) => console.warn('Save failed:', err))
+    );
   }, [images, stagePosition, stageScale]);
 
   const addImage = useCallback((src: string, name: string, naturalWidth: number, naturalHeight: number) => {
