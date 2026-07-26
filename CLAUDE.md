@@ -323,3 +323,32 @@ Feature: Export Scene to Static HTML
     When the user exports HTML
     Then each image's data URL is embedded directly in an <img> tag, with no external file references
 ```
+
+### Mirror an Image (Flip Horizontal / Vertical)
+- **Requested:** 2026-07-26
+- **Ask:** Add the ability to mirror an image.
+
+```gherkin
+Feature: Mirror an Image (Flip Horizontal / Vertical)
+  # src/types.ts, src/components/CollageImageNode.tsx, src/components/Toolbar.tsx, src/store.ts — tested in e2e/flip-image.spec.ts
+
+  Scenario: Flip an image horizontally
+    Given an image is selected
+    When the user clicks "Flip Horizontal" in the toolbar
+    Then the image is mirrored left-to-right about its own center, and its position and size are unchanged
+
+  Scenario: Flip an image vertically
+    Given an image is selected
+    When the user clicks "Flip Vertical" in the toolbar
+    Then the image is mirrored top-to-bottom about its own center, and its position and size are unchanged
+
+  Scenario: Flipping twice restores the original orientation
+    Given an image has been flipped horizontally
+    When the user clicks "Flip Horizontal" again
+    Then the image returns to its original, unmirrored orientation
+
+  Scenario: Export includes flip state
+    Given an image has been flipped horizontally and/or vertically
+    When the user exports the collage as ICP JSON
+    Then the image's flip state is included in the exported data
+```

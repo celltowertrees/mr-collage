@@ -74,6 +74,8 @@ export interface CollageImage {
   shadow?: ShadowData;
   blendMode?: Exclude<BlendMode, 'normal'>;
   crop?: CropRect;
+  flipX?: boolean;
+  flipY?: boolean;
 }
 
 export interface CanvasState {
