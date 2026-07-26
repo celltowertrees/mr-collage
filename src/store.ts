@@ -147,6 +147,8 @@ export function exportToICP(images: CollageImage[]): object {
           ...(img.shadow?.enabled ? { shadow: img.shadow } : {}),
           ...(img.blendMode ? { blendMode: img.blendMode } : {}),
           ...(img.crop ? { crop: img.crop } : {}),
+          ...(img.flipX ? { flipX: img.flipX } : {}),
+          ...(img.flipY ? { flipY: img.flipY } : {}),
         },
       })),
     },
@@ -265,13 +267,15 @@ function renderImageNode(
   const left = centerX - screenWidth / 2;
   const top = centerY - screenHeight / 2;
 
+  const flip = `${img.flipX ? ' scaleX(-1)' : ''}${img.flipY ? ' scaleY(-1)' : ''}`;
+
   const frameStyles = [
     'position: absolute',
     `left: ${left}px`,
     `top: ${top}px`,
     `width: ${screenWidth}px`,
     `height: ${screenHeight}px`,
-    `transform: rotate(${img.rotation}deg)`,
+    `transform: rotate(${img.rotation}deg)${flip}`,
     'transform-origin: center center',
     `opacity: ${img.opacity}`,
     `z-index: ${img.zIndex}`,

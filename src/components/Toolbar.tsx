@@ -112,6 +112,22 @@ const CheckIcon = () => (
   </svg>
 );
 
+const FlipHorizontalIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+    <path d="M8 1v14" strokeDasharray="2 2" />
+    <path d="M3 4h2l-2 3h2l-2 3h2l-2 3" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M13 4h-2l2 3h-2l2 3h-2l2 3" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+
+const FlipVerticalIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+    <path d="M1 8h14" strokeDasharray="2 2" />
+    <path d="M4 3v2l3-2v2l3-2v2" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M4 13v-2l3 2v-2l3 2v-2" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+
 const ShadowIcon = () => (
   <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
     <rect x="2" y="2" width="9" height="9" rx="1.5" fill="currentColor" />
@@ -370,6 +386,21 @@ export function Toolbar({
             </ToolButton>
             <ToolButton danger onClick={() => onDelete(selectedImage.id)} title="Delete">
               <DeleteIcon />
+            </ToolButton>
+            <div className="toolbar-divider" />
+            <ToolButton
+              active={selectedImage.flipX}
+              onClick={() => onUpdateImage(selectedImage.id, { flipX: !selectedImage.flipX })}
+              title="Flip Horizontal"
+            >
+              <FlipHorizontalIcon />
+            </ToolButton>
+            <ToolButton
+              active={selectedImage.flipY}
+              onClick={() => onUpdateImage(selectedImage.id, { flipY: !selectedImage.flipY })}
+              title="Flip Vertical"
+            >
+              <FlipVerticalIcon />
             </ToolButton>
           </div>
 

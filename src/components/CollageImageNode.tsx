@@ -79,13 +79,16 @@ export function CollageImageNode({ image, isSelected, tool, onSelect, onChange, 
   const shadow = image.shadow;
   const shadowActive = shadow?.enabled ?? false;
 
+  const flipX = image.flipX ? -1 : 1;
+  const flipY = image.flipY ? -1 : 1;
+
   const transform = {
     x: image.x,
     y: image.y,
     offsetX: image.width / 2,
     offsetY: image.height / 2,
-    scaleX: image.scaleX,
-    scaleY: image.scaleY,
+    scaleX: image.scaleX * flipX,
+    scaleY: image.scaleY * flipY,
     rotation: image.rotation,
   };
 
@@ -128,8 +131,11 @@ export function CollageImageNode({ image, isSelected, tool, onSelect, onChange, 
             x: node.x(),
             y: node.y(),
             rotation: node.rotation(),
-            scaleX: node.scaleX(),
-            scaleY: node.scaleY(),
+            // The rendered scale carries the flip sign baked in (see `transform`
+            // above) — divide it back out so the stored scale stays a plain
+            // magnitude, decoupled from flip state.
+            scaleX: node.scaleX() * flipX,
+            scaleY: node.scaleY() * flipY,
           });
         }}
         clipFunc={image.mask ? buildClipFunc(image.mask) : undefined}
