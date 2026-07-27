@@ -20,6 +20,21 @@ export interface PolygonMask {
 
 export type MaskData = CircleMask | RectMask | PolygonMask;
 
+export interface GradientMask {
+  start: { x: number; y: number };
+  end: { x: number; y: number };
+}
+
+// innerRadius/outerRadius are fractions of an ellipse fit to the image's own
+// aspect ratio, where 1.0 reaches the midpoint of each edge (and a corner
+// sits at ~1.41) — so the same default values give a sensible vignette
+// regardless of the image's width/height.
+export interface VignetteData {
+  enabled: boolean;
+  innerRadius: number;
+  outerRadius: number;
+}
+
 export interface CropRect {
   x: number;
   y: number;
@@ -71,6 +86,8 @@ export interface CollageImage {
   zIndex: number;
   name: string;
   mask?: MaskData;
+  gradientMask?: GradientMask;
+  vignette?: VignetteData;
   shadow?: ShadowData;
   blendMode?: Exclude<BlendMode, 'normal'>;
   crop?: CropRect;
@@ -84,4 +101,11 @@ export interface CanvasState {
   stageScale: number;
 }
 
-export type Tool = 'select' | 'pan' | 'mask-circle' | 'mask-rect' | 'mask-polygon' | 'crop';
+export type Tool =
+  | 'select'
+  | 'pan'
+  | 'mask-circle'
+  | 'mask-rect'
+  | 'mask-polygon'
+  | 'mask-gradient'
+  | 'crop';

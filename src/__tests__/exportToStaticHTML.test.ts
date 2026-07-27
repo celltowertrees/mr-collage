@@ -149,5 +149,90 @@ describe('exportToStaticHTML', () => {
     expect(frame.style.clipPath).toBe('');
     expect(frame.style.filter).toBe('');
     expect(frame.style.mixBlendMode).toBe('');
+    expect(frame.style.maskImage).toBe('');
+  });
+
+  // Maps to CLAUDE.md → "Gradient Fade Mask on an Image"
+  it('reproduces a gradient fade as a CSS mask-image linear-gradient', () => {
+    // width=200, height=100, scale=1 -> box is 200x100. A horizontal line
+    // from (50,50) to (150,50) points straight "right" (90deg in CSS's
+    // from-the-top convention). The CSS gradient-line-length formula for a
+    // 200x100 box at 90deg is |200*sin90| + |100*cos90| = 200, and each
+    // point's projection onto that line's center-relative axis is (x-100):
+    // start -50 -> 25%, end +50 -> 75%.
+    const image = makeImage({
+      width: 200,
+      height: 100,
+      gradientMask: { start: { x: 50, y: 50 }, end: { x: 150, y: 50 } },
+    });
+    const html = exportToStaticHTML([image], viewport);
+    const frame = parseFrame(html, image.id);
+
+    expect(frame.style.maskImage).toBe(
+      'linear-gradient(90deg, rgba(0, 0, 0, 1) 25%, rgba(0, 0, 0, 0) 75%)'
+    );
+    expect(frame.getAttribute('style')).toContain(
+      '-webkit-mask-image: linear-gradient(90deg, rgba(0, 0, 0, 1) 25%, rgba(0, 0, 0, 0) 75%)'
+    );
+  });
+
+  it('combines the gradient fade mask with a shape mask clip-path', () => {
+    const image = makeImage({
+      mask: { type: 'rect', x: 0, y: 0, width: 200, height: 100 },
+      gradientMask: { start: { x: 50, y: 50 }, end: { x: 150, y: 50 } },
+    });
+    const html = exportToStaticHTML([image], viewport);
+    const frame = parseFrame(html, image.id);
+
+    expect(frame.style.clipPath).toContain('polygon');
+    expect(frame.style.maskImage).toContain('linear-gradient');
+  });
+
+  // Maps to CLAUDE.md → "Circular Vignette on an Image"
+  it('reproduces a vignette as a CSS mask-image radial-gradient sized to the rendered box', () => {
+    // width=200, height=100, scale=1, viewport.scale=2 -> rendered box is
+    // 400x200, so the ellipse's reference size (its 100%-stop radii) is
+    // half that: 200px horizontally, 100px vertically.
+    const image = makeImage({
+      width: 200,
+      height: 100,
+      vignette: { enabled: true, innerRadius: 0.4, outerRadius: 0.9 },
+    });
+    const html = exportToStaticHTML([image], viewport);
+    const frame = parseFrame(html, image.id);
+
+    expect(frame.style.maskImage).toBe(
+      'radial-gradient(ellipse 200px 100px at center, rgba(0, 0, 0, 1) 40%, rgba(0, 0, 0, 0) 90%)'
+    );
+    expect(frame.getAttribute('style')).toContain(
+      '-webkit-mask-image: radial-gradient(ellipse 200px 100px at center, rgba(0, 0, 0, 1) 40%, rgba(0, 0, 0, 0) 90%)'
+    );
+  });
+
+  it('omits the vignette styling when disabled', () => {
+    const image = makeImage({ vignette: { enabled: false, innerRadius: 0.4, outerRadius: 0.9 } });
+    const html = exportToStaticHTML([image], viewport);
+    const frame = parseFrame(html, image.id);
+
+    expect(frame.style.maskImage).toBe('');
+  });
+
+  it('combines a gradient fade and a vignette as two composited mask-image layers', () => {
+    const image = makeImage({
+      gradientMask: { start: { x: 50, y: 50 }, end: { x: 250, y: 50 } },
+      vignette: { enabled: true, innerRadius: 0.5, outerRadius: 1 },
+    });
+    const html = exportToStaticHTML([image], viewport);
+    const frame = parseFrame(html, image.id);
+    const style = frame.getAttribute('style') ?? '';
+
+    expect(frame.style.maskImage).toContain('linear-gradient');
+    expect(frame.style.maskImage).toContain('radial-gradient');
+    // Two comma-separated layers need an explicit composite mode, or the
+    // browser default ("add") unions them instead of multiplying their
+    // alphas together — "intersect" (and its legacy -webkit equivalent,
+    // source-in) is the Porter-Duff operator that actually multiplies.
+    expect(frame.style.maskComposite).toBe('intersect');
+    expect(style).toContain('-webkit-mask-composite: source-in');
   });
 });

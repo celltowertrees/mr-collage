@@ -352,3 +352,69 @@ Feature: Mirror an Image (Flip Horizontal / Vertical)
     When the user exports the collage as ICP JSON
     Then the image's flip state is included in the exported data
 ```
+
+### Gradient Fade Mask on an Image
+- **Requested:** 2026-07-26
+- **Ask:** Add a gradient mask anywhere on an image, drawn as a line, that blends it with whatever is behind it by fading from 100% to 0% opacity.
+
+```gherkin
+Feature: Gradient Fade Mask on an Image
+  # src/types.ts, src/hooks/useGradientMaskDrawer.ts, src/components/CollageImageNode.tsx, src/components/Canvas.tsx, src/components/Toolbar.tsx, src/store.ts — tested in e2e/gradient-mask.spec.ts, src/__tests__/exportToStaticHTML.test.ts
+
+  Scenario: Draw a gradient fade by dragging a line on the image
+    Given an image is selected and the Gradient Fade tool is active
+    When the user drags from one point to another on the image
+    Then the image fades from fully opaque at the start point to fully transparent at the end point, staying opaque before the start and transparent past the end
+
+  Scenario: Adjust the gradient line with its endpoint handles
+    Given an image has a gradient fade applied and the Gradient Fade tool is still active
+    When the user drags either endpoint handle to a new position
+    Then the fade direction and distance update to match the new line
+
+  Scenario: Gradient fade combines with a shape mask
+    Given an image has both a shape mask (circle, rectangle, or polygon) and a gradient fade applied
+    Then the image is clipped to the shape mask's outline and fades to transparent within that shape according to the gradient
+
+  Scenario: Clear the gradient fade
+    Given an image has a gradient fade applied
+    When the user clicks "Clear Gradient"
+    Then the fade is removed and the image returns to its normal opacity
+
+  Scenario: Export includes gradient fade data
+    Given an image has a gradient fade applied
+    When the user exports the collage as ICP JSON
+    Then the image's gradient start and end points are included in the exported data
+```
+
+### Circular Vignette on an Image
+- **Requested:** 2026-07-27
+- **Ask:** Add the option of a circular vignette around an image so the borders fade out, with an adjustable gradient transition between the inner and outer border.
+
+```gherkin
+Feature: Circular Vignette on an Image
+  # src/types.ts, src/components/CollageImageNode.tsx, src/components/Toolbar.tsx, src/store.ts — tested in e2e/vignette.spec.ts, src/__tests__/exportToStaticHTML.test.ts
+
+  Scenario: Enable a vignette
+    Given an image is selected
+    When the user clicks "Enable Vignette" in the toolbar
+    Then the image's borders and corners fade to transparent in an ellipse fit to the image's own aspect ratio, centered on the image
+
+  Scenario: Adjust the vignette's inner and outer radius
+    Given an image has a vignette enabled
+    When the user adjusts the Inner Radius or Outer Radius slider
+    Then the distance from center where the fade starts and ends updates to match
+
+  Scenario: Vignette combines with a shape mask and gradient fade
+    Given an image has a shape mask and/or a gradient fade applied as well as a vignette
+    Then all effects apply together — clipped to the shape, faded by the gradient, and faded again by the vignette
+
+  Scenario: Disable the vignette
+    Given an image has a vignette enabled
+    When the user clicks "Disable Vignette"
+    Then the fade is removed and the image returns to its normal opacity at the edges
+
+  Scenario: Export includes vignette data
+    Given an image has a vignette enabled
+    When the user exports the collage as ICP JSON
+    Then the image's vignette settings (enabled, inner radius, outer radius) are included in the exported data
+```
