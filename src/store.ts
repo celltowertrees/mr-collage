@@ -435,11 +435,14 @@ export function exportToStaticHTML(
 <title>Collage Export</title>
 <style>
   html, body { margin: 0; padding: 0; background: #ffffff; }
+  .collage-scaler { container-type: inline-size; }
 </style>
 </head>
 <body>
-<div class="collage-viewport" style="position: relative; isolation: isolate; width: ${viewport.width}px; height: ${viewport.height}px; overflow: hidden">
+<div class="collage-scaler" style="position: relative; width: 100%; aspect-ratio: ${viewport.width} / ${viewport.height}; overflow: hidden">
+  <div class="collage-viewport" style="position: absolute; top: 0; left: 0; isolation: isolate; width: ${viewport.width}px; height: ${viewport.height}px; overflow: hidden; transform: scale(calc(100cqw / ${viewport.width}px)); transform-origin: top left">
 ${nodes}
+  </div>
 </div>
 </body>
 </html>
