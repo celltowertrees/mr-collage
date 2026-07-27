@@ -4,6 +4,7 @@ import { CollageImage } from '../types';
 
 function makeImage(overrides: Partial<CollageImage> = {}): CollageImage {
   return {
+    kind: 'image',
     id: 'img-1',
     src: 'data:image/png;base64,AAA',
     x: 500,

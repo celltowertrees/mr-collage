@@ -1,8 +1,9 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { v4 as uuidv4 } from 'uuid';
-import { CollageImage, CanvasState, Tool } from '../types';
+import { CanvasState, CollageImage, CollageObject, CollageText, ObjectChanges, Tool } from '../types';
 import { saveState, loadState } from '../store';
 import { useHistory } from './useHistory';
+import { DEFAULT_FONT_FAMILY } from '../utils/googleFonts';
 
 export function useCollage() {
   const {
@@ -13,7 +14,7 @@ export function useCollage() {
     reset: resetImages,
     canUndo,
     canRedo,
-  } = useHistory<CollageImage[]>([]);
+  } = useHistory<CollageObject[]>([]);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [tool, setTool] = useState<Tool>('select');
   const [stagePosition, setStagePosition] = useState({ x: 0, y: 0 });
@@ -53,6 +54,7 @@ export function useCollage() {
     const maxDim = 400;
     const ratio = Math.min(maxDim / naturalWidth, maxDim / naturalHeight, 1);
     const img: CollageImage = {
+      kind: 'image',
       id,
       src,
       x: (-stagePosition.x + window.innerWidth / 2) / stageScale,
@@ -70,10 +72,40 @@ export function useCollage() {
     setSelectedIds([id]);
   }, [stagePosition, stageScale, setImages]);
 
+  // Returns the new object's id so callers (e.g. the Text tool's
+  // click-to-place handler) can immediately open it for editing.
+  const addText = useCallback((point: { x: number; y: number }): string => {
+    const id = uuidv4();
+    const textObj: CollageText = {
+      kind: 'text',
+      id,
+      text: '',
+      x: point.x,
+      y: point.y,
+      width: 200,
+      height: 40,
+      rotation: 0,
+      scaleX: 1,
+      scaleY: 1,
+      opacity: 1,
+      zIndex: nextZIndex.current++,
+      name: 'Text',
+      fontFamily: DEFAULT_FONT_FAMILY,
+      fontSize: 32,
+      bold: false,
+      italic: false,
+      underline: false,
+      color: '#000000',
+    };
+    setImages((prev) => [...prev, textObj]);
+    setSelectedIds([id]);
+    return id;
+  }, [setImages]);
+
   const updateImage = useCallback(
-    (id: string, changes: Partial<CollageImage>, options?: { coalesce?: boolean }) => {
+    (id: string, changes: ObjectChanges, options?: { coalesce?: boolean }) => {
       setImages(
-        (prev) => prev.map((img) => (img.id === id ? { ...img, ...changes } : img)),
+        (prev) => prev.map((obj) => (obj.id === id ? ({ ...obj, ...changes } as CollageObject) : obj)),
         options
       );
     },
@@ -122,7 +154,7 @@ export function useCollage() {
     setImages((prev) => {
       const source = prev.find((img) => img.id === id);
       if (!source) return prev;
-      const newImg: CollageImage = {
+      const newImg: CollageObject = {
         ...source,
         id: uuidv4(),
         x: source.x + 20,
@@ -146,6 +178,7 @@ export function useCollage() {
     stageScale,
     setStageScale,
     addImage,
+    addText,
     updateImage,
     moveImages,
     nudgeImages,

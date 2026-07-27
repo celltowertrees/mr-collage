@@ -1,24 +1,27 @@
 import { useRef, useState, useEffect, useCallback } from 'react';
 import { Stage, Layer, Circle, Rect, Line } from 'react-konva';
 import Konva from 'konva';
-import { CollageImage, GradientMask, MaskData, Tool } from '../types';
+import { CollageObject, GradientMask, MaskData, ObjectChanges, Tool } from '../types';
 import { CollageImageNode } from './CollageImageNode';
+import { CollageTextNode } from './CollageTextNode';
 import { useMaskDrawer } from '../hooks/useMaskDrawer';
 import { useGradientMaskDrawer } from '../hooks/useGradientMaskDrawer';
 
 interface CanvasProps {
-  images: CollageImage[];
+  images: CollageObject[];
   selectedIds: string[];
   tool: Tool;
   stagePosition: { x: number; y: number };
   stageScale: number;
   onSelect: (ids: string[]) => void;
-  onUpdateImage: (id: string, changes: Partial<CollageImage>) => void;
+  onUpdateImage: (id: string, changes: ObjectChanges) => void;
   onMoveSelected: (draggedId: string, dx: number, dy: number) => void;
   onStagePositionChange: (pos: { x: number; y: number }) => void;
   onStageScaleChange: (scale: number) => void;
   onDrop: (files: FileList) => void;
   onPaste: (e: ClipboardEvent) => void;
+  onAddText: (point: { x: number; y: number }) => void;
+  onStartEditingText: (id: string) => void;
   stageRef: React.RefObject<Konva.Stage | null>;
   onCropMouseDown: (e: Konva.KonvaEventObject<MouseEvent>) => void;
   onCropMouseMove: () => void;
@@ -75,6 +78,8 @@ export function Canvas({
   onStageScaleChange,
   onDrop,
   onPaste,
+  onAddText,
+  onStartEditingText,
   stageRef,
   onCropMouseDown,
   onCropMouseMove,
@@ -87,6 +92,7 @@ export function Canvas({
   const isGradientTool = tool === 'mask-gradient';
   const isCropTool = tool === 'crop';
   const isSelectTool = tool === 'select';
+  const isTextTool = tool === 'text';
 
   const marqueeStartRef = useRef<{ x: number; y: number } | null>(null);
   const [marqueeRect, setMarqueeRect] = useState<MarqueeRect | null>(null);
@@ -194,10 +200,16 @@ export function Canvas({
       suppressNextClickRef.current = false;
       return;
     }
+    if (isTextTool) {
+      const stage = e.target.getStage();
+      const pointer = stage?.getPointerPosition();
+      if (pointer) onAddText(toContentPoint(pointer));
+      return;
+    }
     if (e.target === e.target.getStage()) {
       onSelect([]);
     }
-  }, [onSelect, isMaskTool, isCropTool]);
+  }, [onSelect, isMaskTool, isCropTool, isTextTool, onAddText, toContentPoint]);
 
   // MouseDown — mask/crop drawing and marquee selection all start here
   const handleStageMouseDown = useCallback((e: Konva.KonvaEventObject<MouseEvent>) => {
@@ -295,7 +307,7 @@ export function Canvas({
 
   const getCursor = () => {
     if (tool === 'pan') return 'grab';
-    if (isMaskTool || isCropTool) return 'crosshair';
+    if (isMaskTool || isCropTool || isTextTool) return 'crosshair';
     return 'default';
   };
 
@@ -389,17 +401,30 @@ export function Canvas({
         style={{ cursor: getCursor() }}
       >
         <Layer>
-          {sorted.map((img) => (
-            <CollageImageNode
-              key={img.id}
-              image={img}
-              isSelected={selectedIds.includes(img.id)}
-              tool={tool}
-              onSelect={() => onSelect([img.id])}
-              onChange={(changes) => onUpdateImage(img.id, changes)}
-              onMove={(dx, dy) => onMoveSelected(img.id, dx, dy)}
-            />
-          ))}
+          {sorted.map((obj) =>
+            obj.kind === 'text' ? (
+              <CollageTextNode
+                key={obj.id}
+                textObj={obj}
+                isSelected={selectedIds.includes(obj.id)}
+                tool={tool}
+                onSelect={() => onSelect([obj.id])}
+                onChange={(changes) => onUpdateImage(obj.id, changes)}
+                onMove={(dx, dy) => onMoveSelected(obj.id, dx, dy)}
+                onEditStart={() => onStartEditingText(obj.id)}
+              />
+            ) : (
+              <CollageImageNode
+                key={obj.id}
+                image={obj}
+                isSelected={selectedIds.includes(obj.id)}
+                tool={tool}
+                onSelect={() => onSelect([obj.id])}
+                onChange={(changes) => onUpdateImage(obj.id, changes)}
+                onMove={(dx, dy) => onMoveSelected(obj.id, dx, dy)}
+              />
+            )
+          )}
           {renderPreview()}
           {gradientPreviewLine && (
             <Line name="gradient-preview" points={gradientPreviewLine.points} {...GRADIENT_LINE_STYLE} />

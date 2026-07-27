@@ -172,6 +172,17 @@ body {
   cursor: pointer;
 }
 
+.toolbar-field select {
+  border: 1px solid var(--btn-border);
+  border-radius: 4px;
+  background: var(--btn-bg);
+  color: var(--btn-text);
+  font-family: var(--toolbar-font);
+  font-size: 11px;
+  padding: 2px 4px;
+  cursor: pointer;
+}
+
 .toolbar-value {
   width: 36px;
   text-align: right;
@@ -239,6 +250,18 @@ body {
 .blend-mode-option.active {
   background: var(--accent);
   color: var(--accent-text);
+}
+
+/* Text editing overlay */
+.text-edit-overlay {
+  position: absolute;
+  resize: none;
+  border: 1px dashed var(--mask-preview-stroke);
+  background: rgba(255, 255, 255, 0.85);
+  outline: none;
+  padding: 0;
+  line-height: 1.2;
+  z-index: 150;
 }
 
 /* Mask hint */

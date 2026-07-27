@@ -1,5 +1,6 @@
 import { forwardRef, useEffect, useRef, useState, type ReactNode } from 'react';
-import { BLEND_MODES, BlendMode, CollageImage, ShadowData, Tool, VignetteData } from '../types';
+import { BLEND_MODES, BlendMode, CollageObject, CollageText, ObjectChanges, ShadowData, Tool, VignetteData } from '../types';
+import { GOOGLE_FONTS } from '../utils/googleFonts';
 
 const DEFAULT_SHADOW: ShadowData = {
   enabled: true,
@@ -34,6 +35,31 @@ const SelectIcon = () => (
 const PanIcon = () => (
   <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
     <path d="M8 1l-3 3h2v3H4V5L1 8l3 3v-2h3v3H5l3 3 3-3h-2V9h3v2l3-3-3-3v2H9V4h2z" />
+  </svg>
+);
+
+const TextToolIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+    <path d="M2 2h12v3h-1.5c-.2-1-.6-1.5-2-1.5H9.3v9c0 .8.2 1 1.7 1V15H5v-1.5c1.5 0 1.7-.2 1.7-1v-9H5.5c-1.4 0-1.8.5-2 1.5H2V2z" />
+  </svg>
+);
+
+const BoldIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+    <path d="M3 2h5.2c2 0 3.4 1 3.4 2.9 0 1.3-.7 2.1-1.7 2.5 1.3.4 2.1 1.3 2.1 2.8 0 2-1.5 3-3.6 3H3V2zm2 4.6h2.8c1 0 1.6-.5 1.6-1.3S8.8 4 7.8 4H5v2.6zm0 5.6h3c1.1 0 1.8-.5 1.8-1.5s-.7-1.5-1.8-1.5H5v3z" />
+  </svg>
+);
+
+const ItalicIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+    <path d="M6 2h6v1.5H10L7 12.5h2.5V14h-6v-1.5H6L9 3.5H6.5z" />
+  </svg>
+);
+
+const UnderlineIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+    <path d="M4 2v6a4 4 0 0 0 8 0V2" />
+    <path d="M3 14h10" strokeLinecap="round" />
   </svg>
 );
 
@@ -222,12 +248,12 @@ function SliderField({ label, value, min, max, step, display, onChange }: Slider
 
 interface ToolbarProps {
   tool: Tool;
-  selectedImage: CollageImage | null;
+  selectedImage: CollageObject | null;
   onToolChange: (tool: Tool) => void;
   onUpload: () => void;
   onUpdateImage: (
     id: string,
-    changes: Partial<CollageImage>,
+    changes: ObjectChanges,
     options?: { coalesce?: boolean }
   ) => void;
   onDelete: (id: string) => void;
@@ -272,6 +298,11 @@ export function Toolbar({
   onCancelCrop,
 }: ToolbarProps) {
   const isMaskTool = tool.startsWith('mask-');
+  // Mask/crop/shadow/vignette/blend/flip only ever apply to images; text
+  // formatting only ever applies to text — narrow once here rather than
+  // re-checking `.kind` at every field access below.
+  const image = selectedImage && selectedImage.kind !== 'text' ? selectedImage : null;
+  const text = selectedImage?.kind === 'text' ? selectedImage : null;
 
   const [blendMenuPos, setBlendMenuPos] = useState<{ top: number; left: number } | null>(null);
   const blendMenuRef = useRef<HTMLDivElement>(null);
@@ -333,6 +364,11 @@ export function Toolbar({
     );
   };
 
+  const updateText = (changes: Partial<CollageText>, options?: { coalesce?: boolean }) => {
+    if (!text) return;
+    onUpdateImage(text.id, changes, options);
+  };
+
   return (
     <div className="toolbar">
       <div className="toolbar-section">
@@ -341,6 +377,9 @@ export function Toolbar({
         </ToolButton>
         <ToolButton active={tool === 'pan'} onClick={() => onToolChange('pan')} title="Pan (H)">
           <PanIcon />
+        </ToolButton>
+        <ToolButton active={tool === 'text'} onClick={() => onToolChange('text')} title="Text (T)">
+          <TextToolIcon />
         </ToolButton>
         <div className="toolbar-divider" />
         <ToolButton onClick={onUpload} title="Upload Image">
@@ -458,6 +497,54 @@ export function Toolbar({
             </ToolButton>
           </div>
 
+          {text && (
+            <div className="toolbar-section">
+              <ToolButton active={text.bold} onClick={() => updateText({ bold: !text.bold })} title="Bold">
+                <BoldIcon />
+              </ToolButton>
+              <ToolButton active={text.italic} onClick={() => updateText({ italic: !text.italic })} title="Italic">
+                <ItalicIcon />
+              </ToolButton>
+              <ToolButton
+                active={text.underline}
+                onClick={() => updateText({ underline: !text.underline })}
+                title="Underline"
+              >
+                <UnderlineIcon />
+              </ToolButton>
+              <label className="toolbar-field">
+                <span>Color</span>
+                <input
+                  type="color"
+                  value={text.color}
+                  onChange={(e) => updateText({ color: e.target.value })}
+                />
+              </label>
+              <SliderField
+                label="Size"
+                min={8}
+                max={200}
+                step={1}
+                value={text.fontSize}
+                display={`${Math.round(text.fontSize)}`}
+                onChange={(value) => updateText({ fontSize: value }, { coalesce: true })}
+              />
+              <label className="toolbar-field">
+                <span>Font</span>
+                <select
+                  value={text.fontFamily}
+                  onChange={(e) => updateText({ fontFamily: e.target.value })}
+                >
+                  {GOOGLE_FONTS.map((font) => (
+                    <option key={font} value={font}>
+                      {font}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+          )}
+
           <div className="toolbar-section">
             <div className="toolbar-divider" />
             <ToolButton
@@ -511,26 +598,28 @@ export function Toolbar({
             <div className="toolbar-divider" />
           </div>
 
-          <div className="toolbar-section">
-            <ToolButton
-              active={tool === 'crop'}
-              onClick={() => onToolChange(tool === 'crop' ? 'select' : 'crop')}
-              title="Crop"
-            >
-              <CropIcon />
-            </ToolButton>
-            {tool === 'crop' && (
-              <>
-                <ToolButton onClick={onApplyCrop} disabled={!hasPendingCrop} title="Apply Crop">
-                  <CheckIcon />
-                </ToolButton>
-                <ToolButton danger onClick={onCancelCrop} title="Cancel Crop">
-                  <XIcon />
-                </ToolButton>
-                <span className="mask-hint">Click and drag to draw the crop area</span>
-              </>
-            )}
-          </div>
+          {image && (
+            <div className="toolbar-section">
+              <ToolButton
+                active={tool === 'crop'}
+                onClick={() => onToolChange(tool === 'crop' ? 'select' : 'crop')}
+                title="Crop"
+              >
+                <CropIcon />
+              </ToolButton>
+              {tool === 'crop' && (
+                <>
+                  <ToolButton onClick={onApplyCrop} disabled={!hasPendingCrop} title="Apply Crop">
+                    <CheckIcon />
+                  </ToolButton>
+                  <ToolButton danger onClick={onCancelCrop} title="Cancel Crop">
+                    <XIcon />
+                  </ToolButton>
+                  <span className="mask-hint">Click and drag to draw the crop area</span>
+                </>
+              )}
+            </div>
+          )}
 
           <div className="toolbar-section">
             <ToolButton

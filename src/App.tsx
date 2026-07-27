@@ -1,12 +1,14 @@
-import { useRef, useCallback, useEffect } from 'react';
+import { useRef, useCallback, useEffect, useState } from 'react';
 import Konva from 'konva';
 import { Canvas } from './components/Canvas';
 import { Toolbar } from './components/Toolbar';
+import { TextEditOverlay } from './components/TextEditOverlay';
 import { useCollage } from './hooks/useCollage';
 import { useImageLoader } from './hooks/useImageLoader';
 import { useCropDrawer } from './hooks/useCropDrawer';
 import { localToStage } from './utils/geometry';
 import { exportToICP, exportToStaticHTML } from './store';
+import { CollageImage, CollageText } from './types';
 import './App.css';
 
 function App() {
@@ -21,6 +23,7 @@ function App() {
     stageScale,
     setStageScale,
     addImage,
+    addText,
     updateImage,
     moveImages,
     nudgeImages,
@@ -36,23 +39,34 @@ function App() {
 
   const stageRef = useRef<Konva.Stage>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [editingTextId, setEditingTextId] = useState<string | null>(null);
 
   const { loadFromFiles, loadFromClipboard } = useImageLoader(addImage);
 
   const selectedImage = selectedIds.length === 1 ? images.find((img) => img.id === selectedIds[0]) ?? null : null;
+  // The crop tool only ever targets images — narrow here so useCropDrawer
+  // (typed for CollageImage) never sees a text node.
+  const selectedImageOnly = selectedImage && selectedImage.kind !== 'text' ? selectedImage : null;
+  const editingText: CollageText | null =
+    (images.find((obj): obj is CollageText => obj.kind === 'text' && obj.id === editingTextId) ?? null);
 
   const cropDrawer = useCropDrawer({
     active: tool === 'crop',
-    targetImage: selectedImage,
+    targetImage: selectedImageOnly,
     stageRef,
   });
 
   const applyCrop = useCallback(() => {
-    if (!selectedImage || !cropDrawer.committedRect) return;
+    if (!selectedImageOnly || !cropDrawer.committedRect) return;
     const rect = cropDrawer.committedRect;
-    const prevCrop = selectedImage.crop ?? { x: 0, y: 0, width: selectedImage.width, height: selectedImage.height };
-    const center = localToStage(rect.x + rect.width / 2, rect.y + rect.height / 2, selectedImage);
-    updateImage(selectedImage.id, {
+    const prevCrop = selectedImageOnly.crop ?? {
+      x: 0,
+      y: 0,
+      width: selectedImageOnly.width,
+      height: selectedImageOnly.height,
+    };
+    const center = localToStage(rect.x + rect.width / 2, rect.y + rect.height / 2, selectedImageOnly);
+    updateImage(selectedImageOnly.id, {
       x: center.x,
       y: center.y,
       width: rect.width,
@@ -60,7 +74,7 @@ function App() {
       crop: { x: prevCrop.x + rect.x, y: prevCrop.y + rect.y, width: rect.width, height: rect.height },
     });
     setTool('select');
-  }, [selectedImage, cropDrawer.committedRect, updateImage, setTool]);
+  }, [selectedImageOnly, cropDrawer.committedRect, updateImage, setTool]);
 
   const cancelCrop = useCallback(() => {
     setTool('select');
@@ -141,23 +155,22 @@ function App() {
     // Only cropped images need their natural (pre-crop) pixel size to scale
     // the <img> element up so the cropped region fills its display box.
     const naturalSizes: Record<string, { width: number; height: number }> = {};
+    const croppedImages = images.filter((obj): obj is CollageImage => obj.kind === 'image' && !!obj.crop);
     await Promise.all(
-      images
-        .filter((img) => img.crop)
-        .map(
-          (img) =>
-            new Promise<void>((resolve) => {
-              const el = new window.Image();
-              el.onload = () => {
-                naturalSizes[img.id] = { width: el.naturalWidth, height: el.naturalHeight };
-                resolve();
-              };
-              el.src = img.src;
-            })
-        )
+      croppedImages.map(
+        (img) =>
+          new Promise<void>((resolve) => {
+            const el = new window.Image();
+            el.onload = () => {
+              naturalSizes[img.id] = { width: el.naturalWidth, height: el.naturalHeight };
+              resolve();
+            };
+            el.src = img.src;
+          })
+      )
     );
 
-    const html = exportToStaticHTML(
+    const html = await exportToStaticHTML(
       images,
       { x: stagePosition.x, y: stagePosition.y, scale: stageScale, width: stage.width(), height: stage.height() },
       naturalSizes
@@ -174,10 +187,15 @@ function App() {
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Undo/redo bypasses the input-element guard below: this app has no
-      // freeform text fields, so there's no native text-undo to conflict
-      // with, and sliders/color pickers keep focus after a drag — the most
-      // common moment a user reaches for Ctrl+Z.
+      // The text-edit overlay is a real <textarea> with its own native
+      // undo/typing/Escape handling — let all of that through untouched
+      // rather than hijacking it with app-level shortcuts below.
+      if (e.target instanceof HTMLTextAreaElement) return;
+
+      // Undo/redo bypasses the input-element guard below: sliders/color
+      // pickers keep focus after a drag — the most common moment a user
+      // reaches for Ctrl+Z — and have no native text-undo of their own to
+      // conflict with.
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
         e.preventDefault();
         if (e.shiftKey) redo();
@@ -189,6 +207,7 @@ function App() {
 
       if (e.key === 'v' || e.key === 'V') setTool('select');
       if (e.key === 'h' || e.key === 'H') setTool('pan');
+      if (e.key === 't' || e.key === 'T') setTool('text');
       if ((e.key === 'Delete' || e.key === 'Backspace') && selectedIds.length > 0) {
         deleteImage(selectedIds);
       }
@@ -254,6 +273,30 @@ function App() {
     [selectedIds, moveImages]
   );
 
+  // Placing text with the Text tool is a single click: create it, switch
+  // back to Select so the formatting toolbar shows up right away, and open
+  // it for editing immediately.
+  const handleAddText = useCallback(
+    (point: { x: number; y: number }) => {
+      const id = addText(point);
+      setTool('select');
+      setEditingTextId(id);
+    },
+    [addText, setTool]
+  );
+
+  const handleCommitTextEdit = useCallback(
+    (id: string, text: string) => {
+      updateImage(id, { text });
+      setEditingTextId(null);
+    },
+    [updateImage]
+  );
+
+  const handleCancelTextEdit = useCallback(() => {
+    setEditingTextId(null);
+  }, []);
+
   return (
     <div className="app">
       <Toolbar
@@ -292,12 +335,23 @@ function App() {
         onStageScaleChange={setStageScale}
         onDrop={loadFromFiles}
         onPaste={loadFromClipboard}
+        onAddText={handleAddText}
+        onStartEditingText={setEditingTextId}
         stageRef={stageRef}
         onCropMouseDown={cropDrawer.handleMouseDown}
         onCropMouseMove={cropDrawer.handleMouseMove}
         onCropMouseUp={cropDrawer.handleMouseUp}
         cropPreviewRect={cropDrawer.getPreviewRect()}
       />
+      {editingText && (
+        <TextEditOverlay
+          textObj={editingText}
+          stagePosition={stagePosition}
+          stageScale={stageScale}
+          onCommit={handleCommitTextEdit}
+          onCancel={handleCancelTextEdit}
+        />
+      )}
       <input
         ref={fileInputRef}
         type="file"

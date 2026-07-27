@@ -1,4 +1,13 @@
-import { CanvasState, CollageImage, GradientMask, MaskData, VignetteData } from './types';
+import {
+  CanvasState,
+  CollageImage,
+  CollageObject,
+  CollageText,
+  GradientMask,
+  MaskData,
+  VignetteData,
+} from './types';
+import { embedGoogleFont, fontWeightFor } from './utils/googleFonts';
 
 const STORAGE_KEY = 'mr-collage-state';
 const DB_NAME = 'mr-collage-db';
@@ -65,10 +74,15 @@ async function idbAllKeys(): Promise<string[]> {
 // Metadata (positions, masks, etc.) → localStorage (tiny)
 // Image blobs (data URLs) → IndexedDB (large)
 
-type MetadataImage = Omit<CollageImage, 'src'>;
+// Text objects have no `src` blob, so they pass through metadata untouched;
+// images have their `src` stripped out to IndexedDB. Metadata read back from
+// localStorage is untyped JSON — entries saved before text objects existed
+// have no `kind` field at all, so loadState below normalizes those to
+// `kind: 'image'` rather than relying on the type here to enforce it.
+type MetadataEntry = Omit<CollageImage, 'src'> | CollageText;
 
 interface StoredState {
-  images: MetadataImage[];
+  images: MetadataEntry[];
   stagePosition: { x: number; y: number };
   stageScale: number;
 }
@@ -76,9 +90,10 @@ interface StoredState {
 export async function saveState(state: CanvasState): Promise<void> {
   // Write image data URLs to IndexedDB
   const currentIds = new Set<string>();
-  for (const img of state.images) {
-    currentIds.add(img.id);
-    await idbPut(img.id, img.src);
+  for (const obj of state.images) {
+    if (obj.kind === 'text') continue;
+    currentIds.add(obj.id);
+    await idbPut(obj.id, obj.src);
   }
 
   // Clean up removed images from IndexedDB
@@ -91,8 +106,12 @@ export async function saveState(state: CanvasState): Promise<void> {
 
   // Write metadata (without src) to localStorage
   const meta: StoredState = {
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    images: state.images.map(({ src: _src, ...rest }) => rest),
+    images: state.images.map((obj) => {
+      if (obj.kind === 'text') return obj;
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { src: _src, ...rest } = obj;
+      return rest;
+    }),
     stagePosition: state.stagePosition,
     stageScale: state.stageScale,
   };
@@ -105,11 +124,17 @@ export async function loadState(): Promise<CanvasState | null> {
   try {
     const meta = JSON.parse(raw) as StoredState;
     // Rehydrate image sources from IndexedDB
-    const images: CollageImage[] = [];
-    for (const imgMeta of meta.images) {
-      const src = await idbGet(imgMeta.id);
+    const images: CollageObject[] = [];
+    for (const entry of meta.images) {
+      if (entry.kind === 'text') {
+        images.push(entry);
+        continue;
+      }
+      const src = await idbGet(entry.id);
       if (src) {
-        images.push({ ...imgMeta, src });
+        // Entries saved before text objects existed have no `kind` at all —
+        // normalize them here rather than trusting the (pre-union) type.
+        images.push({ ...entry, kind: 'image', src });
       }
       // Skip images whose blob was lost
     }
@@ -125,34 +150,64 @@ export async function loadState(): Promise<CanvasState | null> {
 
 // ── ICP Export ──
 
-export function exportToICP(images: CollageImage[]): object {
+export function exportToICP(objects: CollageObject[]): object {
   return {
     "infinite-canvas": {
       version: "0.1",
-      nodes: images.map((img) => ({
-        id: img.id,
-        type: "image",
-        position: { x: img.x, y: img.y },
-        size: {
-          width: img.width * img.scaleX,
-          height: img.height * img.scaleY,
-        },
-        rotation: img.rotation,
-        opacity: img.opacity,
-        zIndex: img.zIndex,
-        data: {
-          src: img.src,
-          name: img.name,
-          ...(img.mask ? { mask: img.mask } : {}),
-          ...(img.gradientMask ? { gradientMask: img.gradientMask } : {}),
-          ...(img.vignette?.enabled ? { vignette: img.vignette } : {}),
-          ...(img.shadow?.enabled ? { shadow: img.shadow } : {}),
-          ...(img.blendMode ? { blendMode: img.blendMode } : {}),
-          ...(img.crop ? { crop: img.crop } : {}),
-          ...(img.flipX ? { flipX: img.flipX } : {}),
-          ...(img.flipY ? { flipY: img.flipY } : {}),
-        },
-      })),
+      nodes: objects.map((obj) => {
+        const base = {
+          id: obj.id,
+          position: { x: obj.x, y: obj.y },
+          size: {
+            width: obj.width * obj.scaleX,
+            height: obj.height * obj.scaleY,
+          },
+          rotation: obj.rotation,
+          opacity: obj.opacity,
+          zIndex: obj.zIndex,
+        };
+
+        if (obj.kind === 'text') {
+          return {
+            ...base,
+            type: "text",
+            data: {
+              text: obj.text,
+              name: obj.name,
+              fontFamily: obj.fontFamily,
+              fontSize: obj.fontSize,
+              bold: obj.bold,
+              italic: obj.italic,
+              underline: obj.underline,
+              color: obj.color,
+              ...(obj.mask ? { mask: obj.mask } : {}),
+              ...(obj.gradientMask ? { gradientMask: obj.gradientMask } : {}),
+              ...(obj.vignette?.enabled ? { vignette: obj.vignette } : {}),
+              ...(obj.shadow?.enabled ? { shadow: obj.shadow } : {}),
+              ...(obj.blendMode ? { blendMode: obj.blendMode } : {}),
+              ...(obj.flipX ? { flipX: obj.flipX } : {}),
+              ...(obj.flipY ? { flipY: obj.flipY } : {}),
+            },
+          };
+        }
+
+        return {
+          ...base,
+          type: "image",
+          data: {
+            src: obj.src,
+            name: obj.name,
+            ...(obj.mask ? { mask: obj.mask } : {}),
+            ...(obj.gradientMask ? { gradientMask: obj.gradientMask } : {}),
+            ...(obj.vignette?.enabled ? { vignette: obj.vignette } : {}),
+            ...(obj.shadow?.enabled ? { shadow: obj.shadow } : {}),
+            ...(obj.blendMode ? { blendMode: obj.blendMode } : {}),
+            ...(obj.crop ? { crop: obj.crop } : {}),
+            ...(obj.flipX ? { flipX: obj.flipX } : {}),
+            ...(obj.flipY ? { flipY: obj.flipY } : {}),
+          },
+        };
+      }),
     },
   };
 }
@@ -275,10 +330,14 @@ function escapeAttr(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
-// Rotation tilts the image's true screen-space bounding box away from its
+function escapeHtml(s: string): string {
+  return escapeAttr(s).replace(/\n/g, '<br />');
+}
+
+// Rotation tilts the object's true screen-space bounding box away from its
 // unrotated frame rect, so culling needs the corners rotated around the
 // center rather than the frame's own left/top/width/height.
-function isVisibleInViewport(img: CollageImage, viewport: ExportViewport): boolean {
+function isVisibleInViewport(img: CollageObject, viewport: ExportViewport): boolean {
   const screenWidth = img.width * img.scaleX * viewport.scale;
   const screenHeight = img.height * img.scaleY * viewport.scale;
   const centerX = img.x * viewport.scale + viewport.x;
@@ -419,14 +478,140 @@ function renderImageNode(
   </div>`;
 }
 
-export function exportToStaticHTML(
-  images: CollageImage[],
+// Text has no raster content to stretch into a resized box the way an <img>
+// does, so unlike renderImageNode (which bakes scale into the box's own
+// width/height), the frame here stays at its natural (scale-1) size and an
+// explicit CSS `scale()` reproduces Konva's Group-level scaleX/scaleY —
+// matching how the canvas scales the whole text shape, glyphs included,
+// through its parent Group's transform matrix. That has a useful
+// consequence for the effects below: since mask/gradientMask/vignette
+// coordinates are defined in the text's own unscaled width/height space —
+// exactly the space this frame's own border-box already sits in (scale is a
+// separate `transform`, not baked into width/height like images) — none of
+// them need the scaleX/scaleY pre-multiplication renderImageNode does.
+// Likewise, drop-shadow's blur/offset don't need scaleX/scaleY applied by
+// hand either: CSS applies `transform` to an element's already-filtered
+// output (verified empirically — a drop-shadow's rendered size visibly
+// scales right along with a sibling `transform: scale()` on the same
+// element), so the enclosing scale() below stretches the shadow for free,
+// unlike images' flip-only wrapping transform which doesn't.
+function renderTextNode(text: CollageText, viewport: ExportViewport): string {
+  const nativeWidth = text.width * viewport.scale;
+  const nativeHeight = text.height * viewport.scale;
+  const centerX = text.x * viewport.scale + viewport.x;
+  const centerY = text.y * viewport.scale + viewport.y;
+  const left = centerX - nativeWidth / 2;
+  const top = centerY - nativeHeight / 2;
+
+  // Flip has no separate mirror-from-drag case to reconcile the way images'
+  // does (this app never lets a text object's own scale go negative), so the
+  // mirror sign folds directly into the same scale() the resize handles use.
+  const mirrorScaleX = Math.abs(text.scaleX) * (text.flipX ? -1 : 1);
+  const mirrorScaleY = Math.abs(text.scaleY) * (text.flipY ? -1 : 1);
+
+  const frameStyles = [
+    'position: absolute',
+    `left: ${left}px`,
+    `top: ${top}px`,
+    `width: ${nativeWidth}px`,
+    `height: ${nativeHeight}px`,
+    `transform: rotate(${text.rotation}deg) scale(${mirrorScaleX}, ${mirrorScaleY})`,
+    'transform-origin: center center',
+    `opacity: ${text.opacity}`,
+    `z-index: ${text.zIndex}`,
+  ];
+
+  if (text.mask) {
+    frameStyles.push(`clip-path: ${maskToClipPath(text.mask, text.width, text.height)}`);
+  }
+
+  const maskLayers: string[] = [];
+  if (text.gradientMask) {
+    maskLayers.push(gradientMaskToCss(text.gradientMask, text.width, text.height));
+  }
+  if (text.vignette?.enabled) {
+    maskLayers.push(vignetteMaskToCss(text.vignette, nativeWidth, nativeHeight));
+  }
+  if (maskLayers.length > 0) {
+    const maskCss = maskLayers.join(', ');
+    frameStyles.push(`mask-image: ${maskCss}`, `-webkit-mask-image: ${maskCss}`);
+    if (maskLayers.length > 1) {
+      frameStyles.push('mask-composite: intersect', '-webkit-mask-composite: source-in');
+    }
+  }
+
+  if (text.shadow?.enabled) {
+    const { color, blur, offsetX, offsetY, opacity } = text.shadow;
+    const shadowColor = hexToRgba(color, opacity);
+    frameStyles.push(
+      `filter: drop-shadow(${offsetX * viewport.scale}px ${offsetY * viewport.scale}px ${blur * viewport.scale}px ${shadowColor})`
+    );
+  }
+
+  if (text.blendMode) {
+    frameStyles.push(`mix-blend-mode: ${text.blendMode}`);
+  }
+
+  // No matching @font-face means the browser falls back to the generic
+  // family below — that's the graceful-degradation path when export-time
+  // embedding fails, not a special case handled here.
+  const textStyles = [
+    'width: 100%',
+    'height: 100%',
+    'margin: 0',
+    `font-family: '${text.fontFamily}', sans-serif`,
+    `font-size: ${text.fontSize * viewport.scale}px`,
+    `font-weight: ${fontWeightFor(text.bold)}`,
+    `font-style: ${text.italic ? 'italic' : 'normal'}`,
+    `text-decoration: ${text.underline ? 'underline' : 'none'}`,
+    `color: ${text.color}`,
+    'white-space: pre-wrap',
+  ];
+
+  return `  <div class="collage-object" id="${text.id}" style="${frameStyles.join('; ')}">
+    <div style="${textStyles.join('; ')}">${escapeHtml(text.text)}</div>
+  </div>`;
+}
+
+// Fetches and embeds, once per distinct family+weight+style actually used
+// (merging character sets across text objects that share a face so the
+// subset request covers all of them), so two text objects in the same font
+// don't trigger duplicate network round-trips.
+async function embedFontsForObjects(textObjects: CollageText[]): Promise<string[]> {
+  const faces = new Map<string, { family: string; weight: number; italic: boolean; chars: Set<string> }>();
+  for (const t of textObjects) {
+    const weight = fontWeightFor(t.bold);
+    const key = `${t.fontFamily}|${weight}|${t.italic}`;
+    const face = faces.get(key);
+    if (face) {
+      for (const ch of t.text) face.chars.add(ch);
+    } else {
+      faces.set(key, { family: t.fontFamily, weight, italic: t.italic, chars: new Set(t.text) });
+    }
+  }
+
+  const results = await Promise.all(
+    Array.from(faces.values()).map((f) =>
+      embedGoogleFont(f.family, f.weight, f.italic, Array.from(f.chars).join(''))
+    )
+  );
+  return results.filter((r): r is NonNullable<typeof r> => r !== null).map((r) => r.cssRule);
+}
+
+export async function exportToStaticHTML(
+  objects: CollageObject[],
   viewport: ExportViewport,
   naturalSizes: Record<string, { width: number; height: number }> = {}
-): string {
-  const visible = images.filter((img) => isVisibleInViewport(img, viewport));
+): Promise<string> {
+  const visible = objects.filter((obj) => isVisibleInViewport(obj, viewport));
   const sorted = visible.sort((a, b) => a.zIndex - b.zIndex);
-  const nodes = sorted.map((img) => renderImageNode(img, viewport, naturalSizes[img.id])).join('\n');
+
+  const textObjects = sorted.filter((obj): obj is CollageText => obj.kind === 'text');
+  const fontFaces = await embedFontsForObjects(textObjects);
+
+  const nodes = sorted
+    .map((obj) => (obj.kind === 'text' ? renderTextNode(obj, viewport) : renderImageNode(obj, viewport, naturalSizes[obj.id])))
+    .join('\n');
 
   return `<!doctype html>
 <html lang="en">
@@ -436,6 +621,7 @@ export function exportToStaticHTML(
 <style>
   html, body { margin: 0; padding: 0; background: #ffffff; }
   .collage-scaler { container-type: inline-size; }
+${fontFaces.map((rule) => `  ${rule}`).join('\n')}
 </style>
 </head>
 <body>
