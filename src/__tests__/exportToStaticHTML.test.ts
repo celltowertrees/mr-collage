@@ -55,6 +55,22 @@ describe('exportToStaticHTML', () => {
     expect(container.style.overflow).toBe('hidden');
   });
 
+  // Without its own stacking context, a negative-zIndex image (e.g. "send to
+  // back") escapes past .collage-viewport into the page's root stacking
+  // context, where <body>'s own opaque background — painted at the
+  // "in-flow, non-positioned" tier — sits above it and hides it completely.
+  // Konva has no such notion (it's just draw order on one canvas), so an
+  // image sent to back renders fine there but vanished from the HTML export.
+  it('gives the viewport its own stacking context so negative z-index images aren\'t hidden behind the page background', () => {
+    const image = makeImage({ zIndex: -2 });
+    const html = exportToStaticHTML([image], viewport);
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    const container = doc.querySelector('.collage-viewport') as HTMLElement;
+
+    expect(container.style.isolation).toBe('isolate');
+    expect(doc.getElementById(image.id)).not.toBeNull();
+  });
+
   it('omits images entirely outside the viewport from the markup', () => {
     // screen center = (100*2 - 50, 200*2 - 20) = (150, 380); comfortably inside 1024x768
     const inside = makeImage({ id: 'inside' });
@@ -139,6 +155,37 @@ describe('exportToStaticHTML', () => {
     expect(img.style.height).toBe('1600px');
     expect(img.style.left).toBe('-80px'); // -20 * 4
     expect(img.style.top).toBe('-80px');
+  });
+
+  // Konva's Transformer lets a corner handle be dragged past the image's
+  // opposite edge, which drives image.scaleX/scaleY negative on canvas (Konva
+  // renders that as a mirror flip, same as flipX/flipY). Without correcting
+  // for this, a negative scale produces a negative CSS `width`/`height`,
+  // which browsers silently drop, collapsing the div to zero size — the
+  // image renders fine on canvas but vanishes from the HTML export.
+  it('renders a visible box when a resize drove the scale negative', () => {
+    const image = makeImage({ scaleX: -1, scaleY: 1 });
+    const html = exportToStaticHTML([image], viewport);
+    const frame = parseFrame(html, image.id);
+
+    expect(frame.style.width).toBe('600px');
+    expect(frame.style.height).toBe('300px');
+  });
+
+  it('mirrors a negative-scale image the same way flipX does', () => {
+    const negativeScale = makeImage({ id: 'neg', scaleX: -1, scaleY: 1 });
+    const flipped = makeImage({ id: 'flip', scaleX: 1, scaleY: 1, flipX: true });
+    const html = exportToStaticHTML([negativeScale, flipped], viewport);
+
+    expect(parseFrame(html, 'neg').style.transform).toBe(parseFrame(html, 'flip').style.transform);
+  });
+
+  it('cancels the mirror when scale is negative and flipX is also set', () => {
+    const image = makeImage({ scaleX: -1, scaleY: 1, flipX: true });
+    const html = exportToStaticHTML([image], viewport);
+    const frame = parseFrame(html, image.id);
+
+    expect(frame.style.transform).toBe('rotate(0deg)');
   });
 
   it('omits mask, shadow, and blend mode styling when unset', () => {

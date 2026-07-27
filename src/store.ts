@@ -310,14 +310,24 @@ function renderImageNode(
   viewport: ExportViewport,
   naturalSize?: { width: number; height: number }
 ): string {
-  const screenWidth = img.width * img.scaleX * viewport.scale;
-  const screenHeight = img.height * img.scaleY * viewport.scale;
+  // Konva's Transformer allows a corner handle to be dragged past the
+  // image's opposite edge, which drives scaleX/scaleY negative — Konva
+  // renders that as a mirror flip rather than a negative-sized box. CSS
+  // has no such notion: a negative width/height is an invalid declaration
+  // that gets silently dropped, collapsing the element to zero size. So the
+  // box must always use the magnitude, with the sign folded into the same
+  // mirror transform as the explicit flipX/flipY flags (a negative scale
+  // and flipX both flipping cancels out, same as two mirrors).
+  const screenWidth = img.width * Math.abs(img.scaleX) * viewport.scale;
+  const screenHeight = img.height * Math.abs(img.scaleY) * viewport.scale;
   const centerX = img.x * viewport.scale + viewport.x;
   const centerY = img.y * viewport.scale + viewport.y;
   const left = centerX - screenWidth / 2;
   const top = centerY - screenHeight / 2;
 
-  const flip = `${img.flipX ? ' scaleX(-1)' : ''}${img.flipY ? ' scaleY(-1)' : ''}`;
+  const mirrorX = Boolean(img.flipX) !== (img.scaleX < 0);
+  const mirrorY = Boolean(img.flipY) !== (img.scaleY < 0);
+  const flip = `${mirrorX ? ' scaleX(-1)' : ''}${mirrorY ? ' scaleY(-1)' : ''}`;
 
   const frameStyles = [
     'position: absolute',
@@ -367,12 +377,14 @@ function renderImageNode(
     // matrix, so on the canvas a resized image's shadow grows/shrinks with
     // it (verified empirically: ctx.scale(3,3) triples a shadow's blur and
     // offset, not just the shape). CSS drop-shadow's offset/blur are in the
-    // element's own pre-transform space and only inherit the *rotation* for
-    // free via the enclosing `transform: rotate()` — the scale still has to
-    // be applied by hand here, per axis for offset and as their average for
-    // blur (drop-shadow has no separate x/y blur radius).
-    const shadowScaleX = viewport.scale * img.scaleX;
-    const shadowScaleY = viewport.scale * img.scaleY;
+    // element's own pre-transform space and only inherit the *rotation and
+    // mirroring* for free via the enclosing `transform: rotate() scaleX(-1)`
+    // — the magnitude of the scale still has to be applied by hand here, per
+    // axis for offset and as their average for blur (drop-shadow has no
+    // separate x/y blur radius). Using the signed scale here would flip the
+    // offset a second time on top of the mirror transform already handling it.
+    const shadowScaleX = viewport.scale * Math.abs(img.scaleX);
+    const shadowScaleY = viewport.scale * Math.abs(img.scaleY);
     const shadowScaleAvg = (shadowScaleX + shadowScaleY) / 2;
     frameStyles.push(
       `filter: drop-shadow(${offsetX * shadowScaleX}px ${offsetY * shadowScaleY}px ${blur * shadowScaleAvg}px ${shadowColor})`
@@ -426,7 +438,7 @@ export function exportToStaticHTML(
 </style>
 </head>
 <body>
-<div class="collage-viewport" style="position: relative; width: ${viewport.width}px; height: ${viewport.height}px; overflow: hidden">
+<div class="collage-viewport" style="position: relative; isolation: isolate; width: ${viewport.width}px; height: ${viewport.height}px; overflow: hidden">
 ${nodes}
 </div>
 </body>
