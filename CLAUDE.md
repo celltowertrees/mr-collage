@@ -385,3 +385,36 @@ Feature: Gradient Fade Mask on an Image
     When the user exports the collage as ICP JSON
     Then the image's gradient start and end points are included in the exported data
 ```
+
+### Circular Vignette on an Image
+- **Requested:** 2026-07-27
+- **Ask:** Add the option of a circular vignette around an image so the borders fade out, with an adjustable gradient transition between the inner and outer border.
+
+```gherkin
+Feature: Circular Vignette on an Image
+  # src/types.ts, src/components/CollageImageNode.tsx, src/components/Toolbar.tsx, src/store.ts — tested in e2e/vignette.spec.ts, src/__tests__/exportToStaticHTML.test.ts
+
+  Scenario: Enable a vignette
+    Given an image is selected
+    When the user clicks "Enable Vignette" in the toolbar
+    Then the image's borders and corners fade to transparent in an ellipse fit to the image's own aspect ratio, centered on the image
+
+  Scenario: Adjust the vignette's inner and outer radius
+    Given an image has a vignette enabled
+    When the user adjusts the Inner Radius or Outer Radius slider
+    Then the distance from center where the fade starts and ends updates to match
+
+  Scenario: Vignette combines with a shape mask and gradient fade
+    Given an image has a shape mask and/or a gradient fade applied as well as a vignette
+    Then all effects apply together — clipped to the shape, faded by the gradient, and faded again by the vignette
+
+  Scenario: Disable the vignette
+    Given an image has a vignette enabled
+    When the user clicks "Disable Vignette"
+    Then the fade is removed and the image returns to its normal opacity at the edges
+
+  Scenario: Export includes vignette data
+    Given an image has a vignette enabled
+    When the user exports the collage as ICP JSON
+    Then the image's vignette settings (enabled, inner radius, outer radius) are included in the exported data
+```

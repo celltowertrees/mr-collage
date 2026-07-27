@@ -1,4 +1,4 @@
-import { CanvasState, CollageImage, GradientMask, MaskData } from './types';
+import { CanvasState, CollageImage, GradientMask, MaskData, VignetteData } from './types';
 
 const STORAGE_KEY = 'mr-collage-state';
 const DB_NAME = 'mr-collage-db';
@@ -145,6 +145,7 @@ export function exportToICP(images: CollageImage[]): object {
           name: img.name,
           ...(img.mask ? { mask: img.mask } : {}),
           ...(img.gradientMask ? { gradientMask: img.gradientMask } : {}),
+          ...(img.vignette?.enabled ? { vignette: img.vignette } : {}),
           ...(img.shadow?.enabled ? { shadow: img.shadow } : {}),
           ...(img.blendMode ? { blendMode: img.blendMode } : {}),
           ...(img.crop ? { crop: img.crop } : {}),
@@ -253,6 +254,23 @@ function gradientMaskToCss(gradientMask: GradientMask, width: number, height: nu
   return `linear-gradient(${angleDeg}deg, rgba(0, 0, 0, 1) ${startPct}%, rgba(0, 0, 0, 0) ${endPct}%)`;
 }
 
+// On canvas, the vignette is baked in by scaling the drawing context by the
+// image's own half-width/half-height before painting a circular radial
+// gradient — that turns innerRadius/outerRadius (fractions where 1.0 reaches
+// an edge midpoint) into an ellipse fit to the image's aspect ratio. CSS
+// radial-gradient's explicit `ellipse WxH` form does the same thing
+// natively: giving it the box's actual half-width/half-height as the
+// reference ("100%") size means innerRadius/outerRadius already work
+// directly as percentage stops, no separate angle math needed the way the
+// linear gradient required.
+function vignetteMaskToCss(vignette: VignetteData, boxWidth: number, boxHeight: number): string {
+  const hRadius = boxWidth / 2;
+  const vRadius = boxHeight / 2;
+  const innerPct = vignette.innerRadius * 100;
+  const outerPct = vignette.outerRadius * 100;
+  return `radial-gradient(ellipse ${hRadius}px ${vRadius}px at center, rgba(0, 0, 0, 1) ${innerPct}%, rgba(0, 0, 0, 0) ${outerPct}%)`;
+}
+
 function escapeAttr(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
@@ -317,6 +335,7 @@ function renderImageNode(
     frameStyles.push(`clip-path: ${maskToClipPath(img.mask, img.width, img.height)}`);
   }
 
+  const maskLayers: string[] = [];
   if (img.gradientMask) {
     const scaleX = Math.abs(img.scaleX);
     const scaleY = Math.abs(img.scaleY);
@@ -324,8 +343,21 @@ function renderImageNode(
       start: { x: img.gradientMask.start.x * scaleX, y: img.gradientMask.start.y * scaleY },
       end: { x: img.gradientMask.end.x * scaleX, y: img.gradientMask.end.y * scaleY },
     };
-    const maskCss = gradientMaskToCss(scaled, img.width * scaleX, img.height * scaleY);
+    maskLayers.push(gradientMaskToCss(scaled, img.width * scaleX, img.height * scaleY));
+  }
+  if (img.vignette?.enabled) {
+    maskLayers.push(vignetteMaskToCss(img.vignette, screenWidth, screenHeight));
+  }
+  if (maskLayers.length > 0) {
+    const maskCss = maskLayers.join(', ');
     frameStyles.push(`mask-image: ${maskCss}`, `-webkit-mask-image: ${maskCss}`);
+    if (maskLayers.length > 1) {
+      // Two fades need to multiply together (only visible where both leave
+      // it visible), not union — "intersect" is the standard property's
+      // Porter-Duff operator for that; -webkit-mask-composite predates the
+      // standard and spells the same operator "source-in".
+      frameStyles.push('mask-composite: intersect', '-webkit-mask-composite: source-in');
+    }
   }
 
   if (img.shadow?.enabled) {

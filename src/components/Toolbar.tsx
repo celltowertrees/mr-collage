@@ -1,5 +1,5 @@
 import { forwardRef, useEffect, useRef, useState, type ReactNode } from 'react';
-import { BLEND_MODES, BlendMode, CollageImage, ShadowData, Tool } from '../types';
+import { BLEND_MODES, BlendMode, CollageImage, ShadowData, Tool, VignetteData } from '../types';
 
 const DEFAULT_SHADOW: ShadowData = {
   enabled: true,
@@ -8,6 +8,12 @@ const DEFAULT_SHADOW: ShadowData = {
   offsetX: 6,
   offsetY: 6,
   opacity: 0.5,
+};
+
+const DEFAULT_VIGNETTE: VignetteData = {
+  enabled: true,
+  innerRadius: 0.5,
+  outerRadius: 1,
 };
 
 function formatBlendModeLabel(mode: BlendMode): string {
@@ -145,6 +151,19 @@ const ShadowIcon = () => (
   <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
     <rect x="2" y="2" width="9" height="9" rx="1.5" fill="currentColor" />
     <rect x="5" y="5" width="9" height="9" rx="1.5" fill="currentColor" opacity="0.35" />
+  </svg>
+);
+
+const VignetteIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+    <defs>
+      <radialGradient id="toolbar-vignette-icon" cx="50%" cy="50%" r="50%">
+        <stop offset="40%" stopColor="currentColor" stopOpacity="0" />
+        <stop offset="100%" stopColor="currentColor" stopOpacity="1" />
+      </radialGradient>
+    </defs>
+    <rect x="1" y="1" width="14" height="14" rx="1.5" fill="url(#toolbar-vignette-icon)" />
+    <rect x="1" y="1" width="14" height="14" rx="1.5" stroke="currentColor" strokeWidth="1.5" />
   </svg>
 );
 
@@ -290,6 +309,26 @@ export function Toolbar({
     onUpdateImage(
       selectedImage.id,
       { shadow: { ...current, ...changes } },
+      { coalesce: true }
+    );
+  };
+
+  const vignette = selectedImage?.vignette;
+
+  const toggleVignette = () => {
+    if (!selectedImage) return;
+    const current = selectedImage.vignette;
+    onUpdateImage(selectedImage.id, {
+      vignette: { ...(current ?? DEFAULT_VIGNETTE), enabled: !current?.enabled },
+    });
+  };
+
+  const updateVignette = (changes: Partial<VignetteData>) => {
+    if (!selectedImage) return;
+    const current = selectedImage.vignette ?? DEFAULT_VIGNETTE;
+    onUpdateImage(
+      selectedImage.id,
+      { vignette: { ...current, ...changes } },
       { coalesce: true }
     );
   };
@@ -546,6 +585,38 @@ export function Toolbar({
                   value={shadow.opacity}
                   display={`${Math.round(shadow.opacity * 100)}%`}
                   onChange={(value) => updateShadow({ opacity: value })}
+                />
+              </>
+            )}
+          </div>
+
+          <div className="toolbar-section">
+            <ToolButton
+              active={vignette?.enabled}
+              onClick={toggleVignette}
+              title={vignette?.enabled ? 'Disable Vignette' : 'Enable Vignette'}
+            >
+              <VignetteIcon />
+            </ToolButton>
+            {vignette?.enabled && (
+              <>
+                <SliderField
+                  label="Inner Radius"
+                  min={0}
+                  max={1.5}
+                  step={0.05}
+                  value={vignette.innerRadius}
+                  display={`${Math.round(vignette.innerRadius * 100)}%`}
+                  onChange={(value) => updateVignette({ innerRadius: value })}
+                />
+                <SliderField
+                  label="Outer Radius"
+                  min={0}
+                  max={1.5}
+                  step={0.05}
+                  value={vignette.outerRadius}
+                  display={`${Math.round(vignette.outerRadius * 100)}%`}
+                  onChange={(value) => updateVignette({ outerRadius: value })}
                 />
               </>
             )}

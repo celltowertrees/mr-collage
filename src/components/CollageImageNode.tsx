@@ -1,7 +1,7 @@
 import { useRef, useEffect, useState, useMemo } from 'react';
 import { Image as KonvaImage, Transformer, Group, Shape } from 'react-konva';
 import Konva from 'konva';
-import { CollageImage, CropRect, GradientMask, MaskData, Tool } from '../types';
+import { CollageImage, CropRect, GradientMask, MaskData, Tool, VignetteData } from '../types';
 
 interface Props {
   image: CollageImage;
@@ -39,18 +39,22 @@ function buildClipFunc(mask: MaskData) {
   };
 }
 
-// Bakes the gradient fade directly into a copy of the image's pixels (Canvas
-// 2D has no notion of a live CSS-style mask-image), so it composites the
-// same way regardless of what other clipping (shape mask) sits on top of it.
-// Built at the image's own logical width/height — the same crop-aware box
-// its mask/crop coordinates already live in — so the result can stand in for
-// the raw <img> (with `crop` baked in) everywhere Konva would otherwise use it.
-function buildGradientMaskedCanvas(
+// Bakes the gradient fade and/or vignette directly into a copy of the
+// image's pixels (Canvas 2D has no notion of a live CSS-style mask-image),
+// so it composites the same way regardless of what other clipping (shape
+// mask) sits on top of it. Applying both as sequential destination-in
+// passes multiplies their alphas together, so the two fades combine rather
+// than one replacing the other. Built at the image's own logical
+// width/height — the same crop-aware box its mask/crop coordinates already
+// live in — so the result can stand in for the raw <img> (with `crop`
+// baked in) everywhere Konva would otherwise use it.
+function buildFadeMaskedCanvas(
   img: HTMLImageElement,
   width: number,
   height: number,
   crop: CropRect | undefined,
-  gradientMask: GradientMask
+  gradientMask: GradientMask | undefined,
+  vignette: VignetteData | undefined
 ): HTMLCanvasElement {
   const canvas = document.createElement('canvas');
   canvas.width = width;
@@ -62,16 +66,36 @@ function buildGradientMaskedCanvas(
     ctx.drawImage(img, 0, 0, width, height);
   }
   ctx.globalCompositeOperation = 'destination-in';
-  const gradient = ctx.createLinearGradient(
-    gradientMask.start.x,
-    gradientMask.start.y,
-    gradientMask.end.x,
-    gradientMask.end.y
-  );
-  gradient.addColorStop(0, 'rgba(0, 0, 0, 1)');
-  gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
-  ctx.fillStyle = gradient;
-  ctx.fillRect(0, 0, width, height);
+
+  if (gradientMask) {
+    const gradient = ctx.createLinearGradient(
+      gradientMask.start.x,
+      gradientMask.start.y,
+      gradientMask.end.x,
+      gradientMask.end.y
+    );
+    gradient.addColorStop(0, 'rgba(0, 0, 0, 1)');
+    gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, width, height);
+  }
+
+  if (vignette?.enabled) {
+    // Scaling the context by the image's own half-width/half-height turns a
+    // plain circular radial gradient into an ellipse fit to the image's
+    // aspect ratio — innerRadius/outerRadius (fractions where 1.0 reaches an
+    // edge midpoint) can then be used directly as the gradient's radii.
+    ctx.save();
+    ctx.translate(width / 2, height / 2);
+    ctx.scale(width / 2, height / 2);
+    const radial = ctx.createRadialGradient(0, 0, vignette.innerRadius, 0, 0, vignette.outerRadius);
+    radial.addColorStop(0, 'rgba(0, 0, 0, 1)');
+    radial.addColorStop(1, 'rgba(0, 0, 0, 0)');
+    ctx.fillStyle = radial;
+    ctx.fillRect(-2, -2, 4, 4);
+    ctx.restore();
+  }
+
   return canvas;
 }
 
@@ -107,10 +131,11 @@ export function CollageImageNode({ image, isSelected, tool, onSelect, onChange, 
   }, [isSelected]);
 
   const gradientMask = image.gradientMask;
+  const vignette = image.vignette;
   const gradientSource = useMemo(() => {
-    if (!img || !gradientMask) return null;
-    return buildGradientMaskedCanvas(img, image.width, image.height, image.crop, gradientMask);
-  }, [img, image.width, image.height, image.crop, gradientMask]);
+    if (!img || (!gradientMask && !vignette?.enabled)) return null;
+    return buildFadeMaskedCanvas(img, image.width, image.height, image.crop, gradientMask, vignette);
+  }, [img, image.width, image.height, image.crop, gradientMask, vignette]);
 
   if (!img) return null;
 
