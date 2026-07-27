@@ -94,6 +94,19 @@ const PolygonMaskIcon = () => (
   </svg>
 );
 
+const GradientMaskIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+    <defs>
+      <linearGradient id="toolbar-gradient-icon" x1="0" y1="0" x2="1" y2="0">
+        <stop offset="0" stopColor="currentColor" stopOpacity="1" />
+        <stop offset="1" stopColor="currentColor" stopOpacity="0" />
+      </linearGradient>
+    </defs>
+    <rect x="1" y="1" width="14" height="14" rx="1.5" fill="url(#toolbar-gradient-icon)" />
+    <rect x="1" y="1" width="14" height="14" rx="1.5" stroke="currentColor" strokeWidth="1.5" />
+  </svg>
+);
+
 const XIcon = () => (
   <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2">
     <path d="M3.5 3.5l9 9m0-9l-9 9" />
@@ -207,6 +220,7 @@ interface ToolbarProps {
   onSendToBack: (id: string) => void;
   onDuplicate: (id: string) => void;
   onClearMask: (id: string) => void;
+  onClearGradient: (id: string) => void;
   onExportJPEG: () => void;
   onExportJSON: () => void;
   onExportHTML: () => void;
@@ -230,6 +244,7 @@ export function Toolbar({
   onSendToBack,
   onDuplicate,
   onClearMask,
+  onClearGradient,
   onExportJPEG,
   onExportJSON,
   onExportHTML,
@@ -432,11 +447,26 @@ export function Toolbar({
                 <XIcon />
               </ToolButton>
             )}
+            <div className="toolbar-divider" />
+            <ToolButton
+              active={tool === 'mask-gradient'}
+              onClick={() => onToolChange(tool === 'mask-gradient' ? 'select' : 'mask-gradient')}
+              title="Gradient Fade"
+            >
+              <GradientMaskIcon />
+            </ToolButton>
+            {selectedImage.gradientMask && (
+              <ToolButton danger onClick={() => onClearGradient(selectedImage.id)} title="Clear Gradient">
+                <XIcon />
+              </ToolButton>
+            )}
             {isMaskTool && (
               <span className="mask-hint">
                 {tool === 'mask-polygon'
                   ? 'Click to add points, double-click to finish'
-                  : 'Click and drag to draw mask'}
+                  : tool === 'mask-gradient'
+                    ? 'Drag a line to fade from opaque to transparent'
+                    : 'Click and drag to draw mask'}
               </span>
             )}
             <div className="toolbar-divider" />

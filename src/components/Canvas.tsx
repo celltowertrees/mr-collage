@@ -1,9 +1,10 @@
 import { useRef, useState, useEffect, useCallback } from 'react';
 import { Stage, Layer, Circle, Rect, Line } from 'react-konva';
 import Konva from 'konva';
-import { CollageImage, MaskData, Tool } from '../types';
+import { CollageImage, GradientMask, MaskData, Tool } from '../types';
 import { CollageImageNode } from './CollageImageNode';
 import { useMaskDrawer } from '../hooks/useMaskDrawer';
+import { useGradientMaskDrawer } from '../hooks/useGradientMaskDrawer';
 
 interface CanvasProps {
   images: CollageImage[];
@@ -46,6 +47,15 @@ const MARQUEE_STYLE = {
   listening: false,
 };
 
+const GRADIENT_LINE_STYLE = {
+  stroke: '#9C27B0',
+  strokeWidth: 2,
+  dash: [6, 4],
+  listening: false,
+};
+
+const GRADIENT_HANDLE_RADIUS = 6;
+
 type MarqueeRect = { x: number; y: number; width: number; height: number };
 
 // Minimum drag distance (in screen px) before a mousedown-drag-mouseup on
@@ -74,6 +84,7 @@ export function Canvas({
   const containerRef = useRef<HTMLDivElement>(null);
   const selectedImage = selectedIds.length === 1 ? images.find((img) => img.id === selectedIds[0]) ?? null : null;
   const isMaskTool = tool.startsWith('mask-');
+  const isGradientTool = tool === 'mask-gradient';
   const isCropTool = tool === 'crop';
   const isSelectTool = tool === 'select';
 
@@ -111,6 +122,20 @@ export function Canvas({
     targetImage: selectedImage,
     stageRef,
     onMaskComplete: handleMaskComplete,
+  });
+
+  const handleGradientMaskChange = useCallback(
+    (imageId: string, gradientMask: GradientMask) => {
+      onUpdateImage(imageId, { gradientMask });
+    },
+    [onUpdateImage]
+  );
+
+  const gradientMaskDrawer = useGradientMaskDrawer({
+    active: isGradientTool,
+    targetImage: selectedImage,
+    stageRef,
+    onChange: handleGradientMaskChange,
   });
 
   useEffect(() => {
@@ -176,6 +201,10 @@ export function Canvas({
 
   // MouseDown — mask/crop drawing and marquee selection all start here
   const handleStageMouseDown = useCallback((e: Konva.KonvaEventObject<MouseEvent>) => {
+    if (isGradientTool) {
+      gradientMaskDrawer.handleMouseDown(e);
+      return;
+    }
     if (isMaskTool) {
       maskDrawer.handleMouseDown(e);
       return;
@@ -189,9 +218,13 @@ export function Canvas({
       const pointer = stage.getPointerPosition();
       if (pointer) marqueeStartRef.current = pointer;
     }
-  }, [isMaskTool, isCropTool, isSelectTool, maskDrawer, onCropMouseDown, stageRef]);
+  }, [isGradientTool, isMaskTool, isCropTool, isSelectTool, gradientMaskDrawer, maskDrawer, onCropMouseDown, stageRef]);
 
   const handleStageMouseMove = useCallback(() => {
+    if (isGradientTool) {
+      gradientMaskDrawer.handleMouseMove();
+      return;
+    }
     if (isMaskTool) {
       maskDrawer.handleMouseMove();
       return;
@@ -212,9 +245,13 @@ export function Canvas({
       width: Math.abs(current.x - start.x),
       height: Math.abs(current.y - start.y),
     });
-  }, [isMaskTool, isCropTool, maskDrawer, onCropMouseMove, stageRef, toContentPoint]);
+  }, [isGradientTool, isMaskTool, isCropTool, gradientMaskDrawer, maskDrawer, onCropMouseMove, stageRef, toContentPoint]);
 
   const handleStageMouseUp = useCallback(() => {
+    if (isGradientTool) {
+      gradientMaskDrawer.handleMouseUp();
+      return;
+    }
     if (isMaskTool) {
       maskDrawer.handleMouseUp();
       return;
@@ -254,7 +291,7 @@ export function Canvas({
 
     suppressNextClickRef.current = true;
     onSelect(overlapped);
-  }, [isMaskTool, isCropTool, onCropMouseUp, maskDrawer, stageRef, toContentPoint, images, onSelect]);
+  }, [isGradientTool, isMaskTool, isCropTool, onCropMouseUp, gradientMaskDrawer, maskDrawer, stageRef, toContentPoint, images, onSelect]);
 
   const getCursor = () => {
     if (tool === 'pan') return 'grab';
@@ -276,6 +313,49 @@ export function Canvas({
       case 'polygon':
         return <Line name="mask-preview" {...preview.props} {...PREVIEW_STYLE} closed={false} />;
     }
+  };
+
+  // Preview of a gradient line still being dragged out, and the persistent
+  // draggable endpoint handles once a gradient fade already exists.
+  const gradientPreviewLine = gradientMaskDrawer.getPreviewLine();
+  const gradientHandles = gradientMaskDrawer.getHandles();
+  const renderGradientHandles = () => {
+    if (!gradientHandles) return null;
+    return (
+      <>
+        <Line
+          name="gradient-handle-line"
+          points={[gradientHandles.start.x, gradientHandles.start.y, gradientHandles.end.x, gradientHandles.end.y]}
+          {...GRADIENT_LINE_STYLE}
+        />
+        <Circle
+          name="gradient-handle-start"
+          x={gradientHandles.start.x}
+          y={gradientHandles.start.y}
+          radius={GRADIENT_HANDLE_RADIUS}
+          fill="#ffffff"
+          stroke="#9C27B0"
+          strokeWidth={2}
+          draggable
+          onDragEnd={(e) =>
+            gradientMaskDrawer.handleHandleDrag('start', { x: e.target.x(), y: e.target.y() })
+          }
+        />
+        <Circle
+          name="gradient-handle-end"
+          x={gradientHandles.end.x}
+          y={gradientHandles.end.y}
+          radius={GRADIENT_HANDLE_RADIUS}
+          fill="#9C27B0"
+          stroke="#ffffff"
+          strokeWidth={2}
+          draggable
+          onDragEnd={(e) =>
+            gradientMaskDrawer.handleHandleDrag('end', { x: e.target.x(), y: e.target.y() })
+          }
+        />
+      </>
+    );
   };
 
   return (
@@ -321,6 +401,10 @@ export function Canvas({
             />
           ))}
           {renderPreview()}
+          {gradientPreviewLine && (
+            <Line name="gradient-preview" points={gradientPreviewLine.points} {...GRADIENT_LINE_STYLE} />
+          )}
+          {renderGradientHandles()}
           {isCropTool && cropPreviewRect && (
             <Rect name="crop-preview" {...cropPreviewRect} {...CROP_PREVIEW_STYLE} />
           )}

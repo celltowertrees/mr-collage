@@ -20,6 +20,11 @@ export interface PolygonMask {
 
 export type MaskData = CircleMask | RectMask | PolygonMask;
 
+export interface GradientMask {
+  start: { x: number; y: number };
+  end: { x: number; y: number };
+}
+
 export interface CropRect {
   x: number;
   y: number;
@@ -71,6 +76,7 @@ export interface CollageImage {
   zIndex: number;
   name: string;
   mask?: MaskData;
+  gradientMask?: GradientMask;
   shadow?: ShadowData;
   blendMode?: Exclude<BlendMode, 'normal'>;
   crop?: CropRect;
@@ -84,4 +90,11 @@ export interface CanvasState {
   stageScale: number;
 }
 
-export type Tool = 'select' | 'pan' | 'mask-circle' | 'mask-rect' | 'mask-polygon' | 'crop';
+export type Tool =
+  | 'select'
+  | 'pan'
+  | 'mask-circle'
+  | 'mask-rect'
+  | 'mask-polygon'
+  | 'mask-gradient'
+  | 'crop';

@@ -149,5 +149,42 @@ describe('exportToStaticHTML', () => {
     expect(frame.style.clipPath).toBe('');
     expect(frame.style.filter).toBe('');
     expect(frame.style.mixBlendMode).toBe('');
+    expect(frame.style.maskImage).toBe('');
+  });
+
+  // Maps to CLAUDE.md → "Gradient Fade Mask on an Image"
+  it('reproduces a gradient fade as a CSS mask-image linear-gradient', () => {
+    // width=200, height=100, scale=1 -> box is 200x100. A horizontal line
+    // from (50,50) to (150,50) points straight "right" (90deg in CSS's
+    // from-the-top convention). The CSS gradient-line-length formula for a
+    // 200x100 box at 90deg is |200*sin90| + |100*cos90| = 200, and each
+    // point's projection onto that line's center-relative axis is (x-100):
+    // start -50 -> 25%, end +50 -> 75%.
+    const image = makeImage({
+      width: 200,
+      height: 100,
+      gradientMask: { start: { x: 50, y: 50 }, end: { x: 150, y: 50 } },
+    });
+    const html = exportToStaticHTML([image], viewport);
+    const frame = parseFrame(html, image.id);
+
+    expect(frame.style.maskImage).toBe(
+      'linear-gradient(90deg, rgba(0, 0, 0, 1) 25%, rgba(0, 0, 0, 0) 75%)'
+    );
+    expect(frame.getAttribute('style')).toContain(
+      '-webkit-mask-image: linear-gradient(90deg, rgba(0, 0, 0, 1) 25%, rgba(0, 0, 0, 0) 75%)'
+    );
+  });
+
+  it('combines the gradient fade mask with a shape mask clip-path', () => {
+    const image = makeImage({
+      mask: { type: 'rect', x: 0, y: 0, width: 200, height: 100 },
+      gradientMask: { start: { x: 50, y: 50 }, end: { x: 150, y: 50 } },
+    });
+    const html = exportToStaticHTML([image], viewport);
+    const frame = parseFrame(html, image.id);
+
+    expect(frame.style.clipPath).toContain('polygon');
+    expect(frame.style.maskImage).toContain('linear-gradient');
   });
 });

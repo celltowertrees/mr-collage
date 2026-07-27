@@ -1,7 +1,7 @@
-import { useRef, useEffect, useState } from 'react';
+import { useRef, useEffect, useState, useMemo } from 'react';
 import { Image as KonvaImage, Transformer, Group, Shape } from 'react-konva';
 import Konva from 'konva';
-import { CollageImage, MaskData, Tool } from '../types';
+import { CollageImage, CropRect, GradientMask, MaskData, Tool } from '../types';
 
 interface Props {
   image: CollageImage;
@@ -39,6 +39,42 @@ function buildClipFunc(mask: MaskData) {
   };
 }
 
+// Bakes the gradient fade directly into a copy of the image's pixels (Canvas
+// 2D has no notion of a live CSS-style mask-image), so it composites the
+// same way regardless of what other clipping (shape mask) sits on top of it.
+// Built at the image's own logical width/height — the same crop-aware box
+// its mask/crop coordinates already live in — so the result can stand in for
+// the raw <img> (with `crop` baked in) everywhere Konva would otherwise use it.
+function buildGradientMaskedCanvas(
+  img: HTMLImageElement,
+  width: number,
+  height: number,
+  crop: CropRect | undefined,
+  gradientMask: GradientMask
+): HTMLCanvasElement {
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext('2d')!;
+  if (crop) {
+    ctx.drawImage(img, crop.x, crop.y, crop.width, crop.height, 0, 0, width, height);
+  } else {
+    ctx.drawImage(img, 0, 0, width, height);
+  }
+  ctx.globalCompositeOperation = 'destination-in';
+  const gradient = ctx.createLinearGradient(
+    gradientMask.start.x,
+    gradientMask.start.y,
+    gradientMask.end.x,
+    gradientMask.end.y
+  );
+  gradient.addColorStop(0, 'rgba(0, 0, 0, 1)');
+  gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
+  ctx.fillStyle = gradient;
+  ctx.fillRect(0, 0, width, height);
+  return canvas;
+}
+
 // Draws a solid, unclipped fill of the mask shape so its native canvas shadow
 // (which must extend past the mask outline) isn't cut off by the image's own
 // clip region. The masked image is drawn on top and exactly covers the fill,
@@ -69,6 +105,12 @@ export function CollageImageNode({ image, isSelected, tool, onSelect, onChange, 
       trRef.current.getLayer()?.batchDraw();
     }
   }, [isSelected]);
+
+  const gradientMask = image.gradientMask;
+  const gradientSource = useMemo(() => {
+    if (!img || !gradientMask) return null;
+    return buildGradientMaskedCanvas(img, image.width, image.height, image.crop, gradientMask);
+  }, [img, image.width, image.height, image.crop, gradientMask]);
 
   if (!img) return null;
 
@@ -142,10 +184,10 @@ export function CollageImageNode({ image, isSelected, tool, onSelect, onChange, 
       >
         <KonvaImage
           ref={imageRef}
-          image={img}
+          image={gradientSource ?? img}
           width={image.width}
           height={image.height}
-          crop={image.crop}
+          crop={gradientSource ? undefined : image.crop}
           opacity={image.opacity}
           globalCompositeOperation={image.blendMode ?? 'source-over'}
           shadowEnabled={shadowActive && !image.mask}

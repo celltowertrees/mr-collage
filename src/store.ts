@@ -1,4 +1,4 @@
-import { CanvasState, CollageImage, MaskData } from './types';
+import { CanvasState, CollageImage, GradientMask, MaskData } from './types';
 
 const STORAGE_KEY = 'mr-collage-state';
 const DB_NAME = 'mr-collage-db';
@@ -144,6 +144,7 @@ export function exportToICP(images: CollageImage[]): object {
           src: img.src,
           name: img.name,
           ...(img.mask ? { mask: img.mask } : {}),
+          ...(img.gradientMask ? { gradientMask: img.gradientMask } : {}),
           ...(img.shadow?.enabled ? { shadow: img.shadow } : {}),
           ...(img.blendMode ? { blendMode: img.blendMode } : {}),
           ...(img.crop ? { crop: img.crop } : {}),
@@ -221,6 +222,37 @@ function maskToClipPath(mask: MaskData, width: number, height: number): string {
   }
 }
 
+// On canvas, the gradient fade is baked into the image's own pixels with
+// Canvas 2D's createLinearGradient(start, end) at the image's raw, unscaled
+// pixel size — then Konva stretches that finished bitmap by scaleX/scaleY
+// like any other pixel, so a non-uniform scale visually skews the fade's
+// direction right along with the image content. CSS mask-image's
+// linear-gradient() has no point-to-point form: it's defined by an angle,
+// and the gradient line's length is derived from the box it's painted into
+// via the spec formula `|W*sin(angle)| + |H*cos(angle)|` (long enough to
+// exactly touch the box's corners). To reproduce the same skew, both the
+// box dimensions and the start/end points passed in here must already be
+// pre-scaled by scaleX/scaleY (viewport zoom is scale-neutral for a
+// percentage-based angle+stops and can be left out) — verified against the
+// canvas behavior with a horizontal line on a 200x100 box (90deg, line
+// length 200, points at x=50/150 -> 25%/75%).
+function gradientMaskToCss(gradientMask: GradientMask, width: number, height: number): string {
+  const dx = gradientMask.end.x - gradientMask.start.x;
+  const dy = gradientMask.end.y - gradientMask.start.y;
+  const angleRad = Math.atan2(dx, -dy);
+  const angleDeg = (angleRad * 180) / Math.PI;
+  const lineLength = Math.abs(width * Math.sin(angleRad)) + Math.abs(height * Math.cos(angleRad));
+
+  const project = (p: { x: number; y: number }) =>
+    (p.x - width / 2) * Math.sin(angleRad) - (p.y - height / 2) * Math.cos(angleRad);
+  const toPercent = (t: number) => (lineLength === 0 ? 0 : ((t + lineLength / 2) / lineLength) * 100);
+
+  const startPct = toPercent(project(gradientMask.start));
+  const endPct = toPercent(project(gradientMask.end));
+
+  return `linear-gradient(${angleDeg}deg, rgba(0, 0, 0, 1) ${startPct}%, rgba(0, 0, 0, 0) ${endPct}%)`;
+}
+
 function escapeAttr(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
@@ -283,6 +315,17 @@ function renderImageNode(
 
   if (img.mask) {
     frameStyles.push(`clip-path: ${maskToClipPath(img.mask, img.width, img.height)}`);
+  }
+
+  if (img.gradientMask) {
+    const scaleX = Math.abs(img.scaleX);
+    const scaleY = Math.abs(img.scaleY);
+    const scaled = {
+      start: { x: img.gradientMask.start.x * scaleX, y: img.gradientMask.start.y * scaleY },
+      end: { x: img.gradientMask.end.x * scaleX, y: img.gradientMask.end.y * scaleY },
+    };
+    const maskCss = gradientMaskToCss(scaled, img.width * scaleX, img.height * scaleY);
+    frameStyles.push(`mask-image: ${maskCss}`, `-webkit-mask-image: ${maskCss}`);
   }
 
   if (img.shadow?.enabled) {

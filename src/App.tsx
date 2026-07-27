@@ -237,6 +237,13 @@ function App() {
     [updateImage]
   );
 
+  const handleClearGradient = useCallback(
+    (id: string) => {
+      updateImage(id, { gradientMask: undefined });
+    },
+    [updateImage]
+  );
+
   // A dragged image moves the whole selection if it's part of one, so
   // dragging any selected image carries the rest of the group with it.
   const handleMoveSelected = useCallback(
@@ -264,6 +271,7 @@ function App() {
         onSendToBack={sendToBack}
         onDuplicate={duplicateImage}
         onClearMask={handleClearMask}
+        onClearGradient={handleClearGradient}
         onExportJPEG={handleExportJPEG}
         onExportJSON={handleExportJSON}
         onExportHTML={handleExportHTML}
