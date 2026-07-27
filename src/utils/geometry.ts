@@ -1,5 +1,17 @@
 import { CollageImage } from '../types';
 
+// CollageImageNode renders the flip by negating the Group's scaleX/scaleY
+// (see `transform.scaleX: image.scaleX * flipX` there) rather than storing
+// the sign in image.scaleX/scaleY themselves, so any conversion between
+// screen space and the image's local (unflipped-magnitude) space has to
+// re-apply that same sign or it'll place things mirrored to the wrong side.
+function effectiveScale(image: CollageImage): { scaleX: number; scaleY: number } {
+  return {
+    scaleX: image.scaleX * (image.flipX ? -1 : 1),
+    scaleY: image.scaleY * (image.flipY ? -1 : 1),
+  };
+}
+
 /** Convert stage-space point to image-local coordinates. */
 export function stageToImageLocal(
   stageX: number,
@@ -15,9 +27,10 @@ export function stageToImageLocal(
   const rx = dx * cos - dy * sin;
   const ry = dx * sin + dy * cos;
 
+  const { scaleX, scaleY } = effectiveScale(image);
   return {
-    x: rx / image.scaleX + image.width / 2,
-    y: ry / image.scaleY + image.height / 2,
+    x: rx / scaleX + image.width / 2,
+    y: ry / scaleY + image.height / 2,
   };
 }
 
@@ -29,8 +42,9 @@ export function localToStage(
 ): { x: number; y: number } {
   const ox = lx - image.width / 2;
   const oy = ly - image.height / 2;
-  const sx = ox * image.scaleX;
-  const sy = oy * image.scaleY;
+  const { scaleX, scaleY } = effectiveScale(image);
+  const sx = ox * scaleX;
+  const sy = oy * scaleY;
   const rad = (image.rotation * Math.PI) / 180;
   const cos = Math.cos(rad);
   const sin = Math.sin(rad);
