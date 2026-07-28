@@ -418,3 +418,90 @@ Feature: Circular Vignette on an Image
     When the user exports the collage as ICP JSON
     Then the image's vignette settings (enabled, inner radius, outer radius) are included in the exported data
 ```
+
+### Add Text to the Canvas
+- **Requested:** 2026-07-27
+- **Ask:** Add a text tool with basic typography controls (bold, italic, underline, color, size) and a font family picker, sourcing fonts from Google Fonts live in-app while keeping the HTML export fully self-contained.
+
+```gherkin
+Feature: Add Text to the Canvas
+  # src/types.ts, src/utils/googleFonts.ts, src/components/CollageTextNode.tsx, src/components/TextEditOverlay.tsx, src/components/Canvas.tsx, src/components/Toolbar.tsx, src/hooks/useCollage.ts, src/App.tsx, src/store.ts — tested in src/__tests__/textObjects.test.ts, e2e/text-tool.spec.ts
+
+  Scenario: Place a text object with the Text tool
+    Given the Text tool is active
+    When the user clicks a point on the canvas
+    Then a new text object appears at that point, is selected, and opens for editing
+
+  Scenario: Edit a text object's content
+    Given a text object is open for editing
+    When the user types content and commits it (clicking away or pressing Enter)
+    Then the object's displayed text updates to match
+
+  Scenario: Apply Bold, Italic, and Underline
+    Given a text object is selected
+    When the user toggles Bold, Italic, or Underline in the toolbar
+    Then the text renders with that styling applied
+
+  Scenario: Change text color and size
+    Given a text object is selected
+    When the user picks a color or adjusts the size control
+    Then the text's color or font size updates to match
+
+  Scenario: Pick a font family
+    Given a text object is selected
+    When the user picks a font family from the picker
+    Then the text renders live on the canvas in that font, loaded from Google Fonts
+
+  Scenario: Export includes text and font data
+    Given a text object has font family, size, color, and style set
+    When the user exports the collage as ICP JSON
+    Then the text's content and all of its style settings are included in the exported data
+
+  Scenario: Static HTML export embeds fonts self-contained
+    Given the collage contains a text object using a picked Google Font
+    When the user exports HTML
+    Then the exported file embeds that font as a base64-encoded @font-face rule, subsetted to the characters actually used, with no external font requests
+
+  Scenario: Static HTML export falls back gracefully when a font can't be fetched
+    Given a text object's font can't be fetched at export time (e.g. offline)
+    When the user exports HTML
+    Then the export still completes, rendering that text in a fallback font instead of failing
+```
+
+### Effect Parity for Text Objects
+- **Requested:** 2026-07-27
+- **Ask:** Let text objects use the same mask, gradient fade, vignette, drop shadow, blend mode, and flip effects that images already have.
+
+```gherkin
+Feature: Effect Parity for Text Objects
+  # src/types.ts, src/utils/nodeEffects.ts, src/utils/geometry.ts, src/hooks/useMaskDrawer.ts, src/hooks/useGradientMaskDrawer.ts, src/components/CollageTextNode.tsx, src/components/Toolbar.tsx, src/store.ts — tested in src/__tests__/textEffects.test.ts, e2e/text-effects.spec.ts
+
+  Scenario: Draw a shape mask on a text object
+    Given a text object is selected and a mask tool (circle, rectangle, or polygon) is active
+    When the user clicks and drags (or clicks points) on the text object
+    Then a mask of that shape is applied, clipping the text to it, the same as for an image
+
+  Scenario: Draw a gradient fade on a text object
+    Given a text object is selected and the Gradient Fade tool is active
+    When the user drags from one point to another on the text
+    Then the text fades from opaque to transparent along that line
+
+  Scenario: Enable a vignette, drop shadow, or blend mode on a text object
+    Given a text object is selected
+    When the user enables Vignette or Drop Shadow, or picks a non-Normal blend mode
+    Then the effect applies to the text exactly as it would to an image, and its controls (radius, color, blur, offset, opacity, mode) work the same way
+
+  Scenario: Flip a text object
+    Given a text object is selected
+    When the user clicks Flip Horizontal or Flip Vertical
+    Then the text mirrors about its own center, same as an image
+
+  Scenario: Crop remains image-only
+    Given a text object is selected
+    Then the Crop tool is not offered for it, since cropping is inherently about a source image's own pixel region
+
+  Scenario: Export includes text effect data
+    Given a text object has any combination of mask, gradient fade, vignette, shadow, blend mode, or flip applied
+    When the user exports the collage as ICP JSON or static HTML
+    Then those effects are included in the exported data and reproduced in the exported HTML, the same as for images
+```

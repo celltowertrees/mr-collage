@@ -1,11 +1,11 @@
 import { useState, useCallback, useEffect } from 'react';
 import Konva from 'konva';
-import { GradientMask, CollageImage } from '../types';
+import { GradientMask, CollageObject } from '../types';
 import { stageToImageLocal, localToStage } from '../utils/geometry';
 
 interface UseGradientMaskDrawerProps {
   active: boolean;
-  targetImage: CollageImage | null;
+  targetImage: CollageObject | null;
   stageRef: React.RefObject<Konva.Stage | null>;
   onChange: (imageId: string, gradientMask: GradientMask) => void;
 }
