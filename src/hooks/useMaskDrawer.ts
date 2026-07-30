@@ -1,11 +1,11 @@
 import { useState, useCallback, useEffect } from 'react';
 import Konva from 'konva';
-import { Tool, MaskData, CollageObject } from '../types';
+import { Tool, MaskData, CollageImage } from '../types';
 import { stageToImageLocal, localToStage } from '../utils/geometry';
 
 interface UseMaskDrawerProps {
   tool: Tool;
-  targetImage: CollageObject | null;
+  targetImage: CollageImage | null;
   stageRef: React.RefObject<Konva.Stage | null>;
   onMaskComplete: (imageId: string, mask: MaskData) => void;
 }

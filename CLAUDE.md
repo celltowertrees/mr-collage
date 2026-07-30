@@ -470,38 +470,33 @@ Feature: Add Text to the Canvas
 
 ### Effect Parity for Text Objects
 - **Requested:** 2026-07-27
-- **Ask:** Let text objects use the same mask, gradient fade, vignette, drop shadow, blend mode, and flip effects that images already have.
+- **Ask:** Let text objects use the same gradient fade, drop shadow, blend mode, and flip effects that images already have. (Shape mask and vignette were initially generalized to text too, but reverted on 2026-07-28 — there's no real-world case for clipping or vignetting a text object the way there is for a photo, so both stay image-only, same as crop.)
 
 ```gherkin
 Feature: Effect Parity for Text Objects
-  # src/types.ts, src/utils/nodeEffects.ts, src/utils/geometry.ts, src/hooks/useMaskDrawer.ts, src/hooks/useGradientMaskDrawer.ts, src/components/CollageTextNode.tsx, src/components/Toolbar.tsx, src/store.ts — tested in src/__tests__/textEffects.test.ts, e2e/text-effects.spec.ts
-
-  Scenario: Draw a shape mask on a text object
-    Given a text object is selected and a mask tool (circle, rectangle, or polygon) is active
-    When the user clicks and drags (or clicks points) on the text object
-    Then a mask of that shape is applied, clipping the text to it, the same as for an image
+  # src/types.ts, src/utils/nodeEffects.ts, src/utils/geometry.ts, src/hooks/useGradientMaskDrawer.ts, src/components/CollageTextNode.tsx, src/components/Toolbar.tsx, src/store.ts — tested in src/__tests__/textEffects.test.ts, e2e/text-effects.spec.ts
 
   Scenario: Draw a gradient fade on a text object
     Given a text object is selected and the Gradient Fade tool is active
     When the user drags from one point to another on the text
     Then the text fades from opaque to transparent along that line
 
-  Scenario: Enable a vignette, drop shadow, or blend mode on a text object
+  Scenario: Enable drop shadow or blend mode on a text object
     Given a text object is selected
-    When the user enables Vignette or Drop Shadow, or picks a non-Normal blend mode
-    Then the effect applies to the text exactly as it would to an image, and its controls (radius, color, blur, offset, opacity, mode) work the same way
+    When the user enables Drop Shadow, or picks a non-Normal blend mode
+    Then the effect applies to the text exactly as it would to an image, and its controls (color, blur, offset, opacity, mode) work the same way
 
   Scenario: Flip a text object
     Given a text object is selected
     When the user clicks Flip Horizontal or Flip Vertical
     Then the text mirrors about its own center, same as an image
 
-  Scenario: Crop remains image-only
+  Scenario: Shape mask, vignette, and crop remain image-only
     Given a text object is selected
-    Then the Crop tool is not offered for it, since cropping is inherently about a source image's own pixel region
+    Then the Circle/Rectangle/Polygon Mask tools, the Vignette control, and the Crop tool are not offered for it
 
   Scenario: Export includes text effect data
-    Given a text object has any combination of mask, gradient fade, vignette, shadow, blend mode, or flip applied
+    Given a text object has any combination of gradient fade, shadow, blend mode, or flip applied
     When the user exports the collage as ICP JSON or static HTML
     Then those effects are included in the exported data and reproduced in the exported HTML, the same as for images
 ```

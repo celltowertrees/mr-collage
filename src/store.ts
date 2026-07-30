@@ -180,9 +180,7 @@ export function exportToICP(objects: CollageObject[]): object {
               italic: obj.italic,
               underline: obj.underline,
               color: obj.color,
-              ...(obj.mask ? { mask: obj.mask } : {}),
               ...(obj.gradientMask ? { gradientMask: obj.gradientMask } : {}),
-              ...(obj.vignette?.enabled ? { vignette: obj.vignette } : {}),
               ...(obj.shadow?.enabled ? { shadow: obj.shadow } : {}),
               ...(obj.blendMode ? { blendMode: obj.blendMode } : {}),
               ...(obj.flipX ? { flipX: obj.flipX } : {}),
@@ -484,17 +482,20 @@ function renderImageNode(
 // explicit CSS `scale()` reproduces Konva's Group-level scaleX/scaleY —
 // matching how the canvas scales the whole text shape, glyphs included,
 // through its parent Group's transform matrix. That has a useful
-// consequence for the effects below: since mask/gradientMask/vignette
-// coordinates are defined in the text's own unscaled width/height space —
-// exactly the space this frame's own border-box already sits in (scale is a
-// separate `transform`, not baked into width/height like images) — none of
-// them need the scaleX/scaleY pre-multiplication renderImageNode does.
-// Likewise, drop-shadow's blur/offset don't need scaleX/scaleY applied by
-// hand either: CSS applies `transform` to an element's already-filtered
-// output (verified empirically — a drop-shadow's rendered size visibly
-// scales right along with a sibling `transform: scale()` on the same
-// element), so the enclosing scale() below stretches the shadow for free,
-// unlike images' flip-only wrapping transform which doesn't.
+// consequence for the gradient fade below: since its coordinates are defined
+// in the text's own unscaled width/height space — exactly the space this
+// frame's own border-box already sits in (scale is a separate `transform`,
+// not baked into width/height like images) — it doesn't need the
+// scaleX/scaleY pre-multiplication renderImageNode's gradient does. Likewise,
+// drop-shadow's blur/offset don't need scaleX/scaleY applied by hand either:
+// CSS applies `transform` to an element's already-filtered output (verified
+// empirically — a drop-shadow's rendered size visibly scales right along
+// with a sibling `transform: scale()` on the same element), so the enclosing
+// scale() below stretches the shadow for free, unlike images' flip-only
+// wrapping transform which doesn't. Shape masks and vignettes stay
+// image-only (there's no real case for clipping or vignetting a text
+// object), so this has no clip-path/mask-composite branch the way
+// renderImageNode does.
 function renderTextNode(text: CollageText, viewport: ExportViewport): string {
   const nativeWidth = text.width * viewport.scale;
   const nativeHeight = text.height * viewport.scale;
@@ -521,23 +522,9 @@ function renderTextNode(text: CollageText, viewport: ExportViewport): string {
     `z-index: ${text.zIndex}`,
   ];
 
-  if (text.mask) {
-    frameStyles.push(`clip-path: ${maskToClipPath(text.mask, text.width, text.height)}`);
-  }
-
-  const maskLayers: string[] = [];
   if (text.gradientMask) {
-    maskLayers.push(gradientMaskToCss(text.gradientMask, text.width, text.height));
-  }
-  if (text.vignette?.enabled) {
-    maskLayers.push(vignetteMaskToCss(text.vignette, nativeWidth, nativeHeight));
-  }
-  if (maskLayers.length > 0) {
-    const maskCss = maskLayers.join(', ');
+    const maskCss = gradientMaskToCss(text.gradientMask, text.width, text.height);
     frameStyles.push(`mask-image: ${maskCss}`, `-webkit-mask-image: ${maskCss}`);
-    if (maskLayers.length > 1) {
-      frameStyles.push('mask-composite: intersect', '-webkit-mask-composite: source-in');
-    }
   }
 
   if (text.shadow?.enabled) {

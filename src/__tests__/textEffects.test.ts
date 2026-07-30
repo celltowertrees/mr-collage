@@ -34,15 +34,17 @@ function parseFrame(html: string, id: string): HTMLElement {
   return el;
 }
 
-// Maps to CLAUDE.md → "Add Text to the Canvas" effect-parity extension
+// Maps to CLAUDE.md → "Add Text to the Canvas" effect-parity extension.
+// Shape masks and vignettes are deliberately NOT part of this parity — both
+// stay image-only (CollageText has no `mask`/`vignette` fields at all), since
+// there's no real-world case for clipping or vignetting a text object the way
+// there is for a photo.
 describe('exportToICP text effect data', () => {
-  it('includes mask, gradient fade, vignette, shadow, blend mode, and flip only when set', () => {
+  it('includes gradient fade, shadow, blend mode, and flip only when set', () => {
     const plain = makeText({ id: 'plain' });
     const styled = makeText({
       id: 'styled',
-      mask: { type: 'circle', cx: 10, cy: 10, radius: 5 },
       gradientMask: { start: { x: 0, y: 0 }, end: { x: 10, y: 10 } },
-      vignette: { enabled: true, innerRadius: 0.4, outerRadius: 0.9 },
       shadow: { enabled: true, color: '#000', blur: 10, offsetX: 5, offsetY: 5, opacity: 0.5 },
       blendMode: 'multiply',
       flipX: true,
@@ -54,15 +56,12 @@ describe('exportToICP text effect data', () => {
     };
     const [plainNode, styledNode] = result['infinite-canvas'].nodes;
 
-    expect(plainNode.data.mask).toBeUndefined();
     expect(plainNode.data.shadow).toBeUndefined();
     expect(plainNode.data.blendMode).toBeUndefined();
     expect(plainNode.data.flipX).toBeUndefined();
 
     expect(styledNode.data).toMatchObject({
-      mask: { type: 'circle', cx: 10, cy: 10, radius: 5 },
       gradientMask: { start: { x: 0, y: 0 }, end: { x: 10, y: 10 } },
-      vignette: { enabled: true, innerRadius: 0.4, outerRadius: 0.9 },
       shadow: { enabled: true, color: '#000', blur: 10, offsetX: 5, offsetY: 5, opacity: 0.5 },
       blendMode: 'multiply',
       flipX: true,
@@ -84,14 +83,6 @@ describe('exportToStaticHTML text effect styling', () => {
 
   afterEach(() => {
     vi.unstubAllGlobals();
-  });
-
-  it('reproduces a shape mask as a clip-path using the text\'s own unscaled coordinate space', async () => {
-    const text = makeText({ mask: { type: 'circle', cx: 150, cy: 75, radius: 50 } });
-    const html = await exportToStaticHTML([text], viewport);
-    const frame = parseFrame(html, text.id);
-
-    expect(frame.style.clipPath).toContain('ellipse');
   });
 
   it('reproduces blend mode and z-order', async () => {
@@ -146,28 +137,11 @@ describe('exportToStaticHTML text effect styling', () => {
     );
   });
 
-  it('sizes a vignette to the text frame\'s own (viewport-scaled) box', async () => {
-    const text = makeText({
-      width: 200,
-      height: 100,
-      vignette: { enabled: true, innerRadius: 0.4, outerRadius: 0.9 },
-    });
-    const zoomedViewport: ExportViewport = { ...viewport, scale: 2 };
-    const html = await exportToStaticHTML([text], zoomedViewport);
-    const frame = parseFrame(html, text.id);
-
-    // nativeWidth/Height = 200*2=400, 100*2=200 -> half = 200, 100
-    expect(frame.style.maskImage).toBe(
-      'radial-gradient(ellipse 200px 100px at center, rgba(0, 0, 0, 1) 40%, rgba(0, 0, 0, 0) 90%)'
-    );
-  });
-
-  it('omits mask/shadow/blend-mode/vignette styling when unset', async () => {
+  it('omits shadow/blend-mode/gradient-fade styling when unset', async () => {
     const text = makeText();
     const html = await exportToStaticHTML([text], viewport);
     const frame = parseFrame(html, text.id);
 
-    expect(frame.style.clipPath).toBe('');
     expect(frame.style.filter).toBe('');
     expect(frame.style.mixBlendMode).toBe('');
     expect(frame.style.maskImage).toBe('');

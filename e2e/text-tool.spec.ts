@@ -69,10 +69,13 @@ test.describe('Add Text to the Canvas', () => {
     await page.getByTitle('Italic').click();
     await page.getByTitle('Underline').click();
 
+    // Each toggle is polled separately: saves are queued through an async
+    // IndexedDB round-trip, so the three clicks' writes land in localStorage
+    // independently — polling only the first and then reading the rest
+    // synchronously races the still-in-flight later saves.
     await expect.poll(async () => (await readState(page)).images.at(-1)?.bold).toBe(true);
-    const obj = (await readState(page)).images.at(-1);
-    expect(obj.italic).toBe(true);
-    expect(obj.underline).toBe(true);
+    await expect.poll(async () => (await readState(page)).images.at(-1)?.italic).toBe(true);
+    await expect.poll(async () => (await readState(page)).images.at(-1)?.underline).toBe(true);
   });
 
   test('changing color and size updates persisted state', async ({ page }) => {
@@ -83,7 +86,9 @@ test.describe('Add Text to the Canvas', () => {
     await textSection.getByLabel('Size').fill('64');
 
     await expect.poll(async () => (await readState(page)).images.at(-1)?.fontSize).toBe(64);
-    expect((await readState(page)).images.at(-1).color.toLowerCase()).toBe('#ff00aa');
+    await expect
+      .poll(async () => (await readState(page)).images.at(-1)?.color?.toLowerCase())
+      .toBe('#ff00aa');
   });
 
   test('picking a font family updates persisted state', async ({ page }) => {
