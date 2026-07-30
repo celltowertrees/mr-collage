@@ -72,12 +72,11 @@ export interface ShadowData {
   opacity: number;
 }
 
-// Fields shared by every object kind, including every visual effect that
-// isn't tied to having a raster image source (mask/gradient-fade/vignette/
-// shadow/blend-mode/flip all just clip or composite whatever the node
-// renders, image or text alike) — only `crop` is image-specific, since it
-// crops a source image's own pixel region, a concept text has no equivalent
-// of.
+// Fields shared by every object kind. gradientMask/shadow/blendMode/flip all
+// just fade or composite whatever the node renders, image or text alike, so
+// they live here — mask (shape clipping) and vignette stay image-only below,
+// alongside crop, since there's no real-world case for clipping or
+// vignetting a text object the way there is for a photo.
 export interface BaseObject {
   id: string;
   x: number;
@@ -90,9 +89,7 @@ export interface BaseObject {
   opacity: number;
   zIndex: number;
   name: string;
-  mask?: MaskData;
   gradientMask?: GradientMask;
-  vignette?: VignetteData;
   shadow?: ShadowData;
   blendMode?: Exclude<BlendMode, 'normal'>;
   flipX?: boolean;
@@ -102,6 +99,8 @@ export interface BaseObject {
 export interface CollageImage extends BaseObject {
   kind: 'image';
   src: string;
+  mask?: MaskData;
+  vignette?: VignetteData;
   crop?: CropRect;
 }
 

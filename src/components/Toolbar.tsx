@@ -298,9 +298,11 @@ export function Toolbar({
   onCancelCrop,
 }: ToolbarProps) {
   const isMaskTool = tool.startsWith('mask-');
-  // Mask/crop/shadow/vignette/blend/flip only ever apply to images; text
-  // formatting only ever applies to text — narrow once here rather than
-  // re-checking `.kind` at every field access below.
+  // Shape mask/crop/vignette only ever apply to images (there's no real case
+  // for clipping or vignetting a text object); shadow/blend mode/flip/
+  // gradient fade apply to both; text formatting only ever applies to text —
+  // narrow once here rather than re-checking `.kind` at every field access
+  // below.
   const image = selectedImage && selectedImage.kind !== 'text' ? selectedImage : null;
   const text = selectedImage?.kind === 'text' ? selectedImage : null;
 
@@ -344,21 +346,21 @@ export function Toolbar({
     );
   };
 
-  const vignette = selectedImage?.vignette;
+  const vignette = image?.vignette;
 
   const toggleVignette = () => {
-    if (!selectedImage) return;
-    const current = selectedImage.vignette;
-    onUpdateImage(selectedImage.id, {
+    if (!image) return;
+    const current = image.vignette;
+    onUpdateImage(image.id, {
       vignette: { ...(current ?? DEFAULT_VIGNETTE), enabled: !current?.enabled },
     });
   };
 
   const updateVignette = (changes: Partial<VignetteData>) => {
-    if (!selectedImage) return;
-    const current = selectedImage.vignette ?? DEFAULT_VIGNETTE;
+    if (!image) return;
+    const current = image.vignette ?? DEFAULT_VIGNETTE;
     onUpdateImage(
-      selectedImage.id,
+      image.id,
       { vignette: { ...current, ...changes } },
       { coalesce: true }
     );
@@ -547,33 +549,37 @@ export function Toolbar({
 
           <div className="toolbar-section">
             <div className="toolbar-divider" />
-            <ToolButton
-              active={tool === 'mask-circle'}
-              onClick={() => onToolChange(tool === 'mask-circle' ? 'select' : 'mask-circle')}
-              title="Circle Mask"
-            >
-              <CircleMaskIcon />
-            </ToolButton>
-            <ToolButton
-              active={tool === 'mask-rect'}
-              onClick={() => onToolChange(tool === 'mask-rect' ? 'select' : 'mask-rect')}
-              title="Rectangle Mask"
-            >
-              <RectMaskIcon />
-            </ToolButton>
-            <ToolButton
-              active={tool === 'mask-polygon'}
-              onClick={() => onToolChange(tool === 'mask-polygon' ? 'select' : 'mask-polygon')}
-              title="Freeform Mask (click points, double-click to finish)"
-            >
-              <PolygonMaskIcon />
-            </ToolButton>
-            {selectedImage.mask && (
-              <ToolButton danger onClick={() => onClearMask(selectedImage.id)} title="Clear Mask">
-                <XIcon />
-              </ToolButton>
+            {image && (
+              <>
+                <ToolButton
+                  active={tool === 'mask-circle'}
+                  onClick={() => onToolChange(tool === 'mask-circle' ? 'select' : 'mask-circle')}
+                  title="Circle Mask"
+                >
+                  <CircleMaskIcon />
+                </ToolButton>
+                <ToolButton
+                  active={tool === 'mask-rect'}
+                  onClick={() => onToolChange(tool === 'mask-rect' ? 'select' : 'mask-rect')}
+                  title="Rectangle Mask"
+                >
+                  <RectMaskIcon />
+                </ToolButton>
+                <ToolButton
+                  active={tool === 'mask-polygon'}
+                  onClick={() => onToolChange(tool === 'mask-polygon' ? 'select' : 'mask-polygon')}
+                  title="Freeform Mask (click points, double-click to finish)"
+                >
+                  <PolygonMaskIcon />
+                </ToolButton>
+                {image.mask && (
+                  <ToolButton danger onClick={() => onClearMask(image.id)} title="Clear Mask">
+                    <XIcon />
+                  </ToolButton>
+                )}
+                <div className="toolbar-divider" />
+              </>
             )}
-            <div className="toolbar-divider" />
             <ToolButton
               active={tool === 'mask-gradient'}
               onClick={() => onToolChange(tool === 'mask-gradient' ? 'select' : 'mask-gradient')}
@@ -679,37 +685,39 @@ export function Toolbar({
             )}
           </div>
 
-          <div className="toolbar-section">
-            <ToolButton
-              active={vignette?.enabled}
-              onClick={toggleVignette}
-              title={vignette?.enabled ? 'Disable Vignette' : 'Enable Vignette'}
-            >
-              <VignetteIcon />
-            </ToolButton>
-            {vignette?.enabled && (
-              <>
-                <SliderField
-                  label="Inner Radius"
-                  min={0}
-                  max={1.5}
-                  step={0.05}
-                  value={vignette.innerRadius}
-                  display={`${Math.round(vignette.innerRadius * 100)}%`}
-                  onChange={(value) => updateVignette({ innerRadius: value })}
-                />
-                <SliderField
-                  label="Outer Radius"
-                  min={0}
-                  max={1.5}
-                  step={0.05}
-                  value={vignette.outerRadius}
-                  display={`${Math.round(vignette.outerRadius * 100)}%`}
-                  onChange={(value) => updateVignette({ outerRadius: value })}
-                />
-              </>
-            )}
-          </div>
+          {image && (
+            <div className="toolbar-section">
+              <ToolButton
+                active={vignette?.enabled}
+                onClick={toggleVignette}
+                title={vignette?.enabled ? 'Disable Vignette' : 'Enable Vignette'}
+              >
+                <VignetteIcon />
+              </ToolButton>
+              {vignette?.enabled && (
+                <>
+                  <SliderField
+                    label="Inner Radius"
+                    min={0}
+                    max={1.5}
+                    step={0.05}
+                    value={vignette.innerRadius}
+                    display={`${Math.round(vignette.innerRadius * 100)}%`}
+                    onChange={(value) => updateVignette({ innerRadius: value })}
+                  />
+                  <SliderField
+                    label="Outer Radius"
+                    min={0}
+                    max={1.5}
+                    step={0.05}
+                    value={vignette.outerRadius}
+                    display={`${Math.round(vignette.outerRadius * 100)}%`}
+                    onChange={(value) => updateVignette({ outerRadius: value })}
+                  />
+                </>
+              )}
+            </div>
+          )}
         </>
       )}
 

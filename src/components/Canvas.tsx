@@ -88,6 +88,9 @@ export function Canvas({
 }: CanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const selectedImage = selectedIds.length === 1 ? images.find((img) => img.id === selectedIds[0]) ?? null : null;
+  // Shape masks (unlike gradient fade) only ever apply to images — narrow
+  // here once so useMaskDrawer (typed for CollageImage) never sees a text node.
+  const selectedImageOnly = selectedImage && selectedImage.kind !== 'text' ? selectedImage : null;
   const isMaskTool = tool.startsWith('mask-');
   const isGradientTool = tool === 'mask-gradient';
   const isCropTool = tool === 'crop';
@@ -125,7 +128,7 @@ export function Canvas({
 
   const maskDrawer = useMaskDrawer({
     tool,
-    targetImage: selectedImage,
+    targetImage: selectedImageOnly,
     stageRef,
     onMaskComplete: handleMaskComplete,
   });

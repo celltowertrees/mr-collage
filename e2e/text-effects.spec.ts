@@ -34,26 +34,23 @@ test.beforeEach(async ({ page }) => {
 });
 
 // Maps to CLAUDE.md → "Add Text to the Canvas" effect-parity extension: text
-// objects support the same mask/gradient-fade/vignette/shadow/blend-mode/flip
-// effects as images (crop is the one exception, since it's inherently about
-// cropping a source image's own pixels).
+// objects support the same gradient-fade/shadow/blend-mode/flip effects as
+// images. Shape masks and vignettes are deliberately NOT part of this parity
+// (there's no real case for clipping or vignetting a text object the way
+// there is for a photo) — they stay image-only, same as crop.
 test.describe('Text objects support the same effects as images', () => {
-  test('drawing a circle mask on a selected text object persists a mask', async ({ page }) => {
-    const center = await placeText(page, 'Mask Me');
-    await page.getByTitle('Circle Mask').click();
+  test('the Circle/Rectangle/Polygon Mask tools and Vignette control are not offered for a selected text object', async ({
+    page,
+  }) => {
+    await placeText(page, 'No Mask or Vignette');
 
-    await page.mouse.move(center.x, center.y);
-    await page.mouse.down();
-    await page.mouse.move(center.x + 40, center.y, { steps: 5 });
-    await page.waitForTimeout(50);
-    await page.mouse.up();
+    await expect(page.getByTitle('Circle Mask')).not.toBeVisible();
+    await expect(page.getByTitle('Rectangle Mask')).not.toBeVisible();
+    await expect(page.getByTitle('Freeform Mask (click points, double-click to finish)')).not.toBeVisible();
+    await expect(page.getByTitle('Enable Vignette')).not.toBeVisible();
 
-    await expect.poll(async () => (await readState(page)).images.at(-1)?.mask?.type).toBe('circle');
-
-    await page.getByTitle('Select (V)').click();
-    await expect(page.getByTitle('Clear Mask')).toBeVisible();
-    await page.getByTitle('Clear Mask').click();
-    await expect.poll(async () => (await readState(page)).images.at(-1)?.mask).toBeUndefined();
+    // Gradient Fade stays available — only shape mask/vignette are excluded.
+    await expect(page.getByTitle('Gradient Fade')).toBeVisible();
   });
 
   test('enabling drop shadow on text updates persisted state', async ({ page }) => {
@@ -76,16 +73,6 @@ test.describe('Text objects support the same effects as images', () => {
     await expect.poll(async () => (await readState(page)).images.at(-1)?.blendMode).toBe('multiply');
   });
 
-  test('enabling a vignette on text updates persisted state', async ({ page }) => {
-    await placeText(page, 'Vignette Me');
-
-    await page.getByTitle('Enable Vignette').click();
-    await expect.poll(async () => (await readState(page)).images.at(-1)?.vignette?.enabled).toBe(true);
-
-    await page.getByLabel('Inner Radius').fill('0.2');
-    await expect.poll(async () => (await readState(page)).images.at(-1)?.vignette?.innerRadius).toBeCloseTo(0.2);
-  });
-
   test('dragging a gradient fade line on text persists a gradient mask', async ({ page }) => {
     const center = await placeText(page, 'Fade Me');
     await page.getByTitle('Gradient Fade').click();
@@ -105,8 +92,12 @@ test.describe('Text objects support the same effects as images', () => {
     await page.getByTitle('Flip Horizontal').click();
     await page.getByTitle('Flip Vertical').click();
 
+    // Both are polled: saves are queued through an async IndexedDB round-trip,
+    // so the two clicks' writes land in localStorage independently — polling
+    // only the first and then reading the second synchronously races the
+    // still-in-flight second save.
     await expect.poll(async () => (await readState(page)).images.at(-1)?.flipX).toBe(true);
-    expect((await readState(page)).images.at(-1).flipY).toBe(true);
+    await expect.poll(async () => (await readState(page)).images.at(-1)?.flipY).toBe(true);
   });
 
   test('the Crop tool is not offered for a selected text object', async ({ page }) => {

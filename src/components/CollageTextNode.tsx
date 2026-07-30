@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Text as KonvaText, Image as KonvaImage, Transformer, Group, Shape } from 'react-konva';
+import { Text as KonvaText, Image as KonvaImage, Transformer, Group } from 'react-konva';
 import Konva from 'konva';
 import { CollageText, Tool } from '../types';
 import { fontWeightFor, loadGoogleFontFace } from '../utils/googleFonts';
-import { buildClipFunc, buildFadeMaskedCanvas, buildMaskShadowSceneFunc } from '../utils/nodeEffects';
+import { buildFadeMaskedCanvas } from '../utils/nodeEffects';
 
 interface Props {
   textObj: CollageText;
@@ -88,17 +88,18 @@ export function CollageTextNode({ textObj, isSelected, tool, onSelect, onChange,
   }, [textObj.text, textObj.fontSize, textObj.fontFamily, textObj.bold, textObj.italic, fontReady]);
 
   const gradientMask = textObj.gradientMask;
-  const vignette = textObj.vignette;
 
   // Text has no separate "source pixels" the way an <img> does, so the
-  // gradient fade/vignette instead rasterizes a standalone (off-tree) copy of
-  // the Text shape into an offscreen canvas via Konva's own toCanvas() — using
-  // a detached node rather than the live `textRef` one avoids any dependency
-  // on this render's visible/hidden state, so it can't race the real node's
-  // own prop updates. That raster is then faded exactly like an image's
-  // pixels are (see buildFadeMaskedCanvas).
+  // gradient fade instead rasterizes a standalone (off-tree) copy of the Text
+  // shape into an offscreen canvas via Konva's own toCanvas() — using a
+  // detached node rather than the live `textRef` one avoids any dependency on
+  // this render's visible/hidden state, so it can't race the real node's own
+  // prop updates. That raster is then faded exactly like an image's pixels
+  // are (see buildFadeMaskedCanvas). Shape masks and vignettes stay
+  // image-only (there's no real case for clipping or vignetting a text
+  // object), so this only ever runs for a gradient fade.
   const gradientSource = useMemo(() => {
-    if (!gradientMask && !vignette?.enabled) return null;
+    if (!gradientMask) return null;
     const temp = new Konva.Text({
       text: textObj.text || ' ',
       fontSize: textObj.fontSize,
@@ -109,7 +110,7 @@ export function CollageTextNode({ textObj, isSelected, tool, onSelect, onChange,
     });
     const rasterized = temp.toCanvas({ width: textObj.width, height: textObj.height, pixelRatio: 1 });
     temp.destroy();
-    return buildFadeMaskedCanvas(rasterized, textObj.width, textObj.height, undefined, gradientMask, vignette);
+    return buildFadeMaskedCanvas(rasterized, textObj.width, textObj.height, undefined, gradientMask, undefined);
     // fontReady triggers a re-rasterize once the real font (not a fallback)
     // is what actually gets drawn into the offscreen canvas.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -124,12 +125,11 @@ export function CollageTextNode({ textObj, isSelected, tool, onSelect, onChange,
     textObj.width,
     textObj.height,
     gradientMask,
-    vignette,
     fontReady,
   ]);
 
-  const isMaskTool = tool.startsWith('mask-');
-  const isSelectable = tool === 'select' || isMaskTool;
+  const isGradientTool = tool === 'mask-gradient';
+  const isSelectable = tool === 'select' || isGradientTool;
 
   const shadow = textObj.shadow;
   const shadowActive = shadow?.enabled ?? false;
@@ -149,23 +149,6 @@ export function CollageTextNode({ textObj, isSelected, tool, onSelect, onChange,
 
   return (
     <>
-      {shadowActive && textObj.mask && shadow && (
-        <Group {...transform} listening={false}>
-          <Shape
-            width={textObj.width}
-            height={textObj.height}
-            fill="black"
-            sceneFunc={buildMaskShadowSceneFunc(textObj.mask)}
-            shadowEnabled
-            shadowColor={shadow.color}
-            shadowBlur={shadow.blur}
-            shadowOffsetX={shadow.offsetX}
-            shadowOffsetY={shadow.offsetY}
-            shadowOpacity={shadow.opacity}
-            perfectDrawEnabled={false}
-          />
-        </Group>
-      )}
       <Group
         ref={groupRef}
         id={textObj.id}
@@ -195,7 +178,6 @@ export function CollageTextNode({ textObj, isSelected, tool, onSelect, onChange,
             scaleY: node.scaleY() * flipY,
           });
         }}
-        clipFunc={textObj.mask ? buildClipFunc(textObj.mask) : undefined}
       >
         <KonvaText
           ref={textRef}
@@ -208,7 +190,7 @@ export function CollageTextNode({ textObj, isSelected, tool, onSelect, onChange,
           visible={!gradientSource}
           opacity={textObj.opacity}
           globalCompositeOperation={textObj.blendMode ?? 'source-over'}
-          shadowEnabled={!gradientSource && shadowActive && !textObj.mask}
+          shadowEnabled={!gradientSource && shadowActive}
           shadowColor={shadow?.color}
           shadowBlur={shadow?.blur}
           shadowOffsetX={shadow?.offsetX}
@@ -222,7 +204,7 @@ export function CollageTextNode({ textObj, isSelected, tool, onSelect, onChange,
             height={textObj.height}
             opacity={textObj.opacity}
             globalCompositeOperation={textObj.blendMode ?? 'source-over'}
-            shadowEnabled={shadowActive && !textObj.mask}
+            shadowEnabled={shadowActive}
             shadowColor={shadow?.color}
             shadowBlur={shadow?.blur}
             shadowOffsetX={shadow?.offsetX}
@@ -236,8 +218,8 @@ export function CollageTextNode({ textObj, isSelected, tool, onSelect, onChange,
           ref={trRef}
           rotateEnabled={true}
           enabledAnchors={
-            isMaskTool
-              ? [] // disable resizing while in mask drawing mode
+            isGradientTool
+              ? [] // disable resizing while drawing a gradient fade
               : [
                   'top-left',
                   'top-right',
