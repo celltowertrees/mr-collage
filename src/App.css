@@ -140,6 +140,20 @@ body {
   color: var(--accent-text);
 }
 
+/* Export actions (JPEG/JSON/HTML) stay accented, like the reference's marquee bar */
+.toolbar-right .toolbar-btn.export-btn {
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 700;
+  background: var(--accent);
+  border-color: var(--accent-border);
+  color: var(--accent-text);
+}
+
+.toolbar-right .toolbar-btn.export-btn:hover {
+  background: var(--accent-hover);
+}
+
 .toolbar-divider {
   width: 1px;
   height: 24px;
