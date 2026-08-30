@@ -1,6 +1,7 @@
 /*
  * MR. COLLAGE — Theme
- * Neutral, minimal styling: flat surfaces, subtle borders, one accent color.
+ * Styled after mr-prototype.vercel.app: a dark, noise-textured toolbar,
+ * flat white chip controls, and a bold orange gradient accent.
  * Edit these variables to restyle the toolbar and UI.
  */
 
@@ -9,40 +10,42 @@
   --canvas-bg: #ffffff;
 
   /* ── Toolbar ── */
-  --toolbar-bg: #ffffff;
-  --toolbar-border: #e4e4e7;
+  --toolbar-bg: linear-gradient(140deg, rgba(20, 20, 20, 0.95), rgba(90, 90, 90, 0.9)),
+    url("data:image/svg+xml,%3Csvg viewBox='0 0 285 285' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='1.43' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+  --toolbar-border: rgba(255, 255, 255, 0.22);
   --toolbar-height: 52px;
-  --toolbar-text: #18181b;
-  --toolbar-muted: #8a8a92;
+  --toolbar-text: #ffffff;
+  --toolbar-muted: rgba(255, 255, 255, 0.65);
   --toolbar-font-size: 12px;
   --toolbar-gap: 6px;
-  --toolbar-font: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --toolbar-font: -apple-system, 'system-ui', 'Segoe UI', Roboto, Oxygen-Sans, Ubuntu, Cantarell,
+    'Helvetica Neue', sans-serif;
 
   /* ── Buttons ── */
   --btn-size: 30px;
-  --btn-radius: 6px;
+  --btn-radius: 2px;
   --btn-bg: #ffffff;
-  --btn-hover: #f4f4f5;
-  --btn-active: #e4e4e7;
-  --btn-border: #d4d4d8;
-  --btn-text: #3f3f46;
-  /* Subtle 3D bevel: light on the raised edge, dark on the sunken edge. */
-  --btn-bevel-light: rgba(255, 255, 255, 0.9);
-  --btn-bevel-dark: rgba(0, 0, 0, 0.16);
+  --btn-hover: #f2f2f2;
+  --btn-active: #e0e0e0;
+  --btn-border: #cccccc;
+  --btn-text: #18181b;
+  /* Flat border, no bevel — matches the reference's flat white chrome. */
+  --btn-bevel-light: #cccccc;
+  --btn-bevel-dark: #cccccc;
 
   /* ── Accent / Danger ── */
-  --accent: #2563eb;
-  --accent-hover: #1d4ed8;
+  --accent: linear-gradient(305deg, #ff9810, #ff4410);
+  --accent-hover: linear-gradient(305deg, #ffaa33, #ff5c26);
   --accent-text: #ffffff;
-  --accent-border: #2563eb;
+  --accent-border: #ff4410;
   --danger: #dc2626;
   --danger-hover: #b91c1c;
   --danger-text: #ffffff;
   --danger-border: #dc2626;
 
   /* ── Mask drawing ── */
-  --mask-hint-color: #8a8a92;
-  --mask-preview-stroke: #2563eb;
+  --mask-hint-color: rgba(255, 255, 255, 0.68);
+  --mask-preview-stroke: #ff4410;
 
   /* ── Empty state ── */
   --empty-state-color: #a1a1aa;

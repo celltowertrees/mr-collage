@@ -66,6 +66,15 @@ body {
   flex-wrap: wrap;
 }
 
+.toolbar-title {
+  font-family: var(--toolbar-font);
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--toolbar-text);
+  white-space: nowrap;
+  margin-right: 10px;
+}
+
 .toolbar-section {
   display: flex;
   align-items: center;
@@ -138,6 +147,20 @@ body {
   background: var(--accent);
   border-color: var(--accent-border);
   color: var(--accent-text);
+}
+
+/* Export actions (JPEG/JSON/HTML) stay accented, like the reference's marquee bar */
+.toolbar-right .toolbar-btn.export-btn {
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 700;
+  background: var(--accent);
+  border-color: var(--accent-border);
+  color: var(--accent-text);
+}
+
+.toolbar-right .toolbar-btn.export-btn:hover {
+  background: var(--accent-hover);
 }
 
 .toolbar-divider {
