@@ -373,6 +373,7 @@ export function Toolbar({
 
   return (
     <div className="toolbar">
+      <div className="toolbar-title">Mr. Collage</div>
       <div className="toolbar-section">
         <ToolButton active={tool === 'select'} onClick={() => onToolChange('select')} title="Select (V)">
           <SelectIcon />
