@@ -22,16 +22,15 @@
     'Helvetica Neue', sans-serif;
 
   /* ── Buttons ── */
-  --btn-size: 30px;
-  --btn-radius: 2px;
-  --btn-bg: #ffffff;
-  --btn-hover: #f2f2f2;
-  --btn-active: #e0e0e0;
-  --btn-border: #cccccc;
-  --btn-text: #18181b;
-  /* Flat border, no bevel — matches the reference's flat white chrome. */
-  --btn-bevel-light: #cccccc;
-  --btn-bevel-dark: #cccccc;
+  --btn-size: 28px;
+  --btn-radius: 5px;
+  --btn-bg: transparent;
+  --btn-hover: rgba(255, 255, 255, 0.10);
+  --btn-active: rgba(255, 255, 255, 0.18);
+  --btn-border: transparent;
+  --btn-text: rgba(255, 255, 255, 0.78);
+  --btn-bevel-light: transparent;
+  --btn-bevel-dark: transparent;
 
   /* ── Accent / Danger ── */
   --accent: linear-gradient(305deg, #ff9810, #ff4410);
