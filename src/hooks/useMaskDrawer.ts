@@ -2,6 +2,7 @@ import { useState, useCallback, useEffect } from 'react';
 import Konva from 'konva';
 import { Tool, MaskData, CollageImage } from '../types';
 import { stageToImageLocal, localToStage } from '../utils/geometry';
+import { useStagePointer } from './useStagePointer';
 
 interface UseMaskDrawerProps {
   tool: Tool;
@@ -26,14 +27,7 @@ export function useMaskDrawer({ tool, targetImage, stageRef, onMaskComplete }: U
     setPolygonPoints([]);
   }, [tool, targetImage?.id]);
 
-  const getStagePointer = useCallback((): { x: number; y: number } | null => {
-    const stage = stageRef.current;
-    if (!stage) return null;
-    const pos = stage.getPointerPosition();
-    if (!pos) return null;
-    const transform = stage.getAbsoluteTransform().copy().invert();
-    return transform.point(pos);
-  }, [stageRef]);
+  const getStagePointer = useStagePointer(stageRef);
 
   const handleMouseDown = useCallback(
     (e: Konva.KonvaEventObject<MouseEvent>) => {

@@ -1,6 +1,16 @@
 import { forwardRef, useEffect, useRef, useState, type ReactNode } from 'react';
 import { BLEND_MODES, BlendMode, CollageObject, CollageText, ObjectChanges, ShadowData, Tool, VignetteData } from '../types';
 import { GOOGLE_FONTS } from '../utils/googleFonts';
+import {
+  SelectIcon, PanIcon, TextToolIcon,
+  BoldIcon, ItalicIcon, UnderlineIcon,
+  UploadIcon, UndoIcon, RedoIcon,
+  BringToFrontIcon, SendToBackIcon, DuplicateIcon, DeleteIcon,
+  CircleMaskIcon, RectMaskIcon, PolygonMaskIcon, GradientMaskIcon,
+  XIcon, CropIcon, CheckIcon,
+  FlipHorizontalIcon, FlipVerticalIcon,
+  ShadowIcon, VignetteIcon,
+} from './ToolbarIcons';
 
 const DEFAULT_SHADOW: ShadowData = {
   enabled: true,
@@ -23,175 +33,6 @@ function formatBlendModeLabel(mode: BlendMode): string {
     .map((word) => word[0].toUpperCase() + word.slice(1))
     .join(' ');
 }
-
-// ---- Icons ----
-
-const SelectIcon = () => (
-  <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-    <path d="M1 1l5.5 14 2.2-5.8L14.5 7z" />
-  </svg>
-);
-
-const PanIcon = () => (
-  <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-    <path d="M8 1l-3 3h2v3H4V5L1 8l3 3v-2h3v3H5l3 3 3-3h-2V9h3v2l3-3-3-3v2H9V4h2z" />
-  </svg>
-);
-
-const TextToolIcon = () => (
-  <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-    <path d="M2 2h12v3h-1.5c-.2-1-.6-1.5-2-1.5H9.3v9c0 .8.2 1 1.7 1V15H5v-1.5c1.5 0 1.7-.2 1.7-1v-9H5.5c-1.4 0-1.8.5-2 1.5H2V2z" />
-  </svg>
-);
-
-const BoldIcon = () => (
-  <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-    <path d="M3 2h5.2c2 0 3.4 1 3.4 2.9 0 1.3-.7 2.1-1.7 2.5 1.3.4 2.1 1.3 2.1 2.8 0 2-1.5 3-3.6 3H3V2zm2 4.6h2.8c1 0 1.6-.5 1.6-1.3S8.8 4 7.8 4H5v2.6zm0 5.6h3c1.1 0 1.8-.5 1.8-1.5s-.7-1.5-1.8-1.5H5v3z" />
-  </svg>
-);
-
-const ItalicIcon = () => (
-  <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-    <path d="M6 2h6v1.5H10L7 12.5h2.5V14h-6v-1.5H6L9 3.5H6.5z" />
-  </svg>
-);
-
-const UnderlineIcon = () => (
-  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
-    <path d="M4 2v6a4 4 0 0 0 8 0V2" />
-    <path d="M3 14h10" strokeLinecap="round" />
-  </svg>
-);
-
-const UploadIcon = () => (
-  <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-    <path d="M8 1L4 5h3v5h2V5h3L8 1zM2 12v2h12v-2H2z" />
-  </svg>
-);
-
-const UndoIcon = () => (
-  <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-    <path d="M4 3L1 6l3 3V7c3.3 0 6 1.8 6 5-1-2.5-3-3.5-6-3.5V10L1 6z" />
-  </svg>
-);
-
-const RedoIcon = () => (
-  <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-    <path d="M12 3l3 3-3 3V7c-3.3 0-6 1.8-6 5 1-2.5 3-3.5 6-3.5V10l3-4z" />
-  </svg>
-);
-
-const BringToFrontIcon = () => (
-  <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-    <rect x="1" y="6" width="8" height="8" rx="1" opacity="0.3" />
-    <rect x="5" y="2" width="8" height="8" rx="1" />
-  </svg>
-);
-
-const SendToBackIcon = () => (
-  <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-    <rect x="5" y="2" width="8" height="8" rx="1" opacity="0.3" />
-    <rect x="1" y="6" width="8" height="8" rx="1" />
-  </svg>
-);
-
-const DuplicateIcon = () => (
-  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
-    <rect x="1" y="4" width="9" height="9" rx="1" />
-    <rect x="5" y="1" width="9" height="9" rx="1" />
-  </svg>
-);
-
-const DeleteIcon = () => (
-  <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-    <path d="M5 2V1h6v1h4v2H1V2h4zm1 4v7h1V6H6zm3 0v7h1V6H9zM2 5l1 10h10l1-10H2z" />
-  </svg>
-);
-
-const CircleMaskIcon = () => (
-  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
-    <circle cx="8" cy="8" r="6" />
-  </svg>
-);
-
-const RectMaskIcon = () => (
-  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
-    <rect x="2" y="3" width="12" height="10" rx="1" />
-  </svg>
-);
-
-const PolygonMaskIcon = () => (
-  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
-    <polygon points="8,1 14,6 12,14 4,14 2,6" />
-  </svg>
-);
-
-const GradientMaskIcon = () => (
-  <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-    <defs>
-      <linearGradient id="toolbar-gradient-icon" x1="0" y1="0" x2="1" y2="0">
-        <stop offset="0" stopColor="currentColor" stopOpacity="1" />
-        <stop offset="1" stopColor="currentColor" stopOpacity="0" />
-      </linearGradient>
-    </defs>
-    <rect x="1" y="1" width="14" height="14" rx="1.5" fill="url(#toolbar-gradient-icon)" />
-    <rect x="1" y="1" width="14" height="14" rx="1.5" stroke="currentColor" strokeWidth="1.5" />
-  </svg>
-);
-
-const XIcon = () => (
-  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2">
-    <path d="M3.5 3.5l9 9m0-9l-9 9" />
-  </svg>
-);
-
-const CropIcon = () => (
-  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
-    <path d="M4 1v10a1 1 0 0 0 1 1h10M1 4h10a1 1 0 0 1 1 1v10" />
-  </svg>
-);
-
-const CheckIcon = () => (
-  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2">
-    <path d="M2 8l4 4 8-8" />
-  </svg>
-);
-
-const FlipHorizontalIcon = () => (
-  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
-    <path d="M8 1v14" strokeDasharray="2 2" />
-    <path d="M3 4h2l-2 3h2l-2 3h2l-2 3" strokeLinecap="round" strokeLinejoin="round" />
-    <path d="M13 4h-2l2 3h-2l2 3h-2l2 3" strokeLinecap="round" strokeLinejoin="round" />
-  </svg>
-);
-
-const FlipVerticalIcon = () => (
-  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
-    <path d="M1 8h14" strokeDasharray="2 2" />
-    <path d="M4 3v2l3-2v2l3-2v2" strokeLinecap="round" strokeLinejoin="round" />
-    <path d="M4 13v-2l3 2v-2l3 2v-2" strokeLinecap="round" strokeLinejoin="round" />
-  </svg>
-);
-
-const ShadowIcon = () => (
-  <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-    <rect x="2" y="2" width="9" height="9" rx="1.5" fill="currentColor" />
-    <rect x="5" y="5" width="9" height="9" rx="1.5" fill="currentColor" opacity="0.35" />
-  </svg>
-);
-
-const VignetteIcon = () => (
-  <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-    <defs>
-      <radialGradient id="toolbar-vignette-icon" cx="50%" cy="50%" r="50%">
-        <stop offset="40%" stopColor="currentColor" stopOpacity="0" />
-        <stop offset="100%" stopColor="currentColor" stopOpacity="1" />
-      </radialGradient>
-    </defs>
-    <rect x="1" y="1" width="14" height="14" rx="1.5" fill="url(#toolbar-vignette-icon)" />
-    <rect x="1" y="1" width="14" height="14" rx="1.5" stroke="currentColor" strokeWidth="1.5" />
-  </svg>
-);
 
 // ---- Shared toolbar primitives ----
 

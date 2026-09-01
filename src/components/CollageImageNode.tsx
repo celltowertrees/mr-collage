@@ -21,9 +21,11 @@ export function CollageImageNode({ image, isSelected, tool, onSelect, onChange, 
   const [img, setImg] = useState<HTMLImageElement | null>(null);
 
   useEffect(() => {
+    let cancelled = false;
     const element = new window.Image();
+    element.onload = () => { if (!cancelled) setImg(element); };
     element.src = image.src;
-    element.onload = () => setImg(element);
+    return () => { cancelled = true; };
   }, [image.src]);
 
   useEffect(() => {

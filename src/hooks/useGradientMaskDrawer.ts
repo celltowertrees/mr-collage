@@ -2,6 +2,7 @@ import { useState, useCallback, useEffect } from 'react';
 import Konva from 'konva';
 import { GradientMask, CollageObject } from '../types';
 import { stageToImageLocal, localToStage } from '../utils/geometry';
+import { useStagePointer } from './useStagePointer';
 
 interface UseGradientMaskDrawerProps {
   active: boolean;
@@ -29,14 +30,7 @@ export function useGradientMaskDrawer({
     setCurrentPoint(null);
   }, [active, targetImage?.id]);
 
-  const getStagePointer = useCallback((): { x: number; y: number } | null => {
-    const stage = stageRef.current;
-    if (!stage) return null;
-    const pos = stage.getPointerPosition();
-    if (!pos) return null;
-    const transform = stage.getAbsoluteTransform().copy().invert();
-    return transform.point(pos);
-  }, [stageRef]);
+  const getStagePointer = useStagePointer(stageRef);
 
   const handleMouseDown = useCallback(
     (e: Konva.KonvaEventObject<MouseEvent>) => {
