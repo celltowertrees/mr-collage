@@ -2,6 +2,7 @@ import { useState, useCallback, useEffect } from 'react';
 import Konva from 'konva';
 import { CollageImage, CropRect } from '../types';
 import { stageToImageLocal, localToStage } from '../utils/geometry';
+import { useStagePointer } from './useStagePointer';
 
 interface UseCropDrawerProps {
   active: boolean;
@@ -25,14 +26,7 @@ export function useCropDrawer({ active, targetImage, stageRef }: UseCropDrawerPr
     setCommittedRect(null);
   }, [active, targetImage?.id]);
 
-  const getStagePointer = useCallback((): { x: number; y: number } | null => {
-    const stage = stageRef.current;
-    if (!stage) return null;
-    const pos = stage.getPointerPosition();
-    if (!pos) return null;
-    const transform = stage.getAbsoluteTransform().copy().invert();
-    return transform.point(pos);
-  }, [stageRef]);
+  const getStagePointer = useStagePointer(stageRef);
 
   const handleMouseDown = useCallback(
     (e: Konva.KonvaEventObject<MouseEvent>) => {
