@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Text as KonvaText, Image as KonvaImage, Transformer, Group } from 'react-konva';
+import { Text as KonvaText, Image as KonvaImage, Rect as KonvaRect, Transformer, Group } from 'react-konva';
 import Konva from 'konva';
 import { CollageText, Tool } from '../types';
 import { fontWeightFor, loadGoogleFontFace } from '../utils/googleFonts';
@@ -179,6 +179,10 @@ export function CollageTextNode({ textObj, isSelected, tool, onSelect, onChange,
           });
         }}
       >
+        {/* Transparent hit rect ensures clicks register across the full bounding box,
+            not just the pixels occupied by the text glyphs themselves. Without this,
+            clicking in the empty space to the right of short text misses the node. */}
+        <KonvaRect width={textObj.width} height={textObj.height} fill="transparent" />
         <KonvaText
           ref={textRef}
           text={textObj.text || ' '}
