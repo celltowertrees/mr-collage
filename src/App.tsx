@@ -3,6 +3,7 @@ import Konva from 'konva';
 import { Canvas } from './components/Canvas';
 import { Toolbar } from './components/Toolbar';
 import { TextEditOverlay } from './components/TextEditOverlay';
+import { StickerGenerator } from './components/StickerGenerator';
 import { useCollage } from './hooks/useCollage';
 import { useImageLoader } from './hooks/useImageLoader';
 import { useCropDrawer } from './hooks/useCropDrawer';
@@ -40,6 +41,7 @@ function App() {
   const stageRef = useRef<Konva.Stage>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [editingTextId, setEditingTextId] = useState<string | null>(null);
+  const [stickerGeneratorOpen, setStickerGeneratorOpen] = useState(false);
 
   const { loadFromFiles, loadFromClipboard } = useImageLoader(addImage);
 
@@ -304,6 +306,7 @@ function App() {
         selectedImage={selectedImage}
         onToolChange={setTool}
         onUpload={handleUploadClick}
+        onOpenStickerGenerator={() => setStickerGeneratorOpen(true)}
         onUpdateImage={updateImage}
         onDelete={deleteImage}
         onUndo={undo}
@@ -360,6 +363,12 @@ function App() {
         onChange={handleFileChange}
         style={{ display: 'none' }}
       />
+      {stickerGeneratorOpen && (
+        <StickerGenerator
+          onAddSticker={addImage}
+          onClose={() => setStickerGeneratorOpen(false)}
+        />
+      )}
       {images.length === 0 && (
         <div className="empty-state">
           <p>Drop images here, paste from clipboard, or click upload</p>
