@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { CanvasState, CollageImage, CollageObject, CollageText, ObjectChanges, Tool } from '../types';
+import type { BgRect } from './useBgRectDrawer';
 import { saveState, loadState } from '../store';
 import { useHistory } from './useHistory';
 import { DEFAULT_FONT_FAMILY } from '../utils/googleFonts';
@@ -150,6 +151,37 @@ export function useCollage() {
     [moveImages]
   );
 
+  const addBackground = useCallback(
+    (
+      src: string,
+      name: string,
+      naturalWidth: number,
+      naturalHeight: number,
+      rect: BgRect,
+      belowZIndex: number
+    ) => {
+      const id = uuidv4();
+      const bg: CollageImage = {
+        kind: 'image',
+        id,
+        src,
+        x: rect.x + rect.width / 2,
+        y: rect.y + rect.height / 2,
+        width: naturalWidth,
+        height: naturalHeight,
+        rotation: 0,
+        scaleX: rect.width / naturalWidth,
+        scaleY: rect.height / naturalHeight,
+        opacity: 1,
+        zIndex: belowZIndex - 1,
+        name,
+      };
+      setImages((prev) => [...prev, bg]);
+      setSelectedIds([id]);
+    },
+    [setImages]
+  );
+
   const duplicateImage = useCallback((id: string) => {
     setImages((prev) => {
       const source = prev.find((img) => img.id === id);
@@ -178,6 +210,7 @@ export function useCollage() {
     stageScale,
     setStageScale,
     addImage,
+    addBackground,
     addText,
     updateImage,
     moveImages,

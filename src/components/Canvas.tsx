@@ -27,7 +27,19 @@ interface CanvasProps {
   onCropMouseMove: () => void;
   onCropMouseUp: () => void;
   cropPreviewRect: { x: number; y: number; width: number; height: number; rotation: number } | null;
+  onBgRectMouseDown: (e: Konva.KonvaEventObject<MouseEvent>) => void;
+  onBgRectMouseMove: () => void;
+  onBgRectMouseUp: () => void;
+  bgRectPreview: { x: number; y: number; width: number; height: number } | null;
 }
+
+const BG_RECT_PREVIEW_STYLE = {
+  fill: 'rgba(255, 100, 20, 0.08)',
+  stroke: 'rgba(255, 100, 20, 0.85)',
+  strokeWidth: 2,
+  dash: [6, 4],
+  listening: false,
+};
 
 const CROP_PREVIEW_STYLE = {
   stroke: '#4CAF50',
@@ -85,6 +97,10 @@ export function Canvas({
   onCropMouseMove,
   onCropMouseUp,
   cropPreviewRect,
+  onBgRectMouseDown,
+  onBgRectMouseMove,
+  onBgRectMouseUp,
+  bgRectPreview,
 }: CanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const selectedImage = selectedIds.length === 1 ? images.find((img) => img.id === selectedIds[0]) ?? null : null;
@@ -94,6 +110,7 @@ export function Canvas({
   const isMaskTool = tool.startsWith('mask-');
   const isGradientTool = tool === 'mask-gradient';
   const isCropTool = tool === 'crop';
+  const isBgRectTool = tool === 'bg-rect';
   const isSelectTool = tool === 'select';
   const isTextTool = tool === 'text';
 
@@ -195,7 +212,7 @@ export function Canvas({
 
   // Click handler — only used for selection, not mask drawing
   const handleStageClick = useCallback((e: Konva.KonvaEventObject<MouseEvent>) => {
-    if (isMaskTool || isCropTool) return; // both use mousedown/mouseup, ignore click
+    if (isMaskTool || isCropTool || isBgRectTool) return; // use mousedown/mouseup, ignore click
     // A marquee drag's mouseup is immediately followed by a Konva `click` on
     // the same target — swallow that one click so it doesn't clear the
     // selection the marquee just made.
@@ -212,7 +229,7 @@ export function Canvas({
     if (e.target === e.target.getStage()) {
       onSelect([]);
     }
-  }, [onSelect, isMaskTool, isCropTool, isTextTool, onAddText, toContentPoint]);
+  }, [onSelect, isMaskTool, isCropTool, isBgRectTool, isTextTool, onAddText, toContentPoint]);
 
   // MouseDown — mask/crop drawing and marquee selection all start here
   const handleStageMouseDown = useCallback((e: Konva.KonvaEventObject<MouseEvent>) => {
@@ -228,12 +245,16 @@ export function Canvas({
       onCropMouseDown(e);
       return;
     }
+    if (isBgRectTool) {
+      onBgRectMouseDown(e);
+      return;
+    }
     const stage = stageRef.current;
     if (isSelectTool && stage && e.target === stage) {
       const pointer = stage.getPointerPosition();
       if (pointer) marqueeStartRef.current = pointer;
     }
-  }, [isGradientTool, isMaskTool, isCropTool, isSelectTool, gradientMaskDrawer, maskDrawer, onCropMouseDown, stageRef]);
+  }, [isGradientTool, isMaskTool, isCropTool, isBgRectTool, isSelectTool, gradientMaskDrawer, maskDrawer, onCropMouseDown, onBgRectMouseDown, stageRef]);
 
   const handleStageMouseMove = useCallback(() => {
     if (isGradientTool) {
@@ -248,6 +269,10 @@ export function Canvas({
       onCropMouseMove();
       return;
     }
+    if (isBgRectTool) {
+      onBgRectMouseMove();
+      return;
+    }
     const stage = stageRef.current;
     if (!marqueeStartRef.current || !stage) return;
     const pointer = stage.getPointerPosition();
@@ -260,7 +285,7 @@ export function Canvas({
       width: Math.abs(current.x - start.x),
       height: Math.abs(current.y - start.y),
     });
-  }, [isGradientTool, isMaskTool, isCropTool, gradientMaskDrawer, maskDrawer, onCropMouseMove, stageRef, toContentPoint]);
+  }, [isGradientTool, isMaskTool, isCropTool, isBgRectTool, gradientMaskDrawer, maskDrawer, onCropMouseMove, onBgRectMouseMove, stageRef, toContentPoint]);
 
   const handleStageMouseUp = useCallback(() => {
     if (isGradientTool) {
@@ -273,6 +298,10 @@ export function Canvas({
     }
     if (isCropTool) {
       onCropMouseUp();
+      return;
+    }
+    if (isBgRectTool) {
+      onBgRectMouseUp();
       return;
     }
     const start = marqueeStartRef.current;
@@ -306,11 +335,11 @@ export function Canvas({
 
     suppressNextClickRef.current = true;
     onSelect(overlapped);
-  }, [isGradientTool, isMaskTool, isCropTool, onCropMouseUp, gradientMaskDrawer, maskDrawer, stageRef, toContentPoint, images, onSelect]);
+  }, [isGradientTool, isMaskTool, isCropTool, isBgRectTool, onCropMouseUp, onBgRectMouseUp, gradientMaskDrawer, maskDrawer, stageRef, toContentPoint, images, onSelect]);
 
   const getCursor = () => {
     if (tool === 'pan') return 'grab';
-    if (isMaskTool || isCropTool || isTextTool) return 'crosshair';
+    if (isMaskTool || isCropTool || isTextTool || isBgRectTool) return 'crosshair';
     return 'default';
   };
 
@@ -437,6 +466,7 @@ export function Canvas({
             <Rect name="crop-preview" {...cropPreviewRect} {...CROP_PREVIEW_STYLE} />
           )}
           {marqueeRect && <Rect name="marquee" {...marqueeRect} {...MARQUEE_STYLE} />}
+          {bgRectPreview && <Rect name="bg-rect-preview" {...bgRectPreview} {...BG_RECT_PREVIEW_STYLE} />}
         </Layer>
       </Stage>
     </div>

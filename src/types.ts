@@ -144,4 +144,5 @@ export type Tool =
   | 'mask-rect'
   | 'mask-polygon'
   | 'mask-gradient'
-  | 'crop';
+  | 'crop'
+  | 'bg-rect';

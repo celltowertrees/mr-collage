@@ -7,10 +7,97 @@ import { StickerGenerator } from './components/StickerGenerator';
 import { useCollage } from './hooks/useCollage';
 import { useImageLoader } from './hooks/useImageLoader';
 import { useCropDrawer } from './hooks/useCropDrawer';
+import { useBgRectDrawer, type BgRect } from './hooks/useBgRectDrawer';
+import { analyzeImages, generateBackgroundFromPrompt, type VisionDetail, type BgProgressEvent } from './utils/generateBackground';
 import { localToStage } from './utils/geometry';
 import { exportToICP, exportToStaticHTML } from './store';
 import { CollageImage, CollageText } from './types';
 import './App.css';
+
+const API_KEY_STORAGE_KEY = 'mr-collage-openai-key';
+
+function ElapsedTimer({ startedAt }: { startedAt: number }) {
+  const [elapsed, setElapsed] = useState(() => Math.floor((Date.now() - startedAt) / 1000));
+  useEffect(() => {
+    const id = setInterval(() => setElapsed(Math.floor((Date.now() - startedAt) / 1000)), 500);
+    return () => clearInterval(id);
+  }, [startedAt]);
+  const m = Math.floor(elapsed / 60);
+  const s = elapsed % 60;
+  return <span className="bg-status-elapsed">{m}:{s.toString().padStart(2, '0')}</span>;
+}
+
+function BgStatusPanel({ progress, startedAt }: { progress: BgProgressEvent; startedAt: number }) {
+  const step1Done = progress.step === 2;
+  const visionPrompt = progress.visionPrompt ?? null;
+
+  return (
+    <div className="bg-status-panel">
+      <div className="bg-status-header">
+        <span className="bg-status-title">Generating Background</span>
+        <ElapsedTimer startedAt={startedAt} />
+      </div>
+      <div className="bg-status-steps">
+        <div className={`bg-status-step ${step1Done ? 'done' : 'active'}`}>
+          <span className="bg-status-dot">{step1Done ? '✓' : '○'}</span>
+          <span>
+            {step1Done ? 'Vision analysis complete' : progress.label}
+          </span>
+        </div>
+        <div className={`bg-status-step ${step1Done ? 'active' : 'pending'}`}>
+          <span className="bg-status-dot">{step1Done ? '○' : '·'}</span>
+          <span>{step1Done ? progress.label : 'Generating background image…'}</span>
+        </div>
+      </div>
+      {visionPrompt && (
+        <div className="bg-status-prompt">
+          <span className="bg-status-prompt-label">Vision prompt</span>
+          <span className="bg-status-prompt-text">{visionPrompt}</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function BgPromptEditPanel({
+  prompt,
+  startedAt,
+  onGenerate,
+  onCancel,
+}: {
+  prompt: string;
+  startedAt: number;
+  onGenerate: (prompt: string) => void;
+  onCancel: () => void;
+}) {
+  const [edited, setEdited] = useState(prompt);
+  return (
+    <div className="bg-status-panel bg-prompt-edit-panel">
+      <div className="bg-status-header">
+        <span className="bg-status-title">Edit Vision Prompt</span>
+        <ElapsedTimer startedAt={startedAt} />
+      </div>
+      <p className="bg-prompt-hint">GPT-4o derived this prompt from your images. Edit it before generating.</p>
+      <textarea
+        className="bg-prompt-textarea"
+        value={edited}
+        onChange={(e) => setEdited(e.target.value)}
+        rows={5}
+        autoFocus
+      />
+      <div className="bg-prompt-actions">
+        <button className="bg-prompt-cancel" onClick={onCancel}>Cancel</button>
+        <button
+          className="bg-prompt-generate"
+          onClick={() => onGenerate(edited.trim())}
+          disabled={!edited.trim()}
+        >
+          Generate →
+        </button>
+      </div>
+    </div>
+  );
+}
 
 function App() {
   const {
@@ -24,6 +111,7 @@ function App() {
     stageScale,
     setStageScale,
     addImage,
+    addBackground,
     addText,
     updateImage,
     moveImages,
@@ -42,6 +130,20 @@ function App() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [editingTextId, setEditingTextId] = useState<string | null>(null);
   const [stickerGeneratorOpen, setStickerGeneratorOpen] = useState(false);
+  const [bgLoading, setBgLoading] = useState<BgRect | null>(null);
+  const [bgProgress, setBgProgress] = useState<BgProgressEvent | null>(null);
+  const bgStartedAtRef = useRef<number>(0);
+  const [bgError, setBgError] = useState<string | null>(null);
+  const [visionDetail, setVisionDetail] = useState<VisionDetail>(
+    () => (localStorage.getItem('mr-collage-vision-detail') as VisionDetail | null) ?? 'low'
+  );
+  const bgAbortRef = useRef<AbortController | null>(null);
+  const [bgAwaiting, setBgAwaiting] = useState<{
+    prompt: string;
+    rect: BgRect;
+    minZIndex: number;
+    aspectRatio: number;
+  } | null>(null);
 
   const { loadFromFiles, loadFromClipboard } = useImageLoader(addImage);
 
@@ -56,6 +158,128 @@ function App() {
     active: tool === 'crop',
     targetImage: selectedImageOnly,
     stageRef,
+  });
+
+  const handleBgRectComplete = useCallback(
+    (rect: BgRect) => {
+      const apiKey = localStorage.getItem(API_KEY_STORAGE_KEY)?.trim() ?? '';
+      if (!apiKey) {
+        setBgError('No OpenAI API key found. Generate a sticker first to save your key, or open the sticker generator to add one.');
+        setTool('select');
+        return;
+      }
+
+      const stage = stageRef.current;
+      const containedImages = images.filter((obj): obj is CollageImage => {
+        if (obj.kind !== 'image') return false;
+        const node = stage?.findOne(`#${obj.id}`);
+        const box = node?.getClientRect({ relativeTo: stage ?? undefined });
+        return box ? Konva.Util.haveIntersection(rect, box) : false;
+      });
+
+      if (containedImages.length === 0) {
+        setBgError('No images found within the drawn area. Draw the rectangle over the images you want to use as context.');
+        setTool('select');
+        return;
+      }
+
+      const minZIndex = Math.min(...containedImages.map((img) => img.zIndex));
+      const aspectRatio = rect.width / rect.height;
+
+      // Render the drawn region to a JPEG so the vision model sees how everything
+      // is laid out together rather than each image in isolation.
+      const scale = stage!.scaleX();
+      const compositeJpeg = stage!.toDataURL({
+        x: rect.x * scale + stage!.x(),
+        y: rect.y * scale + stage!.y(),
+        width: rect.width * scale,
+        height: rect.height * scale,
+        pixelRatio: 2,
+        mimeType: 'image/jpeg',
+        quality: 0.85,
+      });
+
+      setTool('select');
+      bgStartedAtRef.current = Date.now();
+      setBgLoading(rect);
+
+      const controller = new AbortController();
+      bgAbortRef.current = controller;
+
+      analyzeImages([compositeJpeg], apiKey, visionDetail, controller.signal, (event) => setBgProgress(event))
+        .then((visionPrompt) => {
+          setBgAwaiting({ prompt: visionPrompt, rect, minZIndex, aspectRatio });
+        })
+        .catch((err: unknown) => {
+          if (err instanceof DOMException && err.name === 'AbortError') {
+            setBgLoading(null);
+            return;
+          }
+          setBgError(err instanceof Error ? err.message : 'Vision analysis failed.');
+          setBgLoading(null);
+        })
+        .finally(() => {
+          setBgProgress(null);
+        });
+    },
+    [images, stageRef, setTool, visionDetail]
+  );
+
+  const handleBgGenerate = useCallback(
+    (editedPrompt: string) => {
+      if (!bgAwaiting) return;
+      const { rect, minZIndex, aspectRatio } = bgAwaiting;
+      const apiKey = localStorage.getItem(API_KEY_STORAGE_KEY)?.trim() ?? '';
+
+      setBgAwaiting(null);
+
+      const controller = new AbortController();
+      bgAbortRef.current = controller;
+
+      generateBackgroundFromPrompt(editedPrompt, apiKey, aspectRatio, controller.signal, (event) => setBgProgress(event))
+        .then(({ dataUrl, naturalWidth, naturalHeight }) =>
+          new Promise<void>((resolve, reject) => {
+            const img = new Image();
+            img.onload = () => {
+              if (img.naturalWidth === 0 || img.naturalHeight === 0) {
+                reject(new Error('API returned a blank image. Try editing the prompt and generating again.'));
+                return;
+              }
+              try {
+                addBackground(dataUrl, 'AI Background', naturalWidth, naturalHeight, rect, minZIndex);
+                setBgError(null);
+                resolve();
+              } catch (e) {
+                reject(e);
+              }
+            };
+            img.onerror = () => reject(new Error('Background image was generated but could not be decoded.'));
+            img.src = dataUrl;
+          })
+        )
+        .catch((err: unknown) => {
+          if (err instanceof DOMException && err.name === 'AbortError') return;
+          setBgError(err instanceof Error ? err.message : 'Background generation failed.');
+        })
+        .finally(() => {
+          setBgLoading(null);
+          setBgProgress(null);
+        });
+    },
+    [bgAwaiting, addBackground]
+  );
+
+  const handleBgCancel = useCallback(() => {
+    bgAbortRef.current?.abort();
+    setBgAwaiting(null);
+    setBgLoading(null);
+    setBgProgress(null);
+  }, []);
+
+  const bgRectDrawer = useBgRectDrawer({
+    active: tool === 'bg-rect',
+    stageRef,
+    onComplete: handleBgRectComplete,
   });
 
   const applyCrop = useCallback(() => {
@@ -307,6 +531,11 @@ function App() {
         onToolChange={setTool}
         onUpload={handleUploadClick}
         onOpenStickerGenerator={() => setStickerGeneratorOpen(true)}
+        visionDetail={visionDetail}
+        onVisionDetailChange={(d) => {
+          setVisionDetail(d);
+          localStorage.setItem('mr-collage-vision-detail', d);
+        }}
         onUpdateImage={updateImage}
         onDelete={deleteImage}
         onUndo={undo}
@@ -345,6 +574,10 @@ function App() {
         onCropMouseMove={cropDrawer.handleMouseMove}
         onCropMouseUp={cropDrawer.handleMouseUp}
         cropPreviewRect={cropDrawer.getPreviewRect()}
+        onBgRectMouseDown={bgRectDrawer.handleMouseDown}
+        onBgRectMouseMove={bgRectDrawer.handleMouseMove}
+        onBgRectMouseUp={bgRectDrawer.handleMouseUp}
+        bgRectPreview={bgRectDrawer.previewRect}
       />
       {editingText && (
         <TextEditOverlay
@@ -368,6 +601,34 @@ function App() {
           onAddSticker={addImage}
           onClose={() => setStickerGeneratorOpen(false)}
         />
+      )}
+      {bgLoading && (
+        <div
+          className="bg-loading-overlay"
+          style={{
+            left: stagePosition.x + bgLoading.x * stageScale,
+            top: stagePosition.y + bgLoading.y * stageScale,
+            width: bgLoading.width * stageScale,
+            height: bgLoading.height * stageScale,
+          }}
+        />
+      )}
+      {bgProgress && (
+        <BgStatusPanel progress={bgProgress} startedAt={bgStartedAtRef.current} />
+      )}
+      {bgAwaiting && (
+        <BgPromptEditPanel
+          prompt={bgAwaiting.prompt}
+          startedAt={bgStartedAtRef.current}
+          onGenerate={handleBgGenerate}
+          onCancel={handleBgCancel}
+        />
+      )}
+      {bgError && (
+        <div className="bg-error-toast">
+          <span>{bgError}</span>
+          <button className="bg-error-dismiss" onClick={() => setBgError(null)}>✕</button>
+        </div>
       )}
       {images.length === 0 && (
         <div className="empty-state">
