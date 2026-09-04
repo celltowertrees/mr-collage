@@ -154,6 +154,12 @@ export const ShadowIcon = () => (
   </svg>
 );
 
+export const SparkleIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+    <path d="M8 1l1.2 4.8L14 8l-4.8 1.2L8 15l-1.2-4.8L2 8l4.8-1.2z" />
+  </svg>
+);
+
 export const VignetteIcon = () => (
   <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
     <defs>

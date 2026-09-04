@@ -9,7 +9,7 @@ import {
   CircleMaskIcon, RectMaskIcon, PolygonMaskIcon, GradientMaskIcon,
   XIcon, CropIcon, CheckIcon,
   FlipHorizontalIcon, FlipVerticalIcon,
-  ShadowIcon, VignetteIcon,
+  ShadowIcon, VignetteIcon, SparkleIcon,
 } from './ToolbarIcons';
 
 const DEFAULT_SHADOW: ShadowData = {
@@ -92,6 +92,7 @@ interface ToolbarProps {
   selectedImage: CollageObject | null;
   onToolChange: (tool: Tool) => void;
   onUpload: () => void;
+  onOpenStickerGenerator: () => void;
   onUpdateImage: (
     id: string,
     changes: ObjectChanges,
@@ -120,6 +121,7 @@ export function Toolbar({
   selectedImage,
   onToolChange,
   onUpload,
+  onOpenStickerGenerator,
   onUpdateImage,
   onDelete,
   onUndo,
@@ -228,6 +230,9 @@ export function Toolbar({
         <div className="toolbar-divider" />
         <ToolButton onClick={onUpload} title="Upload Image">
           <UploadIcon />
+        </ToolButton>
+        <ToolButton onClick={onOpenStickerGenerator} title="Generate Sticker (AI)">
+          <SparkleIcon />
         </ToolButton>
         <div className="toolbar-divider" />
         <ToolButton onClick={onUndo} disabled={!canUndo} title="Undo (Ctrl+Z)">
