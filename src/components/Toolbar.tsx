@@ -1,5 +1,6 @@
 import { forwardRef, useEffect, useRef, useState, type ReactNode } from 'react';
 import { BLEND_MODES, BlendMode, CollageObject, CollageText, ObjectChanges, ShadowData, Tool, VignetteData } from '../types';
+import type { VisionDetail } from '../utils/generateBackground';
 import { GOOGLE_FONTS } from '../utils/googleFonts';
 import {
   SelectIcon, PanIcon, TextToolIcon,
@@ -9,7 +10,7 @@ import {
   CircleMaskIcon, RectMaskIcon, PolygonMaskIcon, GradientMaskIcon,
   XIcon, CropIcon, CheckIcon,
   FlipHorizontalIcon, FlipVerticalIcon,
-  ShadowIcon, VignetteIcon, SparkleIcon,
+  ShadowIcon, VignetteIcon, SparkleIcon, BgGenIcon,
 } from './ToolbarIcons';
 
 const DEFAULT_SHADOW: ShadowData = {
@@ -93,6 +94,8 @@ interface ToolbarProps {
   onToolChange: (tool: Tool) => void;
   onUpload: () => void;
   onOpenStickerGenerator: () => void;
+  visionDetail: VisionDetail;
+  onVisionDetailChange: (detail: VisionDetail) => void;
   onUpdateImage: (
     id: string,
     changes: ObjectChanges,
@@ -122,6 +125,8 @@ export function Toolbar({
   onToolChange,
   onUpload,
   onOpenStickerGenerator,
+  visionDetail,
+  onVisionDetailChange,
   onUpdateImage,
   onDelete,
   onUndo,
@@ -227,6 +232,34 @@ export function Toolbar({
         <ToolButton active={tool === 'text'} onClick={() => onToolChange('text')} title="Text (T)">
           <TextToolIcon />
         </ToolButton>
+        <ToolButton
+          active={tool === 'bg-rect'}
+          onClick={() => onToolChange(tool === 'bg-rect' ? 'select' : 'bg-rect')}
+          title="Generate Background — draw a rectangle over the images to use as context"
+        >
+          <BgGenIcon />
+        </ToolButton>
+        {tool === 'bg-rect' && (
+          <>
+            <span className="toolbar-field"><span>Detail</span></span>
+            {(['low', 'auto', 'high'] as VisionDetail[]).map((d) => (
+              <ToolButton
+                key={d}
+                active={visionDetail === d}
+                onClick={() => onVisionDetailChange(d)}
+                title={
+                  d === 'low'  ? 'Low — fast, cheap, good for mood & color' :
+                  d === 'auto' ? 'Auto — OpenAI decides based on image size' :
+                                 'High — detailed, slower, more accurate'
+                }
+                className="export-btn"
+              >
+                {d.charAt(0).toUpperCase() + d.slice(1)}
+              </ToolButton>
+            ))}
+            <span className="mask-hint">Draw a rectangle over your images</span>
+          </>
+        )}
         <div className="toolbar-divider" />
         <ToolButton onClick={onUpload} title="Upload Image">
           <UploadIcon />

@@ -284,6 +284,254 @@ body {
   z-index: 150;
 }
 
+/* Background generation loading overlay */
+.bg-loading-overlay {
+  position: fixed;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  background: rgba(255, 100, 20, 0.07);
+  border: 2px dashed rgba(255, 100, 20, 0.7);
+  border-radius: 4px;
+  z-index: 90;
+  pointer-events: none;
+  animation: bg-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes bg-pulse {
+  0%, 100% { background: rgba(255, 100, 20, 0.07); }
+  50%       { background: rgba(255, 100, 20, 0.14); }
+}
+
+/* Background generation status panel */
+.bg-status-panel {
+  position: fixed;
+  bottom: 24px;
+  left: 24px;
+  width: 320px;
+  background: linear-gradient(140deg, rgba(18, 18, 18, 0.97), rgba(35, 35, 35, 0.96));
+  border: 1px solid rgba(255, 100, 20, 0.4);
+  border-radius: 10px;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.45);
+  z-index: 200;
+  font-family: var(--toolbar-font);
+  overflow: hidden;
+}
+
+.bg-status-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px 8px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.bg-status-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.9);
+  letter-spacing: 0.02em;
+}
+
+.bg-status-elapsed {
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: rgba(255, 100, 20, 0.85);
+  font-weight: 600;
+}
+
+.bg-status-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 14px;
+}
+
+.bg-status-step {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 11.5px;
+  line-height: 1.4;
+}
+
+.bg-status-step.done {
+  color: rgba(255, 255, 255, 0.45);
+}
+
+.bg-status-step.active {
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.bg-status-step.pending {
+  color: rgba(255, 255, 255, 0.25);
+}
+
+.bg-status-dot {
+  flex-shrink: 0;
+  width: 14px;
+  font-size: 11px;
+  margin-top: 1px;
+}
+
+.bg-status-step.done .bg-status-dot {
+  color: rgba(100, 220, 100, 0.85);
+}
+
+.bg-status-step.active .bg-status-dot {
+  color: rgba(255, 100, 20, 0.9);
+  animation: bg-dot-pulse 1s ease-in-out infinite;
+}
+
+@keyframes bg-dot-pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.4; }
+}
+
+.bg-status-prompt {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 14px 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+.bg-status-prompt-label {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: rgba(255, 100, 20, 0.7);
+}
+
+.bg-status-prompt-text {
+  font-size: 11px;
+  line-height: 1.5;
+  color: rgba(255, 255, 255, 0.55);
+  font-style: italic;
+  user-select: text;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+/* Prompt edit panel (between vision and generation) */
+.bg-prompt-edit-panel {
+  width: 380px;
+}
+
+.bg-prompt-hint {
+  margin: 0;
+  padding: 8px 14px 4px;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.4);
+  line-height: 1.4;
+}
+
+.bg-prompt-textarea {
+  display: block;
+  width: calc(100% - 28px);
+  margin: 6px 14px;
+  padding: 8px 10px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 100, 20, 0.3);
+  border-radius: 6px;
+  color: rgba(255, 255, 255, 0.88);
+  font-family: var(--toolbar-font);
+  font-size: 11.5px;
+  line-height: 1.55;
+  resize: vertical;
+  outline: none;
+}
+
+.bg-prompt-textarea:focus {
+  border-color: rgba(255, 100, 20, 0.7);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.bg-prompt-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 8px 14px 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+.bg-prompt-cancel {
+  padding: 5px 12px;
+  border-radius: 5px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: transparent;
+  color: rgba(255, 255, 255, 0.55);
+  font-family: var(--toolbar-font);
+  font-size: 11.5px;
+  cursor: pointer;
+}
+
+.bg-prompt-cancel:hover {
+  background: rgba(255, 255, 255, 0.07);
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.bg-prompt-generate {
+  padding: 5px 14px;
+  border-radius: 5px;
+  border: none;
+  background: rgba(255, 100, 20, 0.85);
+  color: #fff;
+  font-family: var(--toolbar-font);
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.bg-prompt-generate:hover:not(:disabled) {
+  background: rgba(255, 120, 40, 1);
+}
+
+.bg-prompt-generate:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+/* Background generation error toast */
+.bg-error-toast {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  max-width: 540px;
+  padding: 12px 14px;
+  background: rgba(30, 10, 10, 0.95);
+  border: 1px solid rgba(220, 38, 38, 0.5);
+  border-radius: 10px;
+  box-shadow: 0 8px 28px rgba(0,0,0,0.4);
+  z-index: 200;
+  font-family: var(--toolbar-font);
+  font-size: 12px;
+  color: #ffaaaa;
+  line-height: 1.5;
+}
+
+.bg-error-dismiss {
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  color: rgba(255, 170, 170, 0.6);
+  font-size: 13px;
+  cursor: pointer;
+  padding: 0 2px;
+  margin-top: 1px;
+}
+
+.bg-error-dismiss:hover {
+  color: #fff;
+}
+
 /* Sticker Generator Modal */
 .sticker-backdrop {
   position: fixed;

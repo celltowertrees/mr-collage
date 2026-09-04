@@ -154,6 +154,15 @@ export const ShadowIcon = () => (
   </svg>
 );
 
+export const BgGenIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+    <rect x="1" y="3" width="14" height="10" rx="1.5" stroke="currentColor" strokeWidth="1.5" />
+    <path d="M1 10l3-3 2.5 2.5L10 6l5 4" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" opacity="0.7" />
+    <circle cx="12.5" cy="5.5" r="1" fill="currentColor" opacity="0.7" />
+    <path d="M5.5 2l.4 1.2L7 3.6l-1.1.4L5.5 5l-.4-1L4 3.6l1.1-.4z" fill="currentColor" />
+  </svg>
+);
+
 export const SparkleIcon = () => (
   <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
     <path d="M8 1l1.2 4.8L14 8l-4.8 1.2L8 15l-1.2-4.8L2 8l4.8-1.2z" />
