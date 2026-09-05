@@ -2,7 +2,14 @@ const VISION_PROMPT = `Study the provided image carefully. It shows a composite 
 
 Identify the concrete, literal subject matter of the visible foreground elements.
 
-Using that literal subject matter and spatial composition as your guide, write a 2–3 sentence image generation prompt for a background environment that these subjects would plausibly exist within. If the subjects seem disparate, describe a setting that could plausibly accommodate all of them together. For example, if you see a computer and a pile of bones, describe a setting where both could logically coexist, like a study room with a desk and shelves containing various curiosities.
+Using that literal subject matter and spatial composition as your guide, write a 2–3 sentence image generation prompt for a background environment that these subjects would plausibly exist within. If the subjects seem disparate, describe a setting that could plausibly accommodate all of them together.
+
+Examples:
+- If you see a computer and a pile of bones, describe a setting where both could logically coexist, like a prehistoric cave full of primitive renditions of technological devices
+- If you see a group of people, describe a setting where they could naturally gather depending on their appearance and clothing, such as a conference hall, dark alleyway, presidential palace, hotel suite, protest, or street market.
+- If you see a combination of objects or subjects that do not obviously belong together, describe a neutral or versatile setting that could plausibly accommodate all of them, such as a generic room, an open field, or a public space.
+
+These are ONLY EXAMPLES. Do not feel constrained by them; use your judgment to create a suitable background for the given foreground elements. Do not always generate a prehistoric cave whenever you see bones. The point is NOT to follow them as rules but to take them as guidelines. Try to do your very best to find a background that could accommodate all of the visible foreground elements. You can get creative with the subject matter.
 
 Rules:
 - Base the background entirely on the literal content of the foreground elements, not on abstract color palettes or moods
@@ -10,6 +17,7 @@ Rules:
 - Background should look like a REALISTIC PHOTOGRAPH, not under any circumstances stylized or cartoonish
 - Background should be a background, and NOT contain any foreground characters or objects. It should not be a copy or interpretation of what you see in the image. It should COMPLEMENT the image
 - Absolutely NO whimsy is allowed
+- Do not make anything "surreal"
 - Output ONLY the image generation prompt, nothing else`;
 
 export interface BgGenerationResult {
