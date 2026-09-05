@@ -69,8 +69,10 @@ test.describe('Circular Vignette on an Image', () => {
     expect(midFade.a).toBeGreaterThan(0);
     expect(midFade.a).toBeLessThan(255);
 
-    // Near the outer radius (150px, the edge midpoint): almost fully faded.
-    const nearOuter = await samplePixel(page, center.x + 145, center.y);
+    // Near the outer radius (~146px): almost fully faded. Sampled 20px off the
+    // edge midpoint's row so the selection box's middle-right anchor (a 10px
+    // square centered on that midpoint) isn't what gets read.
+    const nearOuter = await samplePixel(page, center.x + 145, center.y + 20);
     expect(nearOuter.a).toBeLessThan(30);
 
     // Near a corner (~198px from center): well past the outer radius, so
@@ -136,7 +138,8 @@ test.describe('Circular Vignette on an Image', () => {
     await page.getByTitle('Disable Vignette').click();
     await expect.poll(async () => (await readState(page)).images[0].vignette?.enabled).toBe(false);
 
-    const nearOuter = await samplePixel(page, center.x + 145, center.y);
+    // 20px off the edge midpoint's row to avoid the selection box's anchor.
+    const nearOuter = await samplePixel(page, center.x + 145, center.y + 20);
     expect(nearOuter).toMatchObject({ ...ORANGE, a: 255 });
   });
 

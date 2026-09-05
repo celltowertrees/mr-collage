@@ -12,9 +12,10 @@ interface Props {
   onChange: (changes: Partial<CollageImage>) => void;
   onMove: (dx: number, dy: number) => void;
   onGroupDragStart?: () => void;
+  onNodeMount?: () => void;
 }
 
-export function CollageImageNode({ image, tool, onSelect, onChange, onMove, onGroupDragStart }: Props) {
+export function CollageImageNode({ image, tool, onSelect, onChange, onMove, onGroupDragStart, onNodeMount }: Props) {
   const groupRef = useRef<Konva.Group>(null);
   const imageRef = useRef<Konva.Image>(null);
   const dragStartRef = useRef({ x: image.x, y: image.y });
@@ -27,6 +28,14 @@ export function CollageImageNode({ image, tool, onSelect, onChange, onMove, onGr
     element.src = image.src;
     return () => { cancelled = true; };
   }, [image.src]);
+
+  // The Konva group only exists once the image has loaded (see the early
+  // return below), so tell the parent when it's actually on the stage.
+  const mounted = img !== null;
+  useEffect(() => {
+    if (mounted) onNodeMount?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mounted]);
 
   const gradientMask = image.gradientMask;
   const vignette = image.vignette;
