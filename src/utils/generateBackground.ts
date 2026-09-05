@@ -17,7 +17,7 @@ Rules:
 - Background should look like a REALISTIC PHOTOGRAPH, not under any circumstances stylized or cartoonish
 - Background should be a background, and NOT contain any foreground characters or objects. It should not be a copy or interpretation of what you see in the image. It should COMPLEMENT the image
 - Absolutely NO whimsy is allowed
-- Do not make anything "surreal"
+- Do not make anything "surreal". Do not include any mention of the word "surreal".
 - Output ONLY the image generation prompt, nothing else`;
 
 export interface BgGenerationResult {
