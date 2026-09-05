@@ -25,6 +25,19 @@ async function placeText(page: Page, content: string) {
   await expect(overlay).not.toBeVisible();
 
   await expect.poll(async () => (await readState(page)).images.at(-1)?.text).toBe(content);
+
+  // Committing re-measures the text (its stored width jumps from the ~8px
+  // empty-text placeholder to the real glyph width), which moves the
+  // Transformer's anchors off the object's center — but Konva only redraws
+  // its hit canvas on the next animation frame. A dblclick landing before
+  // that frame hits the stale middle anchor instead of the text: the anchor
+  // mousedown starts a "transform", Konva draws the hit graph empty while
+  // transforming, and the mouseup then resolves to the bare Stage, which
+  // deselects instead of opening the editor. Waiting two frames lets the
+  // pending redraw land, so the next click hits what's actually on screen.
+  await page.evaluate(
+    () => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())))
+  );
   return center;
 }
 
