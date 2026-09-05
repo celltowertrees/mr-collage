@@ -1,5 +1,5 @@
-import { useRef, useState, useEffect, useCallback } from 'react';
-import { Stage, Layer, Circle, Rect, Line } from 'react-konva';
+import { useRef, useState, useEffect, useCallback, useReducer } from 'react';
+import { Stage, Layer, Circle, Rect, Line, Transformer } from 'react-konva';
 import Konva from 'konva';
 import { CollageObject, GradientMask, MaskData, ObjectChanges, Tool } from '../types';
 import { CollageImageNode } from './CollageImageNode';
@@ -31,6 +31,8 @@ interface CanvasProps {
   onBgRectMouseMove: () => void;
   onBgRectMouseUp: () => void;
   bgRectPreview: { x: number; y: number; width: number; height: number } | null;
+  // Region (content coords) a background is currently being generated for.
+  bgLoadingRect: { x: number; y: number; width: number; height: number } | null;
 }
 
 const BG_RECT_PREVIEW_STYLE = {
@@ -52,6 +54,15 @@ const PREVIEW_STYLE = {
   stroke: '#2196F3',
   strokeWidth: 2,
   dash: [6, 4],
+  listening: false,
+};
+
+const BG_LOADING_STYLE = {
+  fill: 'rgba(255, 100, 20, 0.07)',
+  stroke: 'rgba(255, 100, 20, 0.7)',
+  strokeWidth: 2,
+  dash: [6, 4],
+  cornerRadius: 4,
   listening: false,
 };
 
@@ -101,6 +112,7 @@ export function Canvas({
   onBgRectMouseMove,
   onBgRectMouseUp,
   bgRectPreview,
+  bgLoadingRect,
 }: CanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const selectedImage = selectedIds.length === 1 ? images.find((img) => img.id === selectedIds[0]) ?? null : null;
@@ -116,6 +128,56 @@ export function Canvas({
 
   const marqueeStartRef = useRef<{ x: number; y: number } | null>(null);
   const [marqueeRect, setMarqueeRect] = useState<MarqueeRect | null>(null);
+  // Tracks start positions of follower nodes during a group drag so they can
+  // be moved imperatively to keep up with the dragged node in real time.
+  // Konva's Transformer._proxyDrag already moves all attached nodes together
+  // when one is dragged and starts each follower's own drag via startDrag().
+  // That means every selected node fires onDragEnd. We track the primary
+  // (user-initiated) dragged node so only it commits the position delta to
+  // state; follower nodes bail out of onMove to avoid double-applying.
+  const primaryDragRef = useRef<string | null>(null);
+  // Single shared Transformer that always holds all currently selected nodes.
+  const trRef = useRef<Konva.Transformer>(null);
+  // Re-render (and so re-run the Transformer effect below) when a selected
+  // image's Konva group mounts after the selection was already made.
+  const [, onNodeMount] = useReducer((n: number) => n + 1, 0);
+
+  // The "generating background" indicator lives in the Konva layer (content
+  // coords) rather than as a fixed HTML overlay so it pans and zooms with the
+  // canvas mid-gesture, not just once React's stagePosition catches up on
+  // drag end. Konva.Animation drives the pulse the old CSS keyframes did.
+  const bgLoadingRef = useRef<Konva.Rect>(null);
+  useEffect(() => {
+    const node = bgLoadingRef.current;
+    if (!bgLoadingRect || !node) return;
+    const anim = new Konva.Animation((frame) => {
+      const phase = ((frame?.time ?? 0) / 1400) * 2 * Math.PI;
+      node.fill(`rgba(255, 100, 20, ${0.07 + 0.035 * (1 - Math.cos(phase))})`);
+    }, node.getLayer());
+    anim.start();
+    return () => {
+      anim.stop();
+    };
+  }, [bgLoadingRect]);
+
+  // Runs after every render (no deps) because the selected Konva nodes can
+  // appear or be replaced without the selection changing — e.g. an uploaded
+  // image is auto-selected before its <Group> mounts (it waits on image load),
+  // and a Fast Refresh can remount the tree. Only re-attach when the resolved
+  // node set actually differs: re-attaching between the two clicks of a
+  // dblclick disrupts Konva's internal dblclick detection.
+  useEffect(() => {
+    const stage = stageRef.current;
+    const tr = trRef.current;
+    if (!stage || !tr) return;
+    const nodes = selectedIds
+      .map((id) => stage.findOne<Konva.Node>(`#${id}`))
+      .filter((n): n is Konva.Node => n != null);
+    const current = tr.nodes();
+    if (current.length === nodes.length && current.every((n, i) => n === nodes[i])) return;
+    tr.nodes(nodes);
+    tr.getLayer()?.batchDraw();
+  });
   // Suppresses the stage `click` that Konva fires right after a marquee's
   // mouseup — otherwise handleStageClick would immediately clear the
   // selection the marquee just made.
@@ -134,6 +196,18 @@ export function Canvas({
       };
     },
     [stageRef]
+  );
+
+  const handleNodeDragStart = useCallback(
+    (nodeId: string) => {
+      // The Transformer's _proxyDrag will call startDrag() on follower nodes,
+      // causing them to fire dragstart too. Only the FIRST dragstart (the
+      // user-initiated one) should be treated as the primary.
+      if (primaryDragRef.current === null) {
+        primaryDragRef.current = nodeId;
+      }
+    },
+    []
   );
 
   const handleMaskComplete = useCallback(
@@ -226,7 +300,7 @@ export function Canvas({
       if (pointer) onAddText(toContentPoint(pointer));
       return;
     }
-    if (e.target === e.target.getStage()) {
+    if (e.target === e.target.getStage() && !e.evt.shiftKey) {
       onSelect([]);
     }
   }, [onSelect, isMaskTool, isCropTool, isBgRectTool, isTextTool, onAddText, toContentPoint]);
@@ -425,6 +499,11 @@ export function Canvas({
         onMouseUp={handleStageMouseUp}
         onDblClick={isMaskTool ? maskDrawer.handleDblClick : undefined}
         onWheel={handleWheel}
+        onDragMove={(e) => {
+          // The Transformer caches the selection's screen-space rect; recompute
+          // it every pan frame so the handles can't lag behind the content.
+          if (e.target === e.target.getStage()) trRef.current?.forceUpdate();
+        }}
         onDragEnd={(e) => {
           if (e.target === e.target.getStage()) {
             onStagePositionChange({ x: e.target.x(), y: e.target.y() });
@@ -440,10 +519,24 @@ export function Canvas({
                 textObj={obj}
                 isSelected={selectedIds.includes(obj.id)}
                 tool={tool}
-                onSelect={() => onSelect([obj.id])}
+                onSelect={(addToSelection) => {
+                  if (addToSelection) {
+                    const newIds = selectedIds.includes(obj.id)
+                      ? selectedIds.filter((id) => id !== obj.id)
+                      : [...selectedIds, obj.id];
+                    onSelect(newIds);
+                  } else {
+                    onSelect([obj.id]);
+                  }
+                }}
                 onChange={(changes) => onUpdateImage(obj.id, changes)}
-                onMove={(dx, dy) => onMoveSelected(obj.id, dx, dy)}
+                onMove={(dx, dy) => {
+                  if (obj.id !== primaryDragRef.current) return;
+                  primaryDragRef.current = null;
+                  onMoveSelected(obj.id, dx, dy);
+                }}
                 onEditStart={() => onStartEditingText(obj.id)}
+                onGroupDragStart={() => handleNodeDragStart(obj.id)}
               />
             ) : (
               <CollageImageNode
@@ -451,12 +544,49 @@ export function Canvas({
                 image={obj}
                 isSelected={selectedIds.includes(obj.id)}
                 tool={tool}
-                onSelect={() => onSelect([obj.id])}
+                onSelect={(addToSelection) => {
+                  if (addToSelection) {
+                    const newIds = selectedIds.includes(obj.id)
+                      ? selectedIds.filter((id) => id !== obj.id)
+                      : [...selectedIds, obj.id];
+                    onSelect(newIds);
+                  } else {
+                    onSelect([obj.id]);
+                  }
+                }}
                 onChange={(changes) => onUpdateImage(obj.id, changes)}
-                onMove={(dx, dy) => onMoveSelected(obj.id, dx, dy)}
+                onMove={(dx, dy) => {
+                  if (obj.id !== primaryDragRef.current) return;
+                  primaryDragRef.current = null;
+                  onMoveSelected(obj.id, dx, dy);
+                }}
+                onGroupDragStart={() => handleNodeDragStart(obj.id)}
+                onNodeMount={onNodeMount}
               />
             )
           )}
+          <Transformer
+            ref={trRef}
+            rotateEnabled={!isMaskTool && !isCropTool}
+            enabledAnchors={
+              isMaskTool || isCropTool || tool === 'mask-gradient'
+                ? []
+                : [
+                    'top-left',
+                    'top-right',
+                    'bottom-left',
+                    'bottom-right',
+                    'middle-left',
+                    'middle-right',
+                    'top-center',
+                    'bottom-center',
+                  ]
+            }
+            boundBoxFunc={(oldBox, newBox) => {
+              if (Math.abs(newBox.width) < 10 || Math.abs(newBox.height) < 10) return oldBox;
+              return newBox;
+            }}
+          />
           {renderPreview()}
           {gradientPreviewLine && (
             <Line name="gradient-preview" points={gradientPreviewLine.points} {...GRADIENT_LINE_STYLE} />
@@ -467,6 +597,9 @@ export function Canvas({
           )}
           {marqueeRect && <Rect name="marquee" {...marqueeRect} {...MARQUEE_STYLE} />}
           {bgRectPreview && <Rect name="bg-rect-preview" {...bgRectPreview} {...BG_RECT_PREVIEW_STYLE} />}
+          {bgLoadingRect && (
+            <Rect ref={bgLoadingRef} name="bg-loading" {...bgLoadingRect} {...BG_LOADING_STYLE} />
+          )}
         </Layer>
       </Stage>
     </div>

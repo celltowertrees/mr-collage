@@ -285,26 +285,6 @@ body {
 }
 
 /* Background generation loading overlay */
-.bg-loading-overlay {
-  position: fixed;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-  background: rgba(255, 100, 20, 0.07);
-  border: 2px dashed rgba(255, 100, 20, 0.7);
-  border-radius: 4px;
-  z-index: 90;
-  pointer-events: none;
-  animation: bg-pulse 1.4s ease-in-out infinite;
-}
-
-@keyframes bg-pulse {
-  0%, 100% { background: rgba(255, 100, 20, 0.07); }
-  50%       { background: rgba(255, 100, 20, 0.14); }
-}
-
 /* Background generation status panel */
 .bg-status-panel {
   position: fixed;

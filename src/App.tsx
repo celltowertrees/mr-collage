@@ -578,6 +578,7 @@ function App() {
         onBgRectMouseMove={bgRectDrawer.handleMouseMove}
         onBgRectMouseUp={bgRectDrawer.handleMouseUp}
         bgRectPreview={bgRectDrawer.previewRect}
+        bgLoadingRect={bgLoading}
       />
       {editingText && (
         <TextEditOverlay
@@ -600,17 +601,6 @@ function App() {
         <StickerGenerator
           onAddSticker={addImage}
           onClose={() => setStickerGeneratorOpen(false)}
-        />
-      )}
-      {bgLoading && (
-        <div
-          className="bg-loading-overlay"
-          style={{
-            left: stagePosition.x + bgLoading.x * stageScale,
-            top: stagePosition.y + bgLoading.y * stageScale,
-            width: bgLoading.width * stageScale,
-            height: bgLoading.height * stageScale,
-          }}
         />
       )}
       {bgProgress && (
