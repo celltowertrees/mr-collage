@@ -8,6 +8,7 @@ Rules:
 - Base the background entirely on the literal content of the foreground elements, not on abstract color palettes or moods
 - Describe a real physical environment — no surreal, painterly, or abstract elements unless the foreground images themselves are that style
 - Background should look like a REALISTIC PHOTOGRAPH, not under any circumstances stylized or cartoonish
+- Background should be a background, and NOT contain any foreground characters or objects. It should not be a copy or interpretation of what you see in the image. It should COMPLEMENT the image
 - Absolutely NO whimsy is allowed
 - Output ONLY the image generation prompt, nothing else`;
 

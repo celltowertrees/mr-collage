@@ -1,5 +1,5 @@
 import { useRef, useEffect, useState, useMemo } from 'react';
-import { Image as KonvaImage, Transformer, Group, Shape } from 'react-konva';
+import { Image as KonvaImage, Group, Shape } from 'react-konva';
 import Konva from 'konva';
 import { CollageImage, Tool } from '../types';
 import { buildClipFunc, buildFadeMaskedCanvas, buildMaskShadowSceneFunc } from '../utils/nodeEffects';
@@ -8,15 +8,15 @@ interface Props {
   image: CollageImage;
   isSelected: boolean;
   tool: Tool;
-  onSelect: () => void;
+  onSelect: (addToSelection: boolean) => void;
   onChange: (changes: Partial<CollageImage>) => void;
   onMove: (dx: number, dy: number) => void;
+  onGroupDragStart?: () => void;
 }
 
-export function CollageImageNode({ image, isSelected, tool, onSelect, onChange, onMove }: Props) {
+export function CollageImageNode({ image, tool, onSelect, onChange, onMove, onGroupDragStart }: Props) {
   const groupRef = useRef<Konva.Group>(null);
   const imageRef = useRef<Konva.Image>(null);
-  const trRef = useRef<Konva.Transformer>(null);
   const dragStartRef = useRef({ x: image.x, y: image.y });
   const [img, setImg] = useState<HTMLImageElement | null>(null);
 
@@ -28,13 +28,6 @@ export function CollageImageNode({ image, isSelected, tool, onSelect, onChange, 
     return () => { cancelled = true; };
   }, [image.src]);
 
-  useEffect(() => {
-    if (isSelected && trRef.current && groupRef.current) {
-      trRef.current.nodes([groupRef.current]);
-      trRef.current.getLayer()?.batchDraw();
-    }
-  }, [isSelected]);
-
   const gradientMask = image.gradientMask;
   const vignette = image.vignette;
   const gradientSource = useMemo(() => {
@@ -43,10 +36,6 @@ export function CollageImageNode({ image, isSelected, tool, onSelect, onChange, 
   }, [img, image.width, image.height, image.crop, gradientMask, vignette]);
 
   if (!img) return null;
-
-  const isMaskTool = tool.startsWith('mask-');
-  const isCropTool = tool === 'crop';
-  const isSelectable = tool === 'select' || isMaskTool || isCropTool;
 
   const shadow = image.shadow;
   const shadowActive = shadow?.enabled ?? false;
@@ -88,10 +77,11 @@ export function CollageImageNode({ image, isSelected, tool, onSelect, onChange, 
         id={image.id}
         {...transform}
         draggable={tool === 'select'}
-        onClick={onSelect}
-        onTap={onSelect}
+        onClick={(e) => onSelect(e.evt.shiftKey)}
+        onTap={() => onSelect(false)}
         onDragStart={() => {
           dragStartRef.current = { x: image.x, y: image.y };
+          onGroupDragStart?.();
         }}
         onDragEnd={(e) => {
           onMove(e.target.x() - dragStartRef.current.x, e.target.y() - dragStartRef.current.y);
@@ -99,15 +89,23 @@ export function CollageImageNode({ image, isSelected, tool, onSelect, onChange, 
         onTransformEnd={() => {
           const node = groupRef.current;
           if (!node) return;
+          const newScaleX = node.scaleX() * flipX;
+          const newScaleY = node.scaleY() * flipY;
+          const newRotation = node.rotation();
+          // Konva fires transformend on position changes too (drag), not only
+          // resize/rotate. Skip it when only position changed — onDragEnd
+          // already handles that via onMove.
+          if (
+            Math.abs(newScaleX - image.scaleX) < 0.001 &&
+            Math.abs(newScaleY - image.scaleY) < 0.001 &&
+            Math.abs(newRotation - image.rotation) < 0.001
+          ) return;
           onChange({
             x: node.x(),
             y: node.y(),
-            rotation: node.rotation(),
-            // The rendered scale carries the flip sign baked in (see `transform`
-            // above) — divide it back out so the stored scale stays a plain
-            // magnitude, decoupled from flip state.
-            scaleX: node.scaleX() * flipX,
-            scaleY: node.scaleY() * flipY,
+            rotation: newRotation,
+            scaleX: newScaleX,
+            scaleY: newScaleY,
           });
         }}
         clipFunc={image.mask ? buildClipFunc(image.mask) : undefined}
@@ -128,32 +126,6 @@ export function CollageImageNode({ image, isSelected, tool, onSelect, onChange, 
           shadowOpacity={shadow?.opacity}
         />
       </Group>
-      {isSelected && isSelectable && (
-        <Transformer
-          ref={trRef}
-          rotateEnabled={true}
-          enabledAnchors={
-            isMaskTool || isCropTool
-              ? [] // disable resizing while in mask/crop drawing mode
-              : [
-                  'top-left',
-                  'top-right',
-                  'bottom-left',
-                  'bottom-right',
-                  'middle-left',
-                  'middle-right',
-                  'top-center',
-                  'bottom-center',
-                ]
-          }
-          boundBoxFunc={(oldBox, newBox) => {
-            if (Math.abs(newBox.width) < 10 || Math.abs(newBox.height) < 10) {
-              return oldBox;
-            }
-            return newBox;
-          }}
-        />
-      )}
     </>
   );
 }

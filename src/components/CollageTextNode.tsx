@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Text as KonvaText, Image as KonvaImage, Rect as KonvaRect, Transformer, Group } from 'react-konva';
+import { Text as KonvaText, Image as KonvaImage, Rect as KonvaRect, Group } from 'react-konva';
 import Konva from 'konva';
 import { CollageText, Tool } from '../types';
 import { fontWeightFor, loadGoogleFontFace } from '../utils/googleFonts';
@@ -9,10 +9,11 @@ interface Props {
   textObj: CollageText;
   isSelected: boolean;
   tool: Tool;
-  onSelect: () => void;
+  onSelect: (addToSelection: boolean) => void;
   onChange: (changes: Partial<CollageText>) => void;
   onMove: (dx: number, dy: number) => void;
   onEditStart: () => void;
+  onGroupDragStart?: () => void;
 }
 
 function fontStyleFor(bold: boolean, italic: boolean): string {
@@ -22,10 +23,9 @@ function fontStyleFor(bold: boolean, italic: boolean): string {
   return 'normal';
 }
 
-export function CollageTextNode({ textObj, isSelected, tool, onSelect, onChange, onMove, onEditStart }: Props) {
+export function CollageTextNode({ textObj, tool, onSelect, onChange, onMove, onEditStart, onGroupDragStart }: Props) {
   const groupRef = useRef<Konva.Group>(null);
   const textRef = useRef<Konva.Text>(null);
-  const trRef = useRef<Konva.Transformer>(null);
   const dragStartRef = useRef({ x: textObj.x, y: textObj.y });
   // Canvas 2D silently falls back to a system font until a picked Google Font
   // finishes downloading, so this flips once it's actually usable, forcing a
@@ -58,13 +58,6 @@ export function CollageTextNode({ textObj, isSelected, tool, onSelect, onChange,
       cancelled = true;
     };
   }, [textObj.fontFamily, weight, textObj.italic]);
-
-  useEffect(() => {
-    if (isSelected && trRef.current && groupRef.current) {
-      trRef.current.nodes([groupRef.current]);
-      trRef.current.getLayer()?.batchDraw();
-    }
-  }, [isSelected]);
 
   // Konva auto-sizes an unconstrained Text shape to its rendered content —
   // syncing that measured box back into the stored width/height keeps the
@@ -128,9 +121,6 @@ export function CollageTextNode({ textObj, isSelected, tool, onSelect, onChange,
     fontReady,
   ]);
 
-  const isGradientTool = tool === 'mask-gradient';
-  const isSelectable = tool === 'select' || isGradientTool;
-
   const shadow = textObj.shadow;
   const shadowActive = shadow?.enabled ?? false;
 
@@ -154,12 +144,13 @@ export function CollageTextNode({ textObj, isSelected, tool, onSelect, onChange,
         id={textObj.id}
         {...transform}
         draggable={tool === 'select'}
-        onClick={onSelect}
-        onTap={onSelect}
+        onClick={(e) => onSelect(e.evt.shiftKey)}
+        onTap={() => onSelect(false)}
         onDblClick={onEditStart}
         onDblTap={onEditStart}
         onDragStart={() => {
           dragStartRef.current = { x: textObj.x, y: textObj.y };
+          onGroupDragStart?.();
         }}
         onDragEnd={(e) => {
           onMove(e.target.x() - dragStartRef.current.x, e.target.y() - dragStartRef.current.y);
@@ -167,15 +158,23 @@ export function CollageTextNode({ textObj, isSelected, tool, onSelect, onChange,
         onTransformEnd={() => {
           const node = groupRef.current;
           if (!node) return;
+          const newScaleX = node.scaleX() * flipX;
+          const newScaleY = node.scaleY() * flipY;
+          const newRotation = node.rotation();
+          // Konva fires transformend on position changes too (drag), not only
+          // resize/rotate. Skip it when only position changed — onDragEnd
+          // already handles that via onMove.
+          if (
+            Math.abs(newScaleX - textObj.scaleX) < 0.001 &&
+            Math.abs(newScaleY - textObj.scaleY) < 0.001 &&
+            Math.abs(newRotation - textObj.rotation) < 0.001
+          ) return;
           onChange({
             x: node.x(),
             y: node.y(),
-            rotation: node.rotation(),
-            // The rendered scale carries the flip sign baked in (see
-            // `transform` above) — divide it back out so the stored scale
-            // stays a plain magnitude, decoupled from flip state.
-            scaleX: node.scaleX() * flipX,
-            scaleY: node.scaleY() * flipY,
+            rotation: newRotation,
+            scaleX: newScaleX,
+            scaleY: newScaleY,
           });
         }}
       >
@@ -217,34 +216,6 @@ export function CollageTextNode({ textObj, isSelected, tool, onSelect, onChange,
           />
         )}
       </Group>
-      {isSelected && isSelectable && (
-        <Transformer
-          ref={trRef}
-          rotateEnabled={true}
-          enabledAnchors={
-            isGradientTool
-              ? [] // disable resizing while drawing a gradient fade
-              : [
-                  'top-left',
-                  'top-right',
-                  'bottom-left',
-                  'bottom-right',
-                  'middle-left',
-                  'middle-right',
-                  'top-center',
-                  'bottom-center',
-                ]
-          }
-          boundBoxFunc={(oldBox, newBox) => {
-            // Unlike images, dragging a handle past the opposite edge here
-            // just clamps rather than flipping — mirrored text reads as
-            // garbage, so flipping text is only ever done deliberately via
-            // the toolbar's explicit Flip buttons, never by accident via drag.
-            if (newBox.width < 10 || newBox.height < 10) return oldBox;
-            return newBox;
-          }}
-        />
-      )}
     </>
   );
 }
