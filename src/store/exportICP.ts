@@ -39,6 +39,25 @@ export function exportToICP(objects: CollageObject[]): object {
           };
         }
 
+        if (obj.kind === 'model3d') {
+          return {
+            ...base,
+            type: "model3d",
+            data: {
+              name: obj.name,
+              shape: obj.shape,
+              rotation3D: obj.rotation3D,
+              light: obj.light,
+              material: obj.material,
+              ...(obj.gradientMask ? { gradientMask: obj.gradientMask } : {}),
+              ...(obj.shadow?.enabled ? { shadow: obj.shadow } : {}),
+              ...(obj.blendMode ? { blendMode: obj.blendMode } : {}),
+              ...(obj.flipX ? { flipX: obj.flipX } : {}),
+              ...(obj.flipY ? { flipY: obj.flipY } : {}),
+            },
+          };
+        }
+
         return {
           ...base,
           type: "image",

@@ -1,6 +1,19 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { v4 as uuidv4 } from 'uuid';
-import { CanvasState, CollageImage, CollageObject, CollageText, ObjectChanges, Tool } from '../types';
+import {
+  CanvasState,
+  CollageImage,
+  CollageModel3D,
+  CollageObject,
+  CollageText,
+  DEFAULT_LIGHT_3D,
+  DEFAULT_MATERIAL_3D,
+  DEFAULT_ROTATION_3D,
+  ObjectChanges,
+  PrimitiveShape,
+  SHAPE_LABELS,
+  Tool,
+} from '../types';
 import type { BgRect } from './useBgRectDrawer';
 import { saveState, loadState } from '../store';
 import { useHistory } from './useHistory';
@@ -70,6 +83,32 @@ export function useCollage() {
       name,
     };
     setImages((prev) => [...prev, img]);
+    setSelectedIds([id]);
+  }, [stagePosition, stageScale, setImages]);
+
+  // 3D objects are procedural, so unlike addImage there's no natural pixel
+  // size to fit — the box is fixed and scale starts at 1.
+  const addModel3D = useCallback((shape: PrimitiveShape) => {
+    const id = uuidv4();
+    const model: CollageModel3D = {
+      kind: 'model3d',
+      id,
+      shape,
+      x: (-stagePosition.x + window.innerWidth / 2) / stageScale,
+      y: (-stagePosition.y + window.innerHeight / 2) / stageScale,
+      width: 360,
+      height: 360,
+      rotation: 0,
+      scaleX: 1,
+      scaleY: 1,
+      opacity: 1,
+      zIndex: nextZIndex.current++,
+      name: SHAPE_LABELS[shape],
+      rotation3D: { ...DEFAULT_ROTATION_3D },
+      light: { ...DEFAULT_LIGHT_3D },
+      material: { ...DEFAULT_MATERIAL_3D },
+    };
+    setImages((prev) => [...prev, model]);
     setSelectedIds([id]);
   }, [stagePosition, stageScale, setImages]);
 
@@ -212,6 +251,7 @@ export function useCollage() {
     addImage,
     addBackground,
     addText,
+    addModel3D,
     updateImage,
     moveImages,
     nudgeImages,
