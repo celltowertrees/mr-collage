@@ -1,5 +1,5 @@
 import { CanvasState, CollageImage, CollageModel3D, CollageObject, CollageText } from '../types';
-import { idbPut, idbGet, idbDelete, idbAllKeys } from './db';
+import { idbGet, idbSyncBlobs } from './db';
 
 const STORAGE_KEY = 'mr-collage-state';
 
@@ -23,19 +23,20 @@ interface StoredState {
 // Metadata (positions, masks, etc.) → localStorage (tiny)
 // Image blobs (data URLs) → IndexedDB (large)
 export async function saveState(state: CanvasState): Promise<void> {
-  const currentIds = new Set<string>();
+  // Collect every live image's blob and hand the whole picture to the store in
+  // one transaction. An image's `src` is set once at creation and never
+  // rewritten afterwards (moving, masking or cropping it only touches
+  // metadata), so idbSyncBlobs writes a data URL only the first time it sees
+  // that id — a save triggered by dragging a slider ends up writing no blobs
+  // at all. The previous version re-serialized every image's full base64 data
+  // URL on every single state change, which dominated CPU during ordinary
+  // editing.
+  const blobs = new Map<string, string>();
   for (const obj of state.images) {
     if (obj.kind !== 'image') continue;
-    currentIds.add(obj.id);
-    await idbPut(obj.id, obj.src);
+    blobs.set(obj.id, obj.src);
   }
-
-  const allKeys = await idbAllKeys();
-  for (const key of allKeys) {
-    if (!currentIds.has(key)) {
-      await idbDelete(key);
-    }
-  }
+  await idbSyncBlobs(blobs);
 
   const meta: StoredState = {
     images: state.images.map((obj) => {

@@ -2,7 +2,6 @@ import {
   AmbientLight,
   BoxGeometry,
   BufferGeometry,
-  Color,
   ConeGeometry,
   CylinderGeometry,
   DirectionalLight,
@@ -97,6 +96,8 @@ interface RenderContext {
   key: DirectionalLight;
   fill: AmbientLight;
   geometries: Map<PrimitiveShape, BufferGeometry>;
+  width: number;
+  height: number;
 }
 
 // `undefined` = not tried yet, `null` = tried and WebGL isn't available here
@@ -129,7 +130,7 @@ function getContext(): RenderContext | null {
     const fill = new AmbientLight(0xffffff, 0.5);
     scene.add(fill);
 
-    context = { renderer, scene, camera, mesh, key, fill, geometries: new Map() };
+    context = { renderer, scene, camera, mesh, key, fill, geometries: new Map(), width: 0, height: 0 };
   } catch {
     context = null;
   }
@@ -171,20 +172,29 @@ export function renderModelToCanvas(
     spec.rotation3D.z * DEG2RAD
   );
 
-  mesh.material.color = new Color(spec.material.color);
+  // set() mutates the existing Color rather than allocating a new one per
+  // frame, and `needsUpdate` is deliberately NOT touched: it forces three to
+  // rebuild the shader program, and none of colour/metalness/roughness change
+  // the program — they're plain uniforms.
+  mesh.material.color.set(spec.material.color);
   mesh.material.metalness = spec.material.metalness;
   mesh.material.roughness = spec.material.roughness;
-  mesh.material.needsUpdate = true;
 
   const dir = lightDirection(spec.light.azimuth, spec.light.elevation);
   key.position.set(dir.x, dir.y, dir.z);
-  key.color = new Color(spec.light.color);
+  key.color.set(spec.light.color);
   key.intensity = spec.light.intensity;
   fill.intensity = spec.light.ambient;
 
-  camera.aspect = renderWidth / renderHeight;
-  camera.updateProjectionMatrix();
-  renderer.setSize(renderWidth, renderHeight, false);
+  // Resizing reallocates the drawing buffer, so only do it when the size
+  // actually changed — an orbit drag re-renders at a constant size.
+  if (renderWidth !== ctx.width || renderHeight !== ctx.height) {
+    camera.aspect = renderWidth / renderHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(renderWidth, renderHeight, false);
+    ctx.width = renderWidth;
+    ctx.height = renderHeight;
+  }
   renderer.render(scene, camera);
 
   // Copy out immediately, in the same tick as the render, so the next
@@ -206,4 +216,27 @@ export function renderModelToDataURL(
 ): string | null {
   const canvas = renderModelToCanvas(spec, width, height);
   return canvas ? canvas.toDataURL('image/png') : null;
+}
+
+/**
+ * Creates the WebGL context and compiles the shader program ahead of time.
+ *
+ * That first-render cost is real — around 230ms in a profile — and without
+ * this it lands inside the click that places the first 3D object, freezing the
+ * UI at exactly the wrong moment. Calling this when the shape picker opens
+ * moves it into the pause while the user is reading the menu. Safe to call
+ * repeatedly; everything after the first call is a no-op.
+ */
+export function warmUpModelRenderer(): void {
+  if (context !== undefined) return;
+  renderModelToCanvas(
+    {
+      shape: 'cube',
+      rotation3D: { x: 0, y: 0, z: 0 },
+      light: { azimuth: 45, elevation: 40, intensity: 1, color: '#ffffff', ambient: 0.5 },
+      material: { color: '#ffffff', metalness: 0, roughness: 1 },
+    },
+    1,
+    1
+  );
 }

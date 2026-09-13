@@ -23,6 +23,18 @@ function lastObject(page: Page) {
   return readState(page).then((s) => s.images.at(-1));
 }
 
+// Saves are debounced by SAVE_DEBOUNCE_MS in useCollage, so the tail of a
+// gesture can still be sitting in a pending timer. Polling for a stable value
+// isn't enough — two reads inside the quiet window before the trailing flush
+// both see the same stale number — so wait the window out before taking a
+// baseline to compare a later gesture against.
+const SAVE_SETTLE_MS = 600;
+
+async function settledRotation(page: Page) {
+  await page.waitForTimeout(SAVE_SETTLE_MS);
+  return (await lastObject(page)).rotation3D as { x: number; y: number; z: number };
+}
+
 test.beforeEach(async ({ page }) => {
   await page.goto('/');
   await page.evaluate(() => localStorage.clear());
@@ -57,7 +69,7 @@ test.describe('3D Objects on the Canvas', () => {
     await expect.poll(async () => (await lastObject(page)).rotation3D.x).toBeGreaterThan(before.rotation3D.x);
 
     // Shift-drag rolls the object instead of yawing it.
-    const rolled = await lastObject(page);
+    const rolled = { rotation3D: await settledRotation(page) };
     await page.keyboard.down('Shift');
     await page.mouse.move(center.x, center.y);
     await page.mouse.down();
@@ -83,7 +95,7 @@ test.describe('3D Objects on the Canvas', () => {
 
   test('a whole orbit drag is a single undo step', async ({ page }) => {
     const center = await addShape(page, 'Cube');
-    const before = await lastObject(page);
+    const before = { rotation3D: await settledRotation(page) };
 
     await page.getByTitle('3D Rotate (R)').click();
     await page.mouse.move(center.x, center.y);

@@ -562,3 +562,47 @@ Feature: 3D Objects on the Canvas
     When a 3D object is placed or loaded
     Then it renders as an outline placeholder that can still be selected, moved, adjusted and deleted, nothing throws, and the HTML export omits it rather than emitting a broken image
 ```
+
+### Cheap Incremental Saves
+- **Requested:** 2026-09-13
+- **Ask:** Performance isn't great — fix it, from a DevTools trace of ordinary editing.
+
+```gherkin
+Feature: Cheap Incremental Saves
+  # src/store/db.ts, src/store/persistence.ts, src/hooks/useCollage.ts, src/utils/model3dRenderer.ts, src/components/Toolbar.tsx — tested in src/__tests__/persistenceCost.test.ts
+
+  Scenario: Adjusting an existing object doesn't rewrite its image data
+    Given images are already on the canvas and saved
+    When the user changes only metadata — dragging a slider, moving, rotating, restyling
+    Then no image blob is written again; only the metadata is re-saved
+
+  Scenario: A newly added image writes its blob once
+    Given images are already on the canvas and saved
+    When the user adds one more image
+    Then exactly one blob is written, not one per image on the canvas
+
+  Scenario: Saving reuses a single database connection
+    Given the collage has been saved at least once
+    When it is saved again
+    Then no new database connection is opened
+
+  Scenario: An undone deletion gets its image data back
+    Given an image was deleted and its blob pruned from storage
+    When the deletion is undone and the collage saved
+    Then the image's blob is written again, and it reloads intact rather than being skipped as missing
+
+  Scenario: A continuous gesture is saved once, not once per frame
+    Given the user is dragging a slider or orbiting a 3D object
+    When the gesture produces many intermediate states in quick succession
+    Then the states collapse into a small number of saves, and the state the gesture settles on is the one persisted
+
+  Scenario: Adding or removing an object is saved immediately
+    Given the user adds, duplicates, or deletes an object
+    When that change lands
+    Then it is persisted right away rather than waiting behind the gesture window
+
+  Scenario: Placing the first 3D object doesn't freeze the canvas
+    Given no 3D object has been rendered yet this session
+    When the user opens the 3D object menu and picks a shape
+    Then the WebGL setup cost is paid while the menu is open, so the click that places the object stays responsive
+```
