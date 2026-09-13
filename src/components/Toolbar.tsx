@@ -120,35 +120,6 @@ function SliderField({ label, value, min, max, step, display, onChange }: Slider
   );
 }
 
-interface NumberFieldProps {
-  label: string;
-  value: number;
-  onChange: (value: number) => void;
-}
-
-// Exact numeric entry, for the 3D rotation angles where "45 degrees" is a
-// thing you want to type rather than hunt for on a slider.
-function NumberField({ label, value, onChange }: NumberFieldProps) {
-  return (
-    <label className="toolbar-field">
-      {/* The degree sign rides on the label rather than trailing the input:
-          the toolbar's flex gap made a trailing unit sit closer to the NEXT
-          field's label than to its own value. */}
-      <span>{label}&deg;</span>
-      <input
-        type="number"
-        className="toolbar-number"
-        step={1}
-        value={Math.round(value)}
-        onChange={(e) => {
-          const parsed = parseFloat(e.target.value);
-          if (!Number.isNaN(parsed)) onChange(parsed);
-        }}
-      />
-    </label>
-  );
-}
-
 interface ToolbarProps {
   tool: Tool;
   selectedImage: CollageObject | null;
@@ -282,14 +253,8 @@ export function Toolbar({
     return () => document.removeEventListener('mousedown', handleOutsideClick);
   }, [textureMenuPos]);
 
-  // Orientation, lighting and material are all continuous adjustments, so they
-  // coalesce into a single undo step the same way the opacity and shadow
-  // sliders do.
-  const updateRotation3D = (axis: 'x' | 'y' | 'z', value: number) => {
-    if (!model) return;
-    onUpdateImage(model.id, { rotation3D: { ...model.rotation3D, [axis]: value } }, { coalesce: true });
-  };
-
+  // Lighting and material are continuous adjustments, so they coalesce into a
+  // single undo step the same way the opacity and shadow sliders do.
   const updateLight = (changes: Partial<DirectionalLightData>) => {
     if (!model) return;
     onUpdateImage(model.id, { light: { ...model.light, ...changes } }, { coalesce: true });
@@ -625,9 +590,6 @@ export function Toolbar({
                 >
                   <Rotate3DIcon />
                 </ToolButton>
-                <NumberField label="Rot X" value={model.rotation3D.x} onChange={(v) => updateRotation3D('x', v)} />
-                <NumberField label="Rot Y" value={model.rotation3D.y} onChange={(v) => updateRotation3D('y', v)} />
-                <NumberField label="Rot Z" value={model.rotation3D.z} onChange={(v) => updateRotation3D('z', v)} />
                 <ToolButton
                   onClick={() => onUpdateImage(model.id, { rotation3D: { ...DEFAULT_ROTATION_3D } })}
                   title="Reset 3D Rotation"
@@ -635,9 +597,11 @@ export function Toolbar({
                 >
                   Reset
                 </ToolButton>
-                {tool === 'rotate3d' && (
-                  <span className="mask-hint">Drag to turn it; hold Shift to roll</span>
-                )}
+                <span className="mask-hint">
+                  {tool === 'rotate3d'
+                    ? 'Drag anywhere to turn it; hold Shift to roll'
+                    : 'Grab a ring on the object to turn it; hold Shift to snap to 15\u00b0'}
+                </span>
               </div>
 
               <div className="toolbar-section">

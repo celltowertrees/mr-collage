@@ -244,10 +244,10 @@ body {
   flex-direction: column;
   min-width: 130px;
   padding: 4px;
-  background: var(--btn-bg);
-  border: 1px solid var(--btn-border);
+  background: var(--popup-bg);
+  border: 1px solid var(--popup-border);
   border-radius: var(--btn-radius);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+  box-shadow: var(--popup-shadow);
   z-index: 200;
 }
 
@@ -256,7 +256,7 @@ body {
   border: none;
   border-radius: 6px;
   background: none;
-  color: var(--btn-text);
+  color: var(--popup-text);
   font-family: var(--toolbar-font);
   font-size: 11px;
   text-align: left;
@@ -264,7 +264,7 @@ body {
 }
 
 .blend-mode-option:hover {
-  background: var(--btn-hover);
+  background: var(--popup-hover);
 }
 
 .blend-mode-option.active {
