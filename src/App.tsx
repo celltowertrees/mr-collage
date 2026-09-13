@@ -11,7 +11,8 @@ import { useBgRectDrawer, type BgRect } from './hooks/useBgRectDrawer';
 import { analyzeImages, generateBackgroundFromPrompt, type VisionDetail, type BgProgressEvent } from './utils/generateBackground';
 import { localToStage } from './utils/geometry';
 import { exportToICP, exportToStaticHTML } from './store';
-import { CollageImage, CollageText } from './types';
+import { renderModelToDataURL } from './utils/model3dRenderer';
+import { CollageImage, CollageModel3D, CollageText } from './types';
 import './App.css';
 
 const API_KEY_STORAGE_KEY = 'mr-collage-openai-key';
@@ -113,6 +114,7 @@ function App() {
     addImage,
     addBackground,
     addText,
+    addModel3D,
     updateImage,
     moveImages,
     nudgeImages,
@@ -149,8 +151,9 @@ function App() {
 
   const selectedImage = selectedIds.length === 1 ? images.find((img) => img.id === selectedIds[0]) ?? null : null;
   // The crop tool only ever targets images — narrow here so useCropDrawer
-  // (typed for CollageImage) never sees a text node.
-  const selectedImageOnly = selectedImage && selectedImage.kind !== 'text' ? selectedImage : null;
+  // (typed for CollageImage) never sees anything else. Checked positively:
+  // `kind !== 'text'` would quietly let every new object kind through.
+  const selectedImageOnly = selectedImage?.kind === 'image' ? selectedImage : null;
   const editingText: CollageText | null =
     (images.find((obj): obj is CollageText => obj.kind === 'text' && obj.id === editingTextId) ?? null);
 
@@ -396,10 +399,54 @@ function App() {
       )
     );
 
+    // A static file can't carry the live WebGL renderer, so each 3D object is
+    // rendered once here and embedded as a PNG — the same pre-pass shape as
+    // naturalSizes above.
+    const models = images.filter((obj): obj is CollageModel3D => obj.kind === 'model3d');
+
+    // An uploaded texture has to be decoded before it can be baked in, and the
+    // live node's copy isn't reachable from here — so load them up front, the
+    // same pre-pass shape as naturalSizes above. A texture that won't decode
+    // just bakes the object untextured rather than failing the export.
+    const textureImages = new Map<string, HTMLImageElement>();
+    await Promise.all(
+      models
+        .filter((model) => model.material.texture?.source === 'image')
+        .map(
+          (model) =>
+            new Promise<void>((resolve) => {
+              const el = new window.Image();
+              el.onload = () => {
+                textureImages.set(model.id, el);
+                resolve();
+              };
+              el.onerror = () => resolve();
+              el.src = (model.material.texture as { src: string }).src;
+            })
+        )
+    );
+
+    const modelSnapshots: Record<string, string> = {};
+    for (const model of models) {
+      const snapshot = renderModelToDataURL(
+        {
+          shape: model.shape,
+          rotation3D: model.rotation3D,
+          light: model.light,
+          material: model.material,
+          textureImage: textureImages.get(model.id) ?? null,
+        },
+        model.width,
+        model.height
+      );
+      if (snapshot) modelSnapshots[model.id] = snapshot;
+    }
+
     const html = await exportToStaticHTML(
       images,
       { x: stagePosition.x, y: stagePosition.y, scale: stageScale, width: stage.width(), height: stage.height() },
-      naturalSizes
+      naturalSizes,
+      modelSnapshots
     );
 
     const blob = new Blob([html], { type: 'text/html' });
@@ -434,6 +481,7 @@ function App() {
       if (e.key === 'v' || e.key === 'V') setTool('select');
       if (e.key === 'h' || e.key === 'H') setTool('pan');
       if (e.key === 't' || e.key === 'T') setTool('text');
+      if (e.key === 'r' || e.key === 'R') setTool('rotate3d');
       if ((e.key === 'Delete' || e.key === 'Backspace') && selectedIds.length > 0) {
         deleteImage(selectedIds);
       }
@@ -530,6 +578,7 @@ function App() {
         selectedImage={selectedImage}
         onToolChange={setTool}
         onUpload={handleUploadClick}
+        onAddModel3D={addModel3D}
         onOpenStickerGenerator={() => setStickerGeneratorOpen(true)}
         visionDetail={visionDetail}
         onVisionDetailChange={(d) => {

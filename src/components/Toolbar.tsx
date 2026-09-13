@@ -1,7 +1,27 @@
 import { forwardRef, useEffect, useRef, useState, type ReactNode } from 'react';
-import { BLEND_MODES, BlendMode, CollageObject, CollageText, ObjectChanges, ShadowData, Tool, VignetteData } from '../types';
+import {
+  BLEND_MODES,
+  BlendMode,
+  CollageObject,
+  CollageText,
+  DEFAULT_ROTATION_3D,
+  DirectionalLightData,
+  Model3DMaterial,
+  ObjectChanges,
+  Model3DTexture,
+  PRIMITIVE_SHAPES,
+  PrimitiveShape,
+  SHAPE_LABELS,
+  ShadowData,
+  TEXTURE_PRESETS,
+  TexturePreset,
+  Tool,
+  VignetteData,
+} from '../types';
 import type { VisionDetail } from '../utils/generateBackground';
 import { GOOGLE_FONTS } from '../utils/googleFonts';
+import { warmUpModelRenderer } from '../utils/model3dRenderer';
+import { fileToTextureDataURL } from '../utils/textureImage';
 import {
   SelectIcon, PanIcon, TextToolIcon,
   BoldIcon, ItalicIcon, UnderlineIcon,
@@ -11,6 +31,7 @@ import {
   XIcon, CropIcon, CheckIcon,
   FlipHorizontalIcon, FlipVerticalIcon,
   ShadowIcon, VignetteIcon, SparkleIcon, BgGenIcon,
+  CubeIcon, Rotate3DIcon, LightIcon,
 } from './ToolbarIcons';
 
 const DEFAULT_SHADOW: ShadowData = {
@@ -26,6 +47,17 @@ const DEFAULT_VIGNETTE: VignetteData = {
   enabled: true,
   innerRadius: 0.5,
   outerRadius: 1,
+};
+
+const TEXTURE_LABELS: Record<TexturePreset | 'none' | 'image', string> = {
+  none: 'No Texture',
+  checker: 'Checker',
+  grid: 'Grid',
+  stripes: 'Stripes',
+  dots: 'Dots',
+  noise: 'Noise',
+  brushed: 'Brushed',
+  image: 'Custom Image',
 };
 
 function formatBlendModeLabel(mode: BlendMode): string {
@@ -88,11 +120,41 @@ function SliderField({ label, value, min, max, step, display, onChange }: Slider
   );
 }
 
+interface NumberFieldProps {
+  label: string;
+  value: number;
+  onChange: (value: number) => void;
+}
+
+// Exact numeric entry, for the 3D rotation angles where "45 degrees" is a
+// thing you want to type rather than hunt for on a slider.
+function NumberField({ label, value, onChange }: NumberFieldProps) {
+  return (
+    <label className="toolbar-field">
+      {/* The degree sign rides on the label rather than trailing the input:
+          the toolbar's flex gap made a trailing unit sit closer to the NEXT
+          field's label than to its own value. */}
+      <span>{label}&deg;</span>
+      <input
+        type="number"
+        className="toolbar-number"
+        step={1}
+        value={Math.round(value)}
+        onChange={(e) => {
+          const parsed = parseFloat(e.target.value);
+          if (!Number.isNaN(parsed)) onChange(parsed);
+        }}
+      />
+    </label>
+  );
+}
+
 interface ToolbarProps {
   tool: Tool;
   selectedImage: CollageObject | null;
   onToolChange: (tool: Tool) => void;
   onUpload: () => void;
+  onAddModel3D: (shape: PrimitiveShape) => void;
   onOpenStickerGenerator: () => void;
   visionDetail: VisionDetail;
   onVisionDetailChange: (detail: VisionDetail) => void;
@@ -124,6 +186,7 @@ export function Toolbar({
   selectedImage,
   onToolChange,
   onUpload,
+  onAddModel3D,
   onOpenStickerGenerator,
   visionDetail,
   onVisionDetailChange,
@@ -147,12 +210,15 @@ export function Toolbar({
 }: ToolbarProps) {
   const isMaskTool = tool.startsWith('mask-');
   // Shape mask/crop/vignette only ever apply to images (there's no real case
-  // for clipping or vignetting a text object); shadow/blend mode/flip/
-  // gradient fade apply to both; text formatting only ever applies to text —
+  // for clipping or vignetting a text object, or a 3D object, the way there is
+  // for a photo); shadow/blend mode/flip/gradient fade apply to every kind;
+  // text formatting and the 3D controls only ever apply to their own kind —
   // narrow once here rather than re-checking `.kind` at every field access
-  // below.
-  const image = selectedImage && selectedImage.kind !== 'text' ? selectedImage : null;
+  // below. Each check is positive, so a future kind has to opt in to a control
+  // rather than inheriting it by accident.
+  const image = selectedImage?.kind === 'image' ? selectedImage : null;
   const text = selectedImage?.kind === 'text' ? selectedImage : null;
+  const model = selectedImage?.kind === 'model3d' ? selectedImage : null;
 
   const [blendMenuPos, setBlendMenuPos] = useState<{ top: number; left: number } | null>(null);
   const blendMenuRef = useRef<HTMLDivElement>(null);
@@ -173,6 +239,86 @@ export function Toolbar({
     document.addEventListener('mousedown', handleOutsideClick);
     return () => document.removeEventListener('mousedown', handleOutsideClick);
   }, [blendMenuPos]);
+
+  const [shapeMenuPos, setShapeMenuPos] = useState<{ top: number; left: number } | null>(null);
+  const shapeMenuRef = useRef<HTMLDivElement>(null);
+  const shapeButtonRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (!shapeMenuPos) return;
+    const handleOutsideClick = (e: MouseEvent) => {
+      const target = e.target as Node;
+      if (
+        shapeMenuRef.current &&
+        !shapeMenuRef.current.contains(target) &&
+        !shapeButtonRef.current?.contains(target)
+      ) {
+        setShapeMenuPos(null);
+      }
+    };
+    document.addEventListener('mousedown', handleOutsideClick);
+    return () => document.removeEventListener('mousedown', handleOutsideClick);
+  }, [shapeMenuPos]);
+
+  const [textureMenuPos, setTextureMenuPos] = useState<{ top: number; left: number } | null>(null);
+  const textureMenuRef = useRef<HTMLDivElement>(null);
+  const textureButtonRef = useRef<HTMLButtonElement>(null);
+  const textureFileRef = useRef<HTMLInputElement>(null);
+  const [textureError, setTextureError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!textureMenuPos) return;
+    const handleOutsideClick = (e: MouseEvent) => {
+      const target = e.target as Node;
+      if (
+        textureMenuRef.current &&
+        !textureMenuRef.current.contains(target) &&
+        !textureButtonRef.current?.contains(target)
+      ) {
+        setTextureMenuPos(null);
+      }
+    };
+    document.addEventListener('mousedown', handleOutsideClick);
+    return () => document.removeEventListener('mousedown', handleOutsideClick);
+  }, [textureMenuPos]);
+
+  // Orientation, lighting and material are all continuous adjustments, so they
+  // coalesce into a single undo step the same way the opacity and shadow
+  // sliders do.
+  const updateRotation3D = (axis: 'x' | 'y' | 'z', value: number) => {
+    if (!model) return;
+    onUpdateImage(model.id, { rotation3D: { ...model.rotation3D, [axis]: value } }, { coalesce: true });
+  };
+
+  const updateLight = (changes: Partial<DirectionalLightData>) => {
+    if (!model) return;
+    onUpdateImage(model.id, { light: { ...model.light, ...changes } }, { coalesce: true });
+  };
+
+  const updateMaterial = (changes: Partial<Model3DMaterial>) => {
+    if (!model) return;
+    onUpdateImage(model.id, { material: { ...model.material, ...changes } }, { coalesce: true });
+  };
+
+  // Choosing a texture is discrete, so it gets its own undo step rather than
+  // coalescing into whatever slider was last touched.
+  const setTexture = (texture: Model3DTexture | undefined) => {
+    if (!model) return;
+    onUpdateImage(model.id, { material: { ...model.material, texture } });
+    setTextureMenuPos(null);
+  };
+
+  const handleTextureFile = async (file: File | undefined) => {
+    if (!file || !model) return;
+    try {
+      const src = await fileToTextureDataURL(file);
+      setTextureError(null);
+      setTexture({ source: 'image', src, repeat: model.material.texture?.repeat ?? 1 });
+    } catch (err) {
+      setTextureError(err instanceof Error ? err.message : 'Could not load that texture.');
+      setTextureMenuPos(null);
+    }
+  };
 
   const shadow = selectedImage?.shadow;
 
@@ -267,6 +413,48 @@ export function Toolbar({
         <ToolButton onClick={onOpenStickerGenerator} title="Generate Sticker (AI)">
           <SparkleIcon />
         </ToolButton>
+        <div className="blend-mode-field">
+          <ToolButton
+            ref={shapeButtonRef}
+            onClick={() => {
+              if (shapeMenuPos) {
+                setShapeMenuPos(null);
+                return;
+              }
+              // Pay the WebGL context + shader compile now, while the menu is
+              // open, instead of inside the click that places the object.
+              warmUpModelRenderer();
+              const rect = shapeButtonRef.current?.getBoundingClientRect();
+              if (rect) setShapeMenuPos({ top: rect.bottom + 6, left: rect.left });
+            }}
+            title="Add 3D Object"
+            active={!!shapeMenuPos}
+          >
+            <CubeIcon />
+          </ToolButton>
+          {shapeMenuPos && (
+            <div
+              ref={shapeMenuRef}
+              className="blend-mode-popup shape-picker-popup"
+              role="menu"
+              style={{ top: shapeMenuPos.top, left: shapeMenuPos.left }}
+            >
+              {PRIMITIVE_SHAPES.map((shape) => (
+                <button
+                  key={shape}
+                  role="menuitem"
+                  className="blend-mode-option"
+                  onClick={() => {
+                    onAddModel3D(shape);
+                    setShapeMenuPos(null);
+                  }}
+                >
+                  {SHAPE_LABELS[shape]}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
         <div className="toolbar-divider" />
         <ToolButton onClick={onUndo} disabled={!canUndo} title="Undo (Ctrl+Z)">
           <UndoIcon />
@@ -425,6 +613,209 @@ export function Toolbar({
                 </select>
               </label>
             </div>
+          )}
+
+          {model && (
+            <>
+              <div className="toolbar-section">
+                <ToolButton
+                  active={tool === 'rotate3d'}
+                  onClick={() => onToolChange(tool === 'rotate3d' ? 'select' : 'rotate3d')}
+                  title="3D Rotate (R)"
+                >
+                  <Rotate3DIcon />
+                </ToolButton>
+                <NumberField label="Rot X" value={model.rotation3D.x} onChange={(v) => updateRotation3D('x', v)} />
+                <NumberField label="Rot Y" value={model.rotation3D.y} onChange={(v) => updateRotation3D('y', v)} />
+                <NumberField label="Rot Z" value={model.rotation3D.z} onChange={(v) => updateRotation3D('z', v)} />
+                <ToolButton
+                  onClick={() => onUpdateImage(model.id, { rotation3D: { ...DEFAULT_ROTATION_3D } })}
+                  title="Reset 3D Rotation"
+                  className="export-btn"
+                >
+                  Reset
+                </ToolButton>
+                {tool === 'rotate3d' && (
+                  <span className="mask-hint">Drag to turn it; hold Shift to roll</span>
+                )}
+              </div>
+
+              <div className="toolbar-section">
+                <span className="toolbar-field"><LightIcon /></span>
+                <SliderField
+                  label="Azimuth"
+                  min={0}
+                  max={360}
+                  step={1}
+                  value={model.light.azimuth}
+                  display={`${Math.round(model.light.azimuth)}\u00b0`}
+                  onChange={(value) => updateLight({ azimuth: value })}
+                />
+                <SliderField
+                  label="Elevation"
+                  min={-90}
+                  max={90}
+                  step={1}
+                  value={model.light.elevation}
+                  display={`${Math.round(model.light.elevation)}\u00b0`}
+                  onChange={(value) => updateLight({ elevation: value })}
+                />
+                <SliderField
+                  label="Intensity"
+                  min={0}
+                  max={5}
+                  step={0.1}
+                  value={model.light.intensity}
+                  display={model.light.intensity.toFixed(1)}
+                  onChange={(value) => updateLight({ intensity: value })}
+                />
+                <SliderField
+                  label="Ambient"
+                  min={0}
+                  max={2}
+                  step={0.1}
+                  value={model.light.ambient}
+                  display={model.light.ambient.toFixed(1)}
+                  onChange={(value) => updateLight({ ambient: value })}
+                />
+                <label className="toolbar-field">
+                  <span>Light</span>
+                  <input
+                    type="color"
+                    value={model.light.color}
+                    onChange={(e) => updateLight({ color: e.target.value })}
+                  />
+                </label>
+              </div>
+
+              <div className="toolbar-section">
+                <label className="toolbar-field">
+                  <span>Colour</span>
+                  <input
+                    type="color"
+                    value={model.material.color}
+                    onChange={(e) => updateMaterial({ color: e.target.value })}
+                  />
+                </label>
+
+                <div className="blend-mode-field">
+                  <ToolButton
+                    ref={textureButtonRef}
+                    onClick={() => {
+                      if (textureMenuPos) {
+                        setTextureMenuPos(null);
+                        return;
+                      }
+                      const rect = textureButtonRef.current?.getBoundingClientRect();
+                      if (rect) setTextureMenuPos({ top: rect.bottom + 6, left: rect.left });
+                    }}
+                    title="Texture"
+                    active={!!textureMenuPos}
+                    className="export-btn"
+                  >
+                    {TEXTURE_LABELS[model.material.texture?.source === 'preset'
+                      ? model.material.texture.preset
+                      : model.material.texture
+                        ? 'image'
+                        : 'none']}
+                  </ToolButton>
+                  {textureMenuPos && (
+                    <div
+                      ref={textureMenuRef}
+                      className="blend-mode-popup shape-picker-popup"
+                      role="menu"
+                      style={{ top: textureMenuPos.top, left: textureMenuPos.left }}
+                    >
+                      <button
+                        role="menuitem"
+                        className={`blend-mode-option ${model.material.texture ? '' : 'active'}`}
+                        onClick={() => setTexture(undefined)}
+                      >
+                        None
+                      </button>
+                      {TEXTURE_PRESETS.map((preset) => (
+                        <button
+                          key={preset}
+                          role="menuitem"
+                          className={`blend-mode-option ${
+                            model.material.texture?.source === 'preset' &&
+                            model.material.texture.preset === preset
+                              ? 'active'
+                              : ''
+                          }`}
+                          onClick={() =>
+                            setTexture({
+                              source: 'preset',
+                              preset,
+                              repeat: model.material.texture?.repeat ?? 2,
+                            })
+                          }
+                        >
+                          {TEXTURE_LABELS[preset]}
+                        </button>
+                      ))}
+                      <button
+                        role="menuitem"
+                        className={`blend-mode-option ${
+                          model.material.texture?.source === 'image' ? 'active' : ''
+                        }`}
+                        onClick={() => textureFileRef.current?.click()}
+                      >
+                        Upload Image…
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                <input
+                  ref={textureFileRef}
+                  type="file"
+                  accept="image/*"
+                  aria-label="Texture image"
+                  style={{ display: 'none' }}
+                  onChange={(e) => {
+                    void handleTextureFile(e.target.files?.[0]);
+                    e.target.value = '';
+                  }}
+                />
+
+                {model.material.texture && (
+                  <SliderField
+                    label="Tiling"
+                    min={1}
+                    max={12}
+                    step={1}
+                    value={model.material.texture.repeat}
+                    display={`${model.material.texture.repeat}\u00d7`}
+                    onChange={(value) =>
+                      updateMaterial({
+                        texture: { ...model.material.texture!, repeat: value },
+                      })
+                    }
+                  />
+                )}
+
+                {textureError && <span className="mask-hint">{textureError}</span>}
+                <SliderField
+                  label="Metalness"
+                  min={0}
+                  max={1}
+                  step={0.05}
+                  value={model.material.metalness}
+                  display={`${Math.round(model.material.metalness * 100)}%`}
+                  onChange={(value) => updateMaterial({ metalness: value })}
+                />
+                <SliderField
+                  label="Roughness"
+                  min={0}
+                  max={1}
+                  step={0.05}
+                  value={model.material.roughness}
+                  display={`${Math.round(model.material.roughness * 100)}%`}
+                  onChange={(value) => updateMaterial({ roughness: value })}
+                />
+              </div>
+            </>
           )}
 
           <div className="toolbar-section">

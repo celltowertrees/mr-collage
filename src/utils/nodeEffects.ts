@@ -51,12 +51,23 @@ export function buildFadeMaskedCanvas(
   height: number,
   crop: CropRect | undefined,
   gradientMask: GradientMask | undefined,
-  vignette: VignetteData | undefined
+  vignette: VignetteData | undefined,
+  target?: HTMLCanvasElement | null
 ): HTMLCanvasElement {
-  const canvas = document.createElement('canvas');
-  canvas.width = width;
-  canvas.height = height;
+  // `target` lets a caller that re-runs this every frame (the 3D node, whose
+  // source changes on each orbit step) hand back the canvas it got last time
+  // instead of allocating a new multi-megabyte backing store per frame.
+  // Setting width/height also clears it, which is what we want; when the size
+  // is unchanged the clear has to be explicit.
+  const canvas = target ?? document.createElement('canvas');
+  if (canvas.width !== width || canvas.height !== height) {
+    canvas.width = width;
+    canvas.height = height;
+  } else {
+    canvas.getContext('2d')!.clearRect(0, 0, width, height);
+  }
   const ctx = canvas.getContext('2d')!;
+  ctx.globalCompositeOperation = 'source-over';
   if (crop) {
     ctx.drawImage(source, crop.x, crop.y, crop.width, crop.height, 0, 0, width, height);
   } else {

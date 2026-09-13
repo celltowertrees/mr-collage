@@ -1,4 +1,4 @@
-import { CollageImage, CollageObject, CollageText, GradientMask, MaskData, VignetteData } from '../types';
+import { CollageImage, CollageModel3D, CollageObject, CollageText, GradientMask, MaskData, VignetteData } from '../types';
 import { embedGoogleFont, fontWeightFor } from '../utils/googleFonts';
 
 // ── Static HTML Export ──
@@ -376,10 +376,25 @@ async function embedFontsForObjects(textObjects: CollageText[]): Promise<string[
   return results.filter((r): r is NonNullable<typeof r> => r !== null).map((r) => r.cssRule);
 }
 
+// A 3D object is baked to a PNG before export (the live WebGL renderer can't
+// come along in a static file), which leaves it indistinguishable from an
+// image: same box, same shared effects, no mask/vignette/crop. So rather than
+// adding a third CSS path that would have to be kept in parity by hand — see
+// the contract at the top of this file — it's re-typed as a CollageImage and
+// run through renderImageNode, inheriting the already-verified shadow scaling,
+// gradient CSS, blend mode and mirror handling for free.
+function model3dAsImage(model: CollageModel3D, src: string): CollageImage {
+  /* eslint-disable @typescript-eslint/no-unused-vars */
+  const { kind: _kind, shape: _shape, rotation3D: _rotation3D, light: _light, material: _material, ...base } = model;
+  /* eslint-enable @typescript-eslint/no-unused-vars */
+  return { ...base, kind: 'image', src };
+}
+
 export async function exportToStaticHTML(
   objects: CollageObject[],
   viewport: ExportViewport,
-  naturalSizes: Record<string, { width: number; height: number }> = {}
+  naturalSizes: Record<string, { width: number; height: number }> = {},
+  modelSnapshots: Record<string, string> = {}
 ): Promise<string> {
   const visible = objects.filter((obj) => isVisibleInViewport(obj, viewport));
   const sorted = visible.sort((a, b) => a.zIndex - b.zIndex);
@@ -388,7 +403,18 @@ export async function exportToStaticHTML(
   const fontFaces = await embedFontsForObjects(textObjects);
 
   const nodes = sorted
-    .map((obj) => (obj.kind === 'text' ? renderTextNode(obj, viewport) : renderImageNode(obj, viewport, naturalSizes[obj.id])))
+    .map((obj) => {
+      if (obj.kind === 'text') return renderTextNode(obj, viewport);
+      if (obj.kind === 'model3d') {
+        const snapshot = modelSnapshots[obj.id];
+        // No snapshot means the 3D render failed (WebGL unavailable). Leave
+        // the object out entirely rather than emitting a broken <img>, the
+        // same way loadState skips an image whose blob went missing.
+        return snapshot ? renderImageNode(model3dAsImage(obj, snapshot), viewport) : '';
+      }
+      return renderImageNode(obj, viewport, naturalSizes[obj.id]);
+    })
+    .filter((markup) => markup !== '')
     .join('\n');
 
   return `<!doctype html>

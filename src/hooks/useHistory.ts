@@ -6,6 +6,13 @@ import { useCallback, useReducer, useRef } from 'react';
 // of one intermediate value at a time.
 const COALESCE_WINDOW_MS = 500;
 
+// How many undo steps to keep. Each step holds a full snapshot array, and the
+// objects in it stay reachable for as long as the step does — so without a cap
+// an image deleted an hour ago keeps its multi-megabyte data URL alive for the
+// rest of the session. Deep enough that hitting the limit in real editing is
+// unlikely, shallow enough to bound what a long session retains.
+export const MAX_HISTORY_STEPS = 100;
+
 export interface HistoryState<T> {
   past: T[];
   present: T;
@@ -30,7 +37,8 @@ export function historyReducer<T>(state: HistoryState<T>, action: HistoryAction<
           ? (action.updater as (prev: T) => T)(state.present)
           : action.updater;
       if (value === state.present) return state;
-      const past = action.coalesce ? state.past : [...state.past, state.present];
+      const grown = action.coalesce ? state.past : [...state.past, state.present];
+      const past = grown.length > MAX_HISTORY_STEPS ? grown.slice(grown.length - MAX_HISTORY_STEPS) : grown;
       return { past, present: value, future: [] };
     }
     case 'undo': {

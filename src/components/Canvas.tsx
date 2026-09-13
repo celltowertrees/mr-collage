@@ -1,11 +1,13 @@
 import { useRef, useState, useEffect, useCallback, useReducer } from 'react';
 import { Stage, Layer, Circle, Rect, Line, Transformer } from 'react-konva';
 import Konva from 'konva';
-import { CollageObject, GradientMask, MaskData, ObjectChanges, Tool } from '../types';
+import { CollageObject, GradientMask, MaskData, ObjectChanges, Rotation3D, Tool } from '../types';
 import { CollageImageNode } from './CollageImageNode';
 import { CollageTextNode } from './CollageTextNode';
+import { CollageModel3DNode } from './CollageModel3DNode';
 import { useMaskDrawer } from '../hooks/useMaskDrawer';
 import { useGradientMaskDrawer } from '../hooks/useGradientMaskDrawer';
+import { useModel3DRotator } from '../hooks/useModel3DRotator';
 
 interface CanvasProps {
   images: CollageObject[];
@@ -14,7 +16,7 @@ interface CanvasProps {
   stagePosition: { x: number; y: number };
   stageScale: number;
   onSelect: (ids: string[]) => void;
-  onUpdateImage: (id: string, changes: ObjectChanges) => void;
+  onUpdateImage: (id: string, changes: ObjectChanges, options?: { coalesce?: boolean }) => void;
   onMoveSelected: (draggedId: string, dx: number, dy: number) => void;
   onStagePositionChange: (pos: { x: number; y: number }) => void;
   onStageScaleChange: (scale: number) => void;
@@ -117,9 +119,12 @@ export function Canvas({
   const containerRef = useRef<HTMLDivElement>(null);
   const selectedImage = selectedIds.length === 1 ? images.find((img) => img.id === selectedIds[0]) ?? null : null;
   // Shape masks (unlike gradient fade) only ever apply to images — narrow
-  // here once so useMaskDrawer (typed for CollageImage) never sees a text node.
-  const selectedImageOnly = selectedImage && selectedImage.kind !== 'text' ? selectedImage : null;
+  // here once so useMaskDrawer (typed for CollageImage) never sees anything
+  // else. Checked positively: `kind !== 'text'` would silently hand each new
+  // object kind to the mask drawer as if it were an image.
+  const selectedImageOnly = selectedImage?.kind === 'image' ? selectedImage : null;
   const isMaskTool = tool.startsWith('mask-');
+  const isRotate3DTool = tool === 'rotate3d';
   const isGradientTool = tool === 'mask-gradient';
   const isCropTool = tool === 'crop';
   const isBgRectTool = tool === 'bg-rect';
@@ -238,6 +243,21 @@ export function Canvas({
     onChange: handleGradientMaskChange,
   });
 
+  // Coalesced so the whole orbit gesture collapses into one undo step, the
+  // same way a slider drag does.
+  const handleRotation3DChange = useCallback(
+    (modelId: string, rotation3D: Rotation3D) => {
+      onUpdateImage(modelId, { rotation3D }, { coalesce: true });
+    },
+    [onUpdateImage]
+  );
+
+  const model3DRotator = useModel3DRotator({
+    active: isRotate3DTool,
+    targetImage: selectedImage,
+    onChange: handleRotation3DChange,
+  });
+
   useEffect(() => {
     const handler = (e: ClipboardEvent) => onPaste(e);
     window.addEventListener('paste', handler);
@@ -307,6 +327,10 @@ export function Canvas({
 
   // MouseDown — mask/crop drawing and marquee selection all start here
   const handleStageMouseDown = useCallback((e: Konva.KonvaEventObject<MouseEvent>) => {
+    if (isRotate3DTool) {
+      model3DRotator.handleMouseDown(e);
+      return;
+    }
     if (isGradientTool) {
       gradientMaskDrawer.handleMouseDown(e);
       return;
@@ -328,9 +352,13 @@ export function Canvas({
       const pointer = stage.getPointerPosition();
       if (pointer) marqueeStartRef.current = pointer;
     }
-  }, [isGradientTool, isMaskTool, isCropTool, isBgRectTool, isSelectTool, gradientMaskDrawer, maskDrawer, onCropMouseDown, onBgRectMouseDown, stageRef]);
+  }, [isRotate3DTool, isGradientTool, isMaskTool, isCropTool, isBgRectTool, isSelectTool, model3DRotator, gradientMaskDrawer, maskDrawer, onCropMouseDown, onBgRectMouseDown, stageRef]);
 
-  const handleStageMouseMove = useCallback(() => {
+  const handleStageMouseMove = useCallback((e: Konva.KonvaEventObject<MouseEvent>) => {
+    if (isRotate3DTool) {
+      model3DRotator.handleMouseMove(e);
+      return;
+    }
     if (isGradientTool) {
       gradientMaskDrawer.handleMouseMove();
       return;
@@ -359,9 +387,13 @@ export function Canvas({
       width: Math.abs(current.x - start.x),
       height: Math.abs(current.y - start.y),
     });
-  }, [isGradientTool, isMaskTool, isCropTool, isBgRectTool, gradientMaskDrawer, maskDrawer, onCropMouseMove, onBgRectMouseMove, stageRef, toContentPoint]);
+  }, [isRotate3DTool, isGradientTool, isMaskTool, isCropTool, isBgRectTool, model3DRotator, gradientMaskDrawer, maskDrawer, onCropMouseMove, onBgRectMouseMove, stageRef, toContentPoint]);
 
   const handleStageMouseUp = useCallback(() => {
+    if (isRotate3DTool) {
+      model3DRotator.handleMouseUp();
+      return;
+    }
     if (isGradientTool) {
       gradientMaskDrawer.handleMouseUp();
       return;
@@ -409,10 +441,11 @@ export function Canvas({
 
     suppressNextClickRef.current = true;
     onSelect(overlapped);
-  }, [isGradientTool, isMaskTool, isCropTool, isBgRectTool, onCropMouseUp, onBgRectMouseUp, gradientMaskDrawer, maskDrawer, stageRef, toContentPoint, images, onSelect]);
+  }, [isRotate3DTool, isGradientTool, isMaskTool, isCropTool, isBgRectTool, model3DRotator, onCropMouseUp, onBgRectMouseUp, gradientMaskDrawer, maskDrawer, stageRef, toContentPoint, images, onSelect]);
 
   const getCursor = () => {
     if (tool === 'pan') return 'grab';
+    if (isRotate3DTool) return 'grab';
     if (isMaskTool || isCropTool || isTextTool || isBgRectTool) return 'crosshair';
     return 'default';
   };
@@ -512,64 +545,72 @@ export function Canvas({
         style={{ cursor: getCursor() }}
       >
         <Layer>
-          {sorted.map((obj) =>
-            obj.kind === 'text' ? (
-              <CollageTextNode
-                key={obj.id}
-                textObj={obj}
-                isSelected={selectedIds.includes(obj.id)}
-                tool={tool}
-                onSelect={(addToSelection) => {
-                  if (addToSelection) {
-                    const newIds = selectedIds.includes(obj.id)
-                      ? selectedIds.filter((id) => id !== obj.id)
-                      : [...selectedIds, obj.id];
-                    onSelect(newIds);
-                  } else {
-                    onSelect([obj.id]);
-                  }
-                }}
-                onChange={(changes) => onUpdateImage(obj.id, changes)}
-                onMove={(dx, dy) => {
-                  if (obj.id !== primaryDragRef.current) return;
-                  primaryDragRef.current = null;
-                  onMoveSelected(obj.id, dx, dy);
-                }}
-                onEditStart={() => onStartEditingText(obj.id)}
-                onGroupDragStart={() => handleNodeDragStart(obj.id)}
-              />
-            ) : (
+          {sorted.map((obj) => {
+            // Shared by every kind: shift-click toggles membership in the
+            // selection, a plain click replaces it.
+            const handleSelect = (addToSelection: boolean) => {
+              if (addToSelection) {
+                const newIds = selectedIds.includes(obj.id)
+                  ? selectedIds.filter((id) => id !== obj.id)
+                  : [...selectedIds, obj.id];
+                onSelect(newIds);
+              } else {
+                onSelect([obj.id]);
+              }
+            };
+            // Only the node the user actually grabbed commits the group delta;
+            // the Transformer drags the rest along and they bail out here.
+            const handleMove = (dx: number, dy: number) => {
+              if (obj.id !== primaryDragRef.current) return;
+              primaryDragRef.current = null;
+              onMoveSelected(obj.id, dx, dy);
+            };
+            // `key` is deliberately NOT part of this bag — React warns when a
+            // key is spread in rather than passed directly on the element.
+            const shared = {
+              isSelected: selectedIds.includes(obj.id),
+              tool,
+              onSelect: handleSelect,
+              onMove: handleMove,
+              onGroupDragStart: () => handleNodeDragStart(obj.id),
+            };
+
+            if (obj.kind === 'text') {
+              return (
+                <CollageTextNode
+                  key={obj.id}
+                  {...shared}
+                  textObj={obj}
+                  onChange={(changes) => onUpdateImage(obj.id, changes)}
+                  onEditStart={() => onStartEditingText(obj.id)}
+                />
+              );
+            }
+            if (obj.kind === 'model3d') {
+              return (
+                <CollageModel3DNode
+                  key={obj.id}
+                  {...shared}
+                  model={obj}
+                  onChange={(changes) => onUpdateImage(obj.id, changes)}
+                />
+              );
+            }
+            return (
               <CollageImageNode
                 key={obj.id}
+                {...shared}
                 image={obj}
-                isSelected={selectedIds.includes(obj.id)}
-                tool={tool}
-                onSelect={(addToSelection) => {
-                  if (addToSelection) {
-                    const newIds = selectedIds.includes(obj.id)
-                      ? selectedIds.filter((id) => id !== obj.id)
-                      : [...selectedIds, obj.id];
-                    onSelect(newIds);
-                  } else {
-                    onSelect([obj.id]);
-                  }
-                }}
                 onChange={(changes) => onUpdateImage(obj.id, changes)}
-                onMove={(dx, dy) => {
-                  if (obj.id !== primaryDragRef.current) return;
-                  primaryDragRef.current = null;
-                  onMoveSelected(obj.id, dx, dy);
-                }}
-                onGroupDragStart={() => handleNodeDragStart(obj.id)}
                 onNodeMount={onNodeMount}
               />
-            )
-          )}
+            );
+          })}
           <Transformer
             ref={trRef}
-            rotateEnabled={!isMaskTool && !isCropTool}
+            rotateEnabled={!isMaskTool && !isCropTool && !isRotate3DTool}
             enabledAnchors={
-              isMaskTool || isCropTool || tool === 'mask-gradient'
+              isMaskTool || isCropTool || isRotate3DTool || tool === 'mask-gradient'
                 ? []
                 : [
                     'top-left',

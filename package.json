@@ -19,6 +19,7 @@
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-konva": "^18.2.16",
+    "three": "^0.186.0",
     "uuid": "^14.0.0"
   },
   "devDependencies": {
@@ -27,6 +28,7 @@
     "@types/pngjs": "^6.0.5",
     "@types/react": "^18.2.66",
     "@types/react-dom": "^18.2.22",
+    "@types/three": "^0.186.0",
     "@types/uuid": "^10.0.0",
     "@typescript-eslint/eslint-plugin": "^7.2.0",
     "@typescript-eslint/parser": "^7.2.0",
