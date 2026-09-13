@@ -181,3 +181,25 @@ export const VignetteIcon = () => (
     <rect x="1" y="1" width="14" height="14" rx="1.5" stroke="currentColor" strokeWidth="1.5" />
   </svg>
 );
+
+export const CubeIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round">
+    <path d="M8 1.4l5.6 3v5.2L8 14.6l-5.6-3V4.4z" />
+    <path d="M2.4 4.4L8 7.5l5.6-3.1M8 7.5v7.1" />
+  </svg>
+);
+
+export const Rotate3DIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round">
+    <ellipse cx="8" cy="8" rx="6.4" ry="2.8" />
+    <ellipse cx="8" cy="8" rx="2.8" ry="6.4" />
+    <circle cx="8" cy="8" r="1.1" fill="currentColor" stroke="none" />
+  </svg>
+);
+
+export const LightIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round">
+    <circle cx="8" cy="8" r="3" />
+    <path d="M8 1v1.8M8 13.2V15M1 8h1.8M13.2 8H15M3.1 3.1l1.3 1.3M11.6 11.6l1.3 1.3M12.9 3.1l-1.3 1.3M4.4 11.6l-1.3 1.3" />
+  </svg>
+);

@@ -1,10 +1,28 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { v4 as uuidv4 } from 'uuid';
-import { CanvasState, CollageImage, CollageObject, CollageText, ObjectChanges, Tool } from '../types';
+import {
+  CanvasState,
+  CollageImage,
+  CollageModel3D,
+  CollageObject,
+  CollageText,
+  DEFAULT_LIGHT_3D,
+  DEFAULT_MATERIAL_3D,
+  DEFAULT_ROTATION_3D,
+  ObjectChanges,
+  PrimitiveShape,
+  SHAPE_LABELS,
+  Tool,
+} from '../types';
 import type { BgRect } from './useBgRectDrawer';
 import { saveState, loadState } from '../store';
 import { useHistory } from './useHistory';
 import { DEFAULT_FONT_FAMILY } from '../utils/googleFonts';
+
+// Quiet window for collapsing a burst of edits into a single save. Long
+// enough to swallow most of a gesture, short enough that a tab killed
+// mid-gesture loses at most this much of it.
+const SAVE_DEBOUNCE_MS = 400;
 
 export function useCollage() {
   const {
@@ -27,6 +45,15 @@ export function useCollage() {
   // they were scheduled — otherwise an earlier call's IndexedDB round-trip
   // could finish after a later one's and overwrite localStorage with stale data.
   const saveQueue = useRef(Promise.resolve());
+  // A continuous gesture (dragging a slider, orbiting a 3D object, holding an
+  // arrow key) pushes a new `images` array on every frame. Persisting each one
+  // is pure waste — only the state the gesture settles on matters. A leading
+  // timer collapses the whole burst into one save; `pendingSave` always holds
+  // the newest state, so nothing that lands mid-window is lost, just deferred.
+  const saveTimer = useRef<number | null>(null);
+  const pendingSave = useRef<CanvasState | null>(null);
+  const lastSaveAt = useRef(0);
+  const lastSavedIds = useRef('');
 
   useEffect(() => {
     loadState().then((saved) => {
@@ -42,13 +69,60 @@ export function useCollage() {
     });
   }, [resetImages]);
 
-  useEffect(() => {
-    if (!initialized.current) return;
-    const state: CanvasState = { images, stagePosition, stageScale };
+  // Writes whatever's pending right now, and restarts the quiet window.
+  const flushSave = useCallback(() => {
+    if (saveTimer.current !== null) {
+      clearTimeout(saveTimer.current);
+      saveTimer.current = null;
+    }
+    const state = pendingSave.current;
+    if (!state) return;
+    pendingSave.current = null;
+    lastSaveAt.current = Date.now();
     saveQueue.current = saveQueue.current.then(() =>
       saveState(state).catch((err) => console.warn('Save failed:', err))
     );
-  }, [images, stagePosition, stageScale]);
+  }, []);
+
+  useEffect(() => {
+    if (!initialized.current) return;
+    pendingSave.current = { images, stagePosition, stageScale };
+
+    // Which objects exist is a structural change — adding, deleting,
+    // duplicating, or an undo that does any of those. Those are discrete and
+    // infrequent, and something the user would be alarmed to lose, so they
+    // never wait behind the window. Everything else is a mutation of objects
+    // that already exist, which is where continuous gestures live.
+    const ids = images.map((obj) => obj.id).join(',');
+    const structural = ids !== lastSavedIds.current;
+    lastSavedIds.current = ids;
+    if (structural) {
+      flushSave();
+      return;
+    }
+
+    // A trailing save is already booked — this change will ride along with it.
+    if (saveTimer.current !== null) return;
+    const sinceLast = Date.now() - lastSaveAt.current;
+    // Leading edge: the first mutation after a quiet spell persists straight
+    // away, so the stored state is never stale while the user sits idle. Only
+    // a change arriving during an already-active window gets deferred, which
+    // is exactly the continuous-gesture case worth collapsing.
+    if (sinceLast >= SAVE_DEBOUNCE_MS) {
+      flushSave();
+      return;
+    }
+    saveTimer.current = window.setTimeout(flushSave, SAVE_DEBOUNCE_MS - sinceLast);
+  }, [images, stagePosition, stageScale, flushSave]);
+
+  // Don't strand the tail of a gesture behind an unfired timer.
+  useEffect(() => {
+    window.addEventListener('pagehide', flushSave);
+    return () => {
+      window.removeEventListener('pagehide', flushSave);
+      flushSave();
+    };
+  }, [flushSave]);
 
   const addImage = useCallback((src: string, name: string, naturalWidth: number, naturalHeight: number) => {
     const id = uuidv4();
@@ -70,6 +144,32 @@ export function useCollage() {
       name,
     };
     setImages((prev) => [...prev, img]);
+    setSelectedIds([id]);
+  }, [stagePosition, stageScale, setImages]);
+
+  // 3D objects are procedural, so unlike addImage there's no natural pixel
+  // size to fit — the box is fixed and scale starts at 1.
+  const addModel3D = useCallback((shape: PrimitiveShape) => {
+    const id = uuidv4();
+    const model: CollageModel3D = {
+      kind: 'model3d',
+      id,
+      shape,
+      x: (-stagePosition.x + window.innerWidth / 2) / stageScale,
+      y: (-stagePosition.y + window.innerHeight / 2) / stageScale,
+      width: 360,
+      height: 360,
+      rotation: 0,
+      scaleX: 1,
+      scaleY: 1,
+      opacity: 1,
+      zIndex: nextZIndex.current++,
+      name: SHAPE_LABELS[shape],
+      rotation3D: { ...DEFAULT_ROTATION_3D },
+      light: { ...DEFAULT_LIGHT_3D },
+      material: { ...DEFAULT_MATERIAL_3D },
+    };
+    setImages((prev) => [...prev, model]);
     setSelectedIds([id]);
   }, [stagePosition, stageScale, setImages]);
 
@@ -212,6 +312,7 @@ export function useCollage() {
     addImage,
     addBackground,
     addText,
+    addModel3D,
     updateImage,
     moveImages,
     nudgeImages,

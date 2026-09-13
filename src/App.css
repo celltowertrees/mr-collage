@@ -743,3 +743,19 @@ details[open] .sticker-key-summary::before {
   white-space: nowrap;
   margin-left: 4px;
 }
+
+/* Shape picker reuses the blend-mode popup's look; only the width differs. */
+.shape-picker-popup {
+  min-width: 116px;
+}
+
+.toolbar-number {
+  width: 52px;
+  padding: 2px 4px;
+  border: 1px solid var(--btn-border);
+  border-radius: 6px;
+  background: var(--btn-bg);
+  color: var(--btn-text);
+  font-family: var(--toolbar-font);
+  font-size: 11px;
+}

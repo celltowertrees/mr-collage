@@ -500,3 +500,109 @@ Feature: Effect Parity for Text Objects
     When the user exports the collage as ICP JSON or static HTML
     Then those effects are included in the exported data and reproduced in the exported HTML, the same as for images
 ```
+
+### 3D Objects on the Canvas
+- **Requested:** 2026-09-12
+- **Ask:** Add any 3D object to the canvas, rotate it in 3 dimensions and control directional lighting — functionally like an image or sticker, except it's a 3D object. (Scoped to a built-in primitive library for this cut; the object model leaves room for imported `.glb`/`.gltf` shapes later without a data migration.)
+
+```gherkin
+Feature: 3D Objects on the Canvas
+  # src/types.ts, src/utils/model3dRenderer.ts, src/components/CollageModel3DNode.tsx, src/hooks/useModel3DRotator.ts, src/components/Canvas.tsx, src/components/Toolbar.tsx, src/hooks/useCollage.ts, src/App.tsx, src/store/persistence.ts, src/store/exportICP.ts, src/store/exportHTML.ts — tested in src/__tests__/model3d.test.ts, e2e/model-3d.spec.ts
+
+  Scenario: Place a 3D primitive on the canvas
+    Given the canvas is open
+    When the user picks a shape from the 3D object menu
+    Then a lit 3D object of that shape appears at the viewport center, already turned off-axis so it reads as three-dimensional, and is selected
+
+  Scenario: Orbit a 3D object in three dimensions
+    Given a 3D object is selected and the 3D Rotate tool is active
+    When the user drags across the canvas
+    Then the object yaws with horizontal movement and pitches with vertical movement, and rolls instead of yawing while Shift is held
+
+  Scenario: Type an exact orientation
+    Given a 3D object is selected
+    When the user types a value into the X, Y, or Z rotation field
+    Then the object turns to exactly that angle
+
+  Scenario: A whole orbit drag is a single undo step
+    Given the user has just orbited a 3D object
+    When the user presses Ctrl+Z once
+    Then the object returns to the orientation it had before the drag began, not one increment at a time
+
+  Scenario: Control the directional light and surface
+    Given a 3D object is selected
+    When the user adjusts the light's azimuth, elevation, intensity, color or ambient fill, or the surface's color, metalness or roughness
+    Then the object's shading updates to match
+
+  Scenario: A 3D object behaves like any other object
+    Given a 3D object is on the canvas
+    Then it can be dragged, resized, rotated in the canvas plane, reordered, duplicated, deleted, nudged, marquee-selected, faded with a gradient, blended, flipped, and given a drop shadow that follows its silhouette — the same as an image
+
+  Scenario: Shape mask, vignette, and crop remain image-only
+    Given a 3D object is selected
+    Then the Circle/Rectangle/Polygon Mask tools, the Vignette control, and the Crop tool are not offered for it
+
+  Scenario: A posed 3D object survives a reload
+    Given a 3D object has been posed, lit, and given a surface
+    When the app is reloaded
+    Then the object comes back with the same shape, orientation, lighting, and material
+
+  Scenario: Export includes 3D object data
+    Given a 3D object is on the canvas
+    When the user exports the collage as ICP JSON
+    Then the object's shape, 3-axis rotation, lighting, and material are included
+
+  Scenario: Static HTML export bakes the 3D object to an image
+    Given a 3D object is on the canvas
+    When the user exports HTML
+    Then the object is rendered once and embedded as a self-contained image at its viewport-relative position, with its opacity, stacking order, shadow, and blend mode preserved
+
+  Scenario: 3D objects degrade gracefully without WebGL
+    Given the browser cannot provide a WebGL context
+    When a 3D object is placed or loaded
+    Then it renders as an outline placeholder that can still be selected, moved, adjusted and deleted, nothing throws, and the HTML export omits it rather than emitting a broken image
+```
+
+### Cheap Incremental Saves
+- **Requested:** 2026-09-13
+- **Ask:** Performance isn't great — fix it, from a DevTools trace of ordinary editing.
+
+```gherkin
+Feature: Cheap Incremental Saves
+  # src/store/db.ts, src/store/persistence.ts, src/hooks/useCollage.ts, src/utils/model3dRenderer.ts, src/components/Toolbar.tsx — tested in src/__tests__/persistenceCost.test.ts
+
+  Scenario: Adjusting an existing object doesn't rewrite its image data
+    Given images are already on the canvas and saved
+    When the user changes only metadata — dragging a slider, moving, rotating, restyling
+    Then no image blob is written again; only the metadata is re-saved
+
+  Scenario: A newly added image writes its blob once
+    Given images are already on the canvas and saved
+    When the user adds one more image
+    Then exactly one blob is written, not one per image on the canvas
+
+  Scenario: Saving reuses a single database connection
+    Given the collage has been saved at least once
+    When it is saved again
+    Then no new database connection is opened
+
+  Scenario: An undone deletion gets its image data back
+    Given an image was deleted and its blob pruned from storage
+    When the deletion is undone and the collage saved
+    Then the image's blob is written again, and it reloads intact rather than being skipped as missing
+
+  Scenario: A continuous gesture is saved once, not once per frame
+    Given the user is dragging a slider or orbiting a 3D object
+    When the gesture produces many intermediate states in quick succession
+    Then the states collapse into a small number of saves, and the state the gesture settles on is the one persisted
+
+  Scenario: Adding or removing an object is saved immediately
+    Given the user adds, duplicates, or deletes an object
+    When that change lands
+    Then it is persisted right away rather than waiting behind the gesture window
+
+  Scenario: Placing the first 3D object doesn't freeze the canvas
+    Given no 3D object has been rendered yet this session
+    When the user opens the 3D object menu and picks a shape
+    Then the WebGL setup cost is paid while the menu is open, so the click that places the object stays responsive
+```
