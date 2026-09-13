@@ -118,10 +118,27 @@ export interface DirectionalLightData {
   ambient: number;
 }
 
+// Procedural patterns, drawn in code rather than stored — they cost nothing to
+// persist and nothing to load, which is why they're offered alongside uploaded
+// images rather than only the latter.
+export const TEXTURE_PRESETS = ['checker', 'grid', 'stripes', 'dots', 'noise', 'brushed'] as const;
+
+export type TexturePreset = (typeof TEXTURE_PRESETS)[number];
+
+// `repeat` tiles the pattern across the surface. An uploaded texture carries
+// its own image data, so — like a CollageImage's `src` — it lives in
+// IndexedDB rather than localStorage (see store/persistence.ts).
+export type Model3DTexture =
+  | { source: 'preset'; preset: TexturePreset; repeat: number }
+  | { source: 'image'; src: string; repeat: number };
+
 export interface Model3DMaterial {
   color: string;
   metalness: number;
   roughness: number;
+  // Multiplied by `color`, so the colour swatch tints whatever texture is on
+  // the surface rather than being replaced by it.
+  texture?: Model3DTexture;
 }
 
 // Shared by object creation (useCollage) and the toolbar's reset controls so

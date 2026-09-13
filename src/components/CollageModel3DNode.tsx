@@ -1,4 +1,4 @@
-import { useRef, useMemo } from 'react';
+import { useRef, useState, useEffect, useLayoutEffect } from 'react';
 import { Image as KonvaImage, Group, Rect } from 'react-konva';
 import Konva from 'konva';
 import { CollageModel3D, Tool } from '../types';
@@ -17,26 +17,73 @@ interface Props {
 
 export function CollageModel3DNode({ model, tool, onSelect, onChange, onMove, onGroupDragStart }: Props) {
   const groupRef = useRef<Konva.Group>(null);
+  const imageRef = useRef<Konva.Image>(null);
   const dragStartRef = useRef({ x: model.x, y: model.y });
 
   const { shape, rotation3D, light, material, width, height } = model;
-
-  // Re-rendering produces a *new* canvas element every time, which is what
-  // tells React (and through it Konva) that the KonvaImage's bitmap changed.
-  // Unlike an image node there's nothing async here, so no onNodeMount signal
-  // is needed — the group is on the stage from the first render.
-  const rendered = useMemo(
-    () => renderModelToCanvas({ shape, rotation3D, light, material }, width, height),
-    [shape, rotation3D, light, material, width, height]
-  );
-
-  // Gradient fade rides on exactly the same helper images and text use — the
-  // rendered 3D frame is just another CanvasImageSource to fade.
   const gradientMask = model.gradientMask;
-  const source = useMemo(() => {
-    if (!rendered || !gradientMask) return rendered;
-    return buildFadeMaskedCanvas(rendered, width, height, undefined, gradientMask, undefined);
-  }, [rendered, gradientMask, width, height]);
+
+  // An uploaded texture has to be decoded before three can upload it, and that
+  // is async — so it's loaded here, where a re-render can follow it, and the
+  // renderer stays synchronous. A preset needs none of this.
+  const textureSrc = material.texture?.source === 'image' ? material.texture.src : null;
+  const [textureImage, setTextureImage] = useState<HTMLImageElement | null>(null);
+  useEffect(() => {
+    if (!textureSrc) {
+      setTextureImage(null);
+      return;
+    }
+    let cancelled = false;
+    const element = new window.Image();
+    element.onload = () => { if (!cancelled) setTextureImage(element); };
+    element.src = textureSrc;
+    return () => { cancelled = true; };
+  }, [textureSrc]);
+
+  // Both canvases are owned by this node and redrawn in place. Allocating
+  // fresh ones per frame is what made orbiting expensive — see the note in
+  // renderModelToCanvas. The trade-off is that React can no longer notice the
+  // bitmap changed by identity, so the repaint is driven by hand below.
+  const renderRef = useRef<HTMLCanvasElement | null>(null);
+  const fadeRef = useRef<HTMLCanvasElement | null>(null);
+  const [surface, setSurface] = useState<HTMLCanvasElement | null>(null);
+
+  useLayoutEffect(() => {
+    const rendered = renderModelToCanvas(
+      { shape, rotation3D, light, material, textureImage },
+      width,
+      height,
+      renderRef.current
+    );
+    renderRef.current = rendered;
+
+    let next = rendered;
+    if (rendered && gradientMask) {
+      next = buildFadeMaskedCanvas(
+        rendered,
+        width,
+        height,
+        undefined,
+        gradientMask,
+        undefined,
+        fadeRef.current
+      );
+      fadeRef.current = next;
+    }
+
+    if (next !== surface) {
+      // First render, or the node switched between the plain and faded canvas
+      // — a new element on the prop is enough for Konva to pick it up.
+      setSurface(next);
+    } else {
+      // Same element, new pixels. Konva has no way to know, so say so.
+      imageRef.current?.getLayer()?.batchDraw();
+    }
+    // `surface` is deliberately not a dependency: it's an output of this
+    // effect, and including it would run the whole render a second time
+    // for every change just to compare the result against itself.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [shape, rotation3D, light, material, textureImage, width, height, gradientMask]);
 
   const shadow = model.shadow;
   const shadowActive = shadow?.enabled ?? false;
@@ -92,9 +139,10 @@ export function CollageModel3DNode({ model, tool, onSelect, onChange, onMove, on
         });
       }}
     >
-      {source ? (
+      {surface ? (
         <KonvaImage
-          image={source}
+          ref={imageRef}
+          image={surface}
           width={model.width}
           height={model.height}
           opacity={model.opacity}

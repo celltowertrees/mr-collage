@@ -601,8 +601,85 @@ Feature: Cheap Incremental Saves
     When that change lands
     Then it is persisted right away rather than waiting behind the gesture window
 
+  Scenario: Interacting with a 3D object doesn't allocate a canvas per frame
+    Given a 3D object is on the canvas
+    When the user orbits it, producing a re-render on every frame
+    Then the object is redrawn into the canvas it already owns, rather than a new one being allocated and discarded each frame
+
   Scenario: Placing the first 3D object doesn't freeze the canvas
     Given no 3D object has been rendered yet this session
     When the user opens the 3D object menu and picks a shape
     Then the WebGL setup cost is paid while the menu is open, so the click that places the object stays responsive
+```
+
+### Bounded Undo History
+- **Requested:** 2026-09-13
+- **Ask:** The app is taking up a lot of memory.
+
+```gherkin
+Feature: Bounded Undo History
+  # src/hooks/useHistory.ts — tested in src/__tests__/history.test.ts
+
+  Scenario: The undo stack has a fixed depth
+    Given the user has made more changes than the history limit
+    When another change is made
+    Then the oldest undo steps are dropped and the most recent ones are still undoable
+
+  Scenario: Aged-out steps stop retaining their contents
+    Given an image was deleted long enough ago that its undo step has aged out
+    Then nothing in the history still refers to that image, so its data can be reclaimed
+```
+
+### Colour and Texture on 3D Objects
+- **Requested:** 2026-09-13
+- **Ask:** I want to set the color and texture of the object.
+
+```gherkin
+Feature: Colour and Texture on 3D Objects
+  # src/types.ts, src/utils/texturePatterns.ts, src/utils/textureImage.ts, src/utils/model3dRenderer.ts, src/components/CollageModel3DNode.tsx, src/components/Toolbar.tsx, src/store/persistence.ts, src/App.tsx — tested in src/__tests__/model3d.test.ts, e2e/model-3d.spec.ts
+
+  Scenario: Apply a built-in pattern
+    Given a 3D object is selected
+    When the user picks a texture (checker, grid, stripes, dots, noise, or brushed) from the Texture menu
+    Then the pattern is wrapped onto the object's surface
+
+  Scenario: Wrap your own image onto an object
+    Given a 3D object is selected
+    When the user chooses "Upload Image" from the Texture menu and picks an image
+    Then that image becomes the object's surface, downscaled so a large photo doesn't become a large texture
+
+  Scenario: Colour tints whatever is on the surface
+    Given a 3D object has a texture applied
+    When the user changes the colour swatch
+    Then the texture is tinted by that colour rather than replaced by it
+
+  Scenario: Adjust how often the texture repeats
+    Given a 3D object has a texture applied
+    When the user adjusts the Tiling slider
+    Then the pattern repeats that many times across the surface
+
+  Scenario: Clear a texture
+    Given a 3D object has a texture applied
+    When the user picks "None" from the Texture menu
+    Then the object returns to a plain coloured surface
+
+  Scenario: A built-in pattern costs nothing to store
+    Given a 3D object uses one of the built-in patterns
+    When the collage is saved
+    Then the pattern is recorded by name alone, with no image data written
+
+  Scenario: An uploaded texture is stored like any other image
+    Given a 3D object uses an uploaded texture
+    When the collage is saved
+    Then the texture's pixels go to IndexedDB and stay out of the localStorage metadata, and reloading restores them
+
+  Scenario: A lost texture costs the surface, not the object
+    Given a 3D object's uploaded texture is missing from storage
+    When the app loads
+    Then the object still appears with its colour and settings, just untextured
+
+  Scenario: Exports carry the texture
+    Given a 3D object has a texture applied
+    When the user exports as ICP JSON or static HTML
+    Then the texture is included in the JSON, and the baked HTML image shows the textured surface
 ```

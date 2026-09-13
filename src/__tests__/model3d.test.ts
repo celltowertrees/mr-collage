@@ -169,3 +169,60 @@ describe('3D object persistence', () => {
     expect(loaded?.images[0]).toEqual(model);
   });
 });
+
+// Maps to CLAUDE.md → "Colour and Texture on 3D Objects"
+describe('3D object textures', () => {
+  it('keeps a preset texture entirely in metadata, with no blob stored', async () => {
+    const model = makeModel({
+      material: { color: '#ffffff', metalness: 0, roughness: 1, texture: { source: 'preset', preset: 'checker', repeat: 3 } },
+    });
+    await saveState({ images: [model], stagePosition: { x: 0, y: 0 }, stageScale: 1 });
+
+    expect(await idbAllKeys()).toEqual([]);
+    const loaded = await loadState();
+    expect(loaded?.images[0]).toEqual(model);
+  });
+
+  it('stores an uploaded texture as a blob, out of localStorage', async () => {
+    const src = `data:image/png;base64,${'A'.repeat(4096)}`;
+    const model = makeModel({
+      material: { color: '#ffffff', metalness: 0, roughness: 1, texture: { source: 'image', src, repeat: 1 } },
+    });
+    await saveState({ images: [model], stagePosition: { x: 0, y: 0 }, stageScale: 1 });
+
+    expect(await idbAllKeys()).toEqual(['model-1']);
+    expect(localStorage.getItem('mr-collage-state')).not.toContain('AAAA');
+
+    const loaded = await loadState();
+    expect(loaded?.images[0]).toEqual(model);
+  });
+
+  it('keeps the object, minus its texture, when the texture blob is gone', async () => {
+    const src = `data:image/png;base64,${'A'.repeat(64)}`;
+    const model = makeModel({
+      material: { color: '#abcdef', metalness: 0.2, roughness: 0.8, texture: { source: 'image', src, repeat: 2 } },
+    });
+    await saveState({ images: [model], stagePosition: { x: 0, y: 0 }, stageScale: 1 });
+
+    // Wipe the blob store, leaving the metadata behind.
+    globalThis.indexedDB = new IDBFactory();
+
+    const loaded = await loadState();
+    expect(loaded?.images).toHaveLength(1);
+    const restored = loaded?.images[0] as CollageModel3D;
+    expect(restored.material.texture).toBeUndefined();
+    expect(restored.material.color).toBe('#abcdef');
+  });
+
+  it('includes the texture in the ICP export', () => {
+    const model = makeModel({
+      material: { color: '#ffffff', metalness: 0, roughness: 1, texture: { source: 'preset', preset: 'grid', repeat: 4 } },
+    });
+    const result = exportToICP([model]) as unknown as {
+      'infinite-canvas': { nodes: { data: Record<string, unknown> }[] };
+    };
+    expect(result['infinite-canvas'].nodes[0].data.material).toMatchObject({
+      texture: { source: 'preset', preset: 'grid', repeat: 4 },
+    });
+  });
+});

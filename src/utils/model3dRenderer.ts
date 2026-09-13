@@ -1,6 +1,7 @@
 import {
   AmbientLight,
   BoxGeometry,
+  CanvasTexture,
   BufferGeometry,
   ConeGeometry,
   CylinderGeometry,
@@ -10,12 +11,15 @@ import {
   MeshStandardMaterial,
   PerspectiveCamera,
   Scene,
+  RepeatWrapping,
   SphereGeometry,
+  Texture,
   TorusGeometry,
   TorusKnotGeometry,
   WebGLRenderer,
 } from 'three';
-import { DirectionalLightData, Model3DMaterial, PrimitiveShape, Rotation3D } from '../types';
+import { DirectionalLightData, Model3DMaterial, PrimitiveShape, Rotation3D, TexturePreset } from '../types';
+import { presetTextureCanvas } from './texturePatterns';
 
 // ── 3D object rasterizer ──
 // Konva draws through Canvas 2D, so a WebGL render can't be handed to it
@@ -46,6 +50,11 @@ export interface Model3DSpec {
   rotation3D: Rotation3D;
   light: DirectionalLightData;
   material: Model3DMaterial;
+  // Decoded bitmap for an uploaded texture. Loading it is async, which belongs
+  // in the component that can re-render when it arrives, so the renderer is
+  // handed an already-loaded element (or null while it's still loading) and
+  // stays synchronous.
+  textureImage?: HTMLImageElement | null;
 }
 
 /**
@@ -67,6 +76,49 @@ export function lightDirection(azimuth: number, elevation: number): { x: number;
     y: Math.sin(e),
     z: horizontal * Math.cos(a),
   };
+}
+
+// Presets are few and fixed, so they're cached outright. Uploaded textures are
+// keyed by the decoded element's identity — cheap to hash, unlike the
+// multi-megabyte data URL — and capped, disposing whatever falls out so GPU
+// memory stays bounded no matter how many textures a session cycles through.
+const MAX_IMAGE_TEXTURES = 8;
+const presetTextures = new Map<TexturePreset, Texture>();
+const imageTextures = new Map<HTMLImageElement, Texture>();
+
+function resolveTexture(spec: Model3DSpec): Texture | null {
+  const descriptor = spec.material.texture;
+  if (!descriptor) return null;
+
+  let texture: Texture | undefined;
+  if (descriptor.source === 'preset') {
+    texture = presetTextures.get(descriptor.preset);
+    if (!texture) {
+      const canvas = presetTextureCanvas(descriptor.preset);
+      if (!canvas) return null;
+      texture = new CanvasTexture(canvas);
+      presetTextures.set(descriptor.preset, texture);
+    }
+  } else {
+    const image = spec.textureImage;
+    if (!image) return null;          // still decoding; render untextured for now
+    texture = imageTextures.get(image);
+    if (!texture) {
+      texture = new Texture(image);
+      texture.needsUpdate = true;
+      imageTextures.set(image, texture);
+      while (imageTextures.size > MAX_IMAGE_TEXTURES) {
+        const oldest = imageTextures.keys().next().value as HTMLImageElement;
+        imageTextures.get(oldest)?.dispose();
+        imageTextures.delete(oldest);
+      }
+    }
+  }
+
+  texture.wrapS = RepeatWrapping;
+  texture.wrapT = RepeatWrapping;
+  texture.repeat.set(descriptor.repeat, descriptor.repeat);
+  return texture;
 }
 
 function buildGeometry(shape: PrimitiveShape): BufferGeometry {
@@ -146,7 +198,8 @@ function getContext(): RenderContext | null {
 export function renderModelToCanvas(
   spec: Model3DSpec,
   width: number,
-  height: number
+  height: number,
+  target?: HTMLCanvasElement | null
 ): HTMLCanvasElement | null {
   const ctx = getContext();
   if (!ctx || width <= 0 || height <= 0) return null;
@@ -180,6 +233,15 @@ export function renderModelToCanvas(
   mesh.material.metalness = spec.material.metalness;
   mesh.material.roughness = spec.material.roughness;
 
+  // Gaining or losing a map DOES change the compiled shader, so unlike the
+  // plain uniforms above this one has to flag the material — but only when the
+  // map actually changes, not on every frame of an orbit.
+  const texture = resolveTexture(spec);
+  if (mesh.material.map !== texture) {
+    mesh.material.map = texture;
+    mesh.material.needsUpdate = true;
+  }
+
   const dir = lightDirection(spec.light.azimuth, spec.light.elevation);
   key.position.set(dir.x, dir.y, dir.z);
   key.color.set(spec.light.color);
@@ -199,11 +261,20 @@ export function renderModelToCanvas(
 
   // Copy out immediately, in the same tick as the render, so the next
   // object's render can safely reuse the shared framebuffer.
-  const out = document.createElement('canvas');
-  out.width = renderWidth;
-  out.height = renderHeight;
+  //
+  // `target` is the canvas this node was given last frame. Reusing it matters
+  // a lot: an orbit drag re-renders ~60 times a second, and allocating a fresh
+  // 720x720 canvas each time churned ~120MB/s of backing store (measured) —
+  // memory that lives outside the JS heap, so it shows up as process growth
+  // rather than as heap.
+  const out = target ?? document.createElement('canvas');
+  if (out.width !== renderWidth || out.height !== renderHeight) {
+    out.width = renderWidth;
+    out.height = renderHeight;
+  }
   const out2d = out.getContext('2d');
   if (!out2d) return null;
+  out2d.clearRect(0, 0, renderWidth, renderHeight);
   out2d.drawImage(renderer.domElement, 0, 0, renderWidth, renderHeight);
   return out;
 }

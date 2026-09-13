@@ -12,7 +12,7 @@ import { analyzeImages, generateBackgroundFromPrompt, type VisionDetail, type Bg
 import { localToStage } from './utils/geometry';
 import { exportToICP, exportToStaticHTML } from './store';
 import { renderModelToDataURL } from './utils/model3dRenderer';
-import { CollageImage, CollageText } from './types';
+import { CollageImage, CollageModel3D, CollageText } from './types';
 import './App.css';
 
 const API_KEY_STORAGE_KEY = 'mr-collage-openai-key';
@@ -402,15 +402,44 @@ function App() {
     // A static file can't carry the live WebGL renderer, so each 3D object is
     // rendered once here and embedded as a PNG — the same pre-pass shape as
     // naturalSizes above.
+    const models = images.filter((obj): obj is CollageModel3D => obj.kind === 'model3d');
+
+    // An uploaded texture has to be decoded before it can be baked in, and the
+    // live node's copy isn't reachable from here — so load them up front, the
+    // same pre-pass shape as naturalSizes above. A texture that won't decode
+    // just bakes the object untextured rather than failing the export.
+    const textureImages = new Map<string, HTMLImageElement>();
+    await Promise.all(
+      models
+        .filter((model) => model.material.texture?.source === 'image')
+        .map(
+          (model) =>
+            new Promise<void>((resolve) => {
+              const el = new window.Image();
+              el.onload = () => {
+                textureImages.set(model.id, el);
+                resolve();
+              };
+              el.onerror = () => resolve();
+              el.src = (model.material.texture as { src: string }).src;
+            })
+        )
+    );
+
     const modelSnapshots: Record<string, string> = {};
-    for (const obj of images) {
-      if (obj.kind !== 'model3d') continue;
+    for (const model of models) {
       const snapshot = renderModelToDataURL(
-        { shape: obj.shape, rotation3D: obj.rotation3D, light: obj.light, material: obj.material },
-        obj.width,
-        obj.height
+        {
+          shape: model.shape,
+          rotation3D: model.rotation3D,
+          light: model.light,
+          material: model.material,
+          textureImage: textureImages.get(model.id) ?? null,
+        },
+        model.width,
+        model.height
       );
-      if (snapshot) modelSnapshots[obj.id] = snapshot;
+      if (snapshot) modelSnapshots[model.id] = snapshot;
     }
 
     const html = await exportToStaticHTML(

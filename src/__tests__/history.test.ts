@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createHistoryState, historyReducer } from '../hooks/useHistory';
+import { MAX_HISTORY_STEPS, createHistoryState, historyReducer } from '../hooks/useHistory';
 
 // Maps to CLAUDE.md → "Undo/Redo History"
 describe('historyReducer', () => {
@@ -78,5 +78,32 @@ describe('historyReducer', () => {
     expect(state.present).toBe(42);
     expect(state.past).toEqual([]);
     expect(state.future).toEqual([]);
+  });
+});
+
+// Maps to CLAUDE.md → "Bounded Undo History"
+describe('historyReducer memory bounds', () => {
+  it('keeps the undo stack to a fixed depth, dropping the oldest steps', () => {
+    let state = createHistoryState(0);
+    for (let i = 1; i <= MAX_HISTORY_STEPS + 50; i++) {
+      state = historyReducer(state, { type: 'set', updater: i, coalesce: false });
+    }
+    expect(state.past.length).toBe(MAX_HISTORY_STEPS);
+    // The most recent steps survive; the oldest are gone.
+    expect(state.past[state.past.length - 1]).toBe(MAX_HISTORY_STEPS + 49);
+    expect(state.past[0]).toBe(50);
+  });
+
+  it('stops referencing objects that fell off the end of the undo stack', () => {
+    // Stands in for a deleted image: once its step ages out, nothing in the
+    // history should still be holding the payload alive.
+    const deleted = { id: 'gone', src: 'x'.repeat(64) };
+    let state = createHistoryState<Array<{ id: string; src: string }>>([deleted]);
+    for (let i = 0; i < MAX_HISTORY_STEPS + 5; i++) {
+      state = historyReducer(state, { type: 'set', updater: [], coalesce: false });
+      state = historyReducer(state, { type: 'set', updater: [{ id: String(i), src: 'y' }], coalesce: false });
+    }
+    const stillReferenced = state.past.some((step) => step.some((o) => o === deleted));
+    expect(stillReferenced).toBe(false);
   });
 });

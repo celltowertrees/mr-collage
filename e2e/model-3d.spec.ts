@@ -1,5 +1,7 @@
 import { test, expect, type Page } from '@playwright/test';
 
+const FIXTURE = 'e2e/fixtures/orange-square.png';
+
 function readState(page: Page) {
   return page.evaluate(() => JSON.parse(localStorage.getItem('mr-collage-state') ?? '{}'));
 }
@@ -179,5 +181,102 @@ test.describe('3D Objects on the Canvas', () => {
 
     await page.getByTitle('Delete').click();
     await expect.poll(async () => (await readState(page)).images.length).toBe(1);
+  });
+
+  // Maps to CLAUDE.md → "Colour and Texture on 3D Objects"
+  test('a preset texture can be applied, tiled, and cleared', async ({ page }) => {
+    await addShape(page, 'Cube');
+    const surface = page.locator('.toolbar-section', { has: page.getByTitle('Texture') });
+
+    await expect(page.getByTitle('Texture')).toHaveText('No Texture');
+    await page.getByTitle('Texture').click();
+    await page.getByRole('menuitem', { name: 'Checker', exact: true }).click();
+
+    await expect.poll(async () => (await lastObject(page)).material.texture?.preset).toBe('checker');
+    await expect(page.getByTitle('Texture')).toHaveText('Checker');
+
+    await surface.getByLabel('Tiling').fill('6');
+    await expect.poll(async () => (await lastObject(page)).material.texture?.repeat).toBe(6);
+
+    await page.getByTitle('Texture').click();
+    await page.getByRole('menuitem', { name: 'None', exact: true }).click();
+    await expect.poll(async () => (await lastObject(page)).material.texture).toBeUndefined();
+  });
+
+  test('the colour swatch tints the object independently of its texture', async ({ page }) => {
+    await addShape(page, 'Sphere');
+    const surface = page.locator('.toolbar-section', { has: page.getByTitle('Texture') });
+
+    await surface.getByLabel('Colour').fill('#ff0000');
+    await expect.poll(async () => (await lastObject(page)).material.color).toBe('#ff0000');
+
+    await page.getByTitle('Texture').click();
+    await page.getByRole('menuitem', { name: 'Stripes', exact: true }).click();
+    await expect.poll(async () => (await lastObject(page)).material.texture?.preset).toBe('stripes');
+    // Applying a texture leaves the colour alone — they compose.
+    expect((await lastObject(page)).material.color).toBe('#ff0000');
+  });
+
+  test('an uploaded texture survives a reload', async ({ page }) => {
+    await addShape(page, 'Cube');
+    await page.getByTitle('Texture').click();
+    await page.getByLabel('Texture image').setInputFiles(FIXTURE);
+
+    await expect.poll(async () => (await lastObject(page)).material.texture?.source).toBe('image');
+    // The pixels belong in IndexedDB, not in the localStorage metadata.
+    const raw = await page.evaluate(() => localStorage.getItem('mr-collage-state') ?? '');
+    expect(raw).not.toContain('data:image');
+
+    await page.reload();
+    await expect.poll(async () => (await lastObject(page))?.material?.texture?.source).toBe('image');
+
+    // The metadata above proves the setting survived; the pixels live in
+    // IndexedDB under the object's id, so check they came back too.
+    const id = (await lastObject(page)).id;
+    const blob = await page.evaluate(
+      (key) =>
+        new Promise<string | undefined>((resolve) => {
+          const open = indexedDB.open('mr-collage-db');
+          open.onsuccess = () => {
+            const req = open.result.transaction('images', 'readonly').objectStore('images').get(key);
+            req.onsuccess = () => resolve(req.result as string | undefined);
+            req.onerror = () => resolve(undefined);
+          };
+          open.onerror = () => resolve(undefined);
+        }),
+      id
+    );
+    expect(blob).toContain('data:image');
+  });
+
+  // Maps to CLAUDE.md → "Cheap Incremental Saves": orbiting used to allocate a
+  // fresh multi-megabyte canvas every frame.
+  test('orbiting redraws in place instead of allocating a canvas per frame', async ({ page }) => {
+    await page.addInitScript(() => {
+      (window as unknown as { __canvases: number }).__canvases = 0;
+      const create = Document.prototype.createElement;
+      Document.prototype.createElement = function (tag: string, ...rest: unknown[]) {
+        if (String(tag).toLowerCase() === 'canvas') {
+          (window as unknown as { __canvases: number }).__canvases++;
+        }
+        return create.call(this, tag, ...(rest as []));
+      } as typeof Document.prototype.createElement;
+    });
+    await page.reload();
+
+    const center = await addShape(page, 'Torus Knot');
+    await page.getByTitle('3D Rotate (R)').click();
+    const before = await page.evaluate(() => (window as unknown as { __canvases: number }).__canvases);
+
+    await page.mouse.move(center.x, center.y);
+    await page.mouse.down();
+    await page.mouse.move(center.x + 300, center.y + 120, { steps: 40 });
+    await page.mouse.up();
+
+    await expect.poll(async () => (await lastObject(page)).rotation3D.y).not.toBe(30);
+    const after = await page.evaluate(() => (window as unknown as { __canvases: number }).__canvases);
+
+    // A couple of stray allocations would be tolerable; one per frame is not.
+    expect(after - before).toBeLessThan(5);
   });
 });

@@ -8,16 +8,20 @@ import {
   DirectionalLightData,
   Model3DMaterial,
   ObjectChanges,
+  Model3DTexture,
   PRIMITIVE_SHAPES,
   PrimitiveShape,
   SHAPE_LABELS,
   ShadowData,
+  TEXTURE_PRESETS,
+  TexturePreset,
   Tool,
   VignetteData,
 } from '../types';
 import type { VisionDetail } from '../utils/generateBackground';
 import { GOOGLE_FONTS } from '../utils/googleFonts';
 import { warmUpModelRenderer } from '../utils/model3dRenderer';
+import { fileToTextureDataURL } from '../utils/textureImage';
 import {
   SelectIcon, PanIcon, TextToolIcon,
   BoldIcon, ItalicIcon, UnderlineIcon,
@@ -43,6 +47,17 @@ const DEFAULT_VIGNETTE: VignetteData = {
   enabled: true,
   innerRadius: 0.5,
   outerRadius: 1,
+};
+
+const TEXTURE_LABELS: Record<TexturePreset | 'none' | 'image', string> = {
+  none: 'No Texture',
+  checker: 'Checker',
+  grid: 'Grid',
+  stripes: 'Stripes',
+  dots: 'Dots',
+  noise: 'Noise',
+  brushed: 'Brushed',
+  image: 'Custom Image',
 };
 
 function formatBlendModeLabel(mode: BlendMode): string {
@@ -245,6 +260,28 @@ export function Toolbar({
     return () => document.removeEventListener('mousedown', handleOutsideClick);
   }, [shapeMenuPos]);
 
+  const [textureMenuPos, setTextureMenuPos] = useState<{ top: number; left: number } | null>(null);
+  const textureMenuRef = useRef<HTMLDivElement>(null);
+  const textureButtonRef = useRef<HTMLButtonElement>(null);
+  const textureFileRef = useRef<HTMLInputElement>(null);
+  const [textureError, setTextureError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!textureMenuPos) return;
+    const handleOutsideClick = (e: MouseEvent) => {
+      const target = e.target as Node;
+      if (
+        textureMenuRef.current &&
+        !textureMenuRef.current.contains(target) &&
+        !textureButtonRef.current?.contains(target)
+      ) {
+        setTextureMenuPos(null);
+      }
+    };
+    document.addEventListener('mousedown', handleOutsideClick);
+    return () => document.removeEventListener('mousedown', handleOutsideClick);
+  }, [textureMenuPos]);
+
   // Orientation, lighting and material are all continuous adjustments, so they
   // coalesce into a single undo step the same way the opacity and shadow
   // sliders do.
@@ -261,6 +298,26 @@ export function Toolbar({
   const updateMaterial = (changes: Partial<Model3DMaterial>) => {
     if (!model) return;
     onUpdateImage(model.id, { material: { ...model.material, ...changes } }, { coalesce: true });
+  };
+
+  // Choosing a texture is discrete, so it gets its own undo step rather than
+  // coalescing into whatever slider was last touched.
+  const setTexture = (texture: Model3DTexture | undefined) => {
+    if (!model) return;
+    onUpdateImage(model.id, { material: { ...model.material, texture } });
+    setTextureMenuPos(null);
+  };
+
+  const handleTextureFile = async (file: File | undefined) => {
+    if (!file || !model) return;
+    try {
+      const src = await fileToTextureDataURL(file);
+      setTextureError(null);
+      setTexture({ source: 'image', src, repeat: model.material.texture?.repeat ?? 1 });
+    } catch (err) {
+      setTextureError(err instanceof Error ? err.message : 'Could not load that texture.');
+      setTextureMenuPos(null);
+    }
   };
 
   const shadow = selectedImage?.shadow;
@@ -633,13 +690,112 @@ export function Toolbar({
 
               <div className="toolbar-section">
                 <label className="toolbar-field">
-                  <span>Surface</span>
+                  <span>Colour</span>
                   <input
                     type="color"
                     value={model.material.color}
                     onChange={(e) => updateMaterial({ color: e.target.value })}
                   />
                 </label>
+
+                <div className="blend-mode-field">
+                  <ToolButton
+                    ref={textureButtonRef}
+                    onClick={() => {
+                      if (textureMenuPos) {
+                        setTextureMenuPos(null);
+                        return;
+                      }
+                      const rect = textureButtonRef.current?.getBoundingClientRect();
+                      if (rect) setTextureMenuPos({ top: rect.bottom + 6, left: rect.left });
+                    }}
+                    title="Texture"
+                    active={!!textureMenuPos}
+                    className="export-btn"
+                  >
+                    {TEXTURE_LABELS[model.material.texture?.source === 'preset'
+                      ? model.material.texture.preset
+                      : model.material.texture
+                        ? 'image'
+                        : 'none']}
+                  </ToolButton>
+                  {textureMenuPos && (
+                    <div
+                      ref={textureMenuRef}
+                      className="blend-mode-popup shape-picker-popup"
+                      role="menu"
+                      style={{ top: textureMenuPos.top, left: textureMenuPos.left }}
+                    >
+                      <button
+                        role="menuitem"
+                        className={`blend-mode-option ${model.material.texture ? '' : 'active'}`}
+                        onClick={() => setTexture(undefined)}
+                      >
+                        None
+                      </button>
+                      {TEXTURE_PRESETS.map((preset) => (
+                        <button
+                          key={preset}
+                          role="menuitem"
+                          className={`blend-mode-option ${
+                            model.material.texture?.source === 'preset' &&
+                            model.material.texture.preset === preset
+                              ? 'active'
+                              : ''
+                          }`}
+                          onClick={() =>
+                            setTexture({
+                              source: 'preset',
+                              preset,
+                              repeat: model.material.texture?.repeat ?? 2,
+                            })
+                          }
+                        >
+                          {TEXTURE_LABELS[preset]}
+                        </button>
+                      ))}
+                      <button
+                        role="menuitem"
+                        className={`blend-mode-option ${
+                          model.material.texture?.source === 'image' ? 'active' : ''
+                        }`}
+                        onClick={() => textureFileRef.current?.click()}
+                      >
+                        Upload Image…
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                <input
+                  ref={textureFileRef}
+                  type="file"
+                  accept="image/*"
+                  aria-label="Texture image"
+                  style={{ display: 'none' }}
+                  onChange={(e) => {
+                    void handleTextureFile(e.target.files?.[0]);
+                    e.target.value = '';
+                  }}
+                />
+
+                {model.material.texture && (
+                  <SliderField
+                    label="Tiling"
+                    min={1}
+                    max={12}
+                    step={1}
+                    value={model.material.texture.repeat}
+                    display={`${model.material.texture.repeat}\u00d7`}
+                    onChange={(value) =>
+                      updateMaterial({
+                        texture: { ...model.material.texture!, repeat: value },
+                      })
+                    }
+                  />
+                )}
+
+                {textureError && <span className="mask-hint">{textureError}</span>}
                 <SliderField
                   label="Metalness"
                   min={0}
