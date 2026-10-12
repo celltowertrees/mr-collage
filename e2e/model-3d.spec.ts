@@ -83,18 +83,6 @@ test.describe('3D Objects on the Canvas', () => {
     await expect.poll(async () => (await lastObject(page)).rotation3D.y).toBe(rolled.rotation3D.y);
   });
 
-  test('typing an exact angle turns the object to it', async ({ page }) => {
-    await addShape(page, 'Torus');
-
-    await page.getByLabel('Rot X').fill('45');
-    await page.getByLabel('Rot X').blur();
-    await expect.poll(async () => (await lastObject(page)).rotation3D.x).toBe(45);
-
-    await page.getByLabel('Rot Z').fill('-90');
-    await page.getByLabel('Rot Z').blur();
-    await expect.poll(async () => (await lastObject(page)).rotation3D.z).toBe(-90);
-  });
-
   test('a whole orbit drag is a single undo step', async ({ page }) => {
     const center = await addShape(page, 'Cube');
     const before = { rotation3D: await settledRotation(page) };
@@ -157,9 +145,19 @@ test.describe('3D Objects on the Canvas', () => {
   });
 
   test('a posed 3D object survives a reload', async ({ page }) => {
-    await addShape(page, 'Icosahedron');
-    await page.getByLabel('Rot Y').fill('137');
-    await page.getByLabel('Rot Y').blur();
+    const center = await addShape(page, 'Icosahedron');
+
+    // Pose it by grabbing the yaw ring, snapping to a round angle so the
+    // exact value can be asserted after the reload. The ring sits 104px right
+    // of a fresh object's centre — see e2e/model-3d-gizmo.spec.ts.
+    await page.keyboard.down('Shift');
+    await page.mouse.move(center.x + 104, center.y);
+    await page.mouse.down();
+    await page.mouse.move(center.x + 104 + 200, center.y, { steps: 10 });
+    await page.mouse.up();
+    await page.keyboard.up('Shift');
+    await expect.poll(async () => (await lastObject(page)).rotation3D.y).toBe(135);
+
     await page.getByLabel('Azimuth').fill('275');
     await expect.poll(async () => (await lastObject(page)).light.azimuth).toBe(275);
 
@@ -168,7 +166,7 @@ test.describe('3D Objects on the Canvas', () => {
     await expect.poll(async () => (await lastObject(page))?.kind).toBe('model3d');
     const obj = await lastObject(page);
     expect(obj.shape).toBe('icosahedron');
-    expect(obj.rotation3D.y).toBe(137);
+    expect(obj.rotation3D.y).toBe(135);
     expect(obj.light.azimuth).toBe(275);
   });
 

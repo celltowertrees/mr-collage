@@ -519,11 +519,6 @@ Feature: 3D Objects on the Canvas
     When the user drags across the canvas
     Then the object yaws with horizontal movement and pitches with vertical movement, and rolls instead of yawing while Shift is held
 
-  Scenario: Type an exact orientation
-    Given a 3D object is selected
-    When the user types a value into the X, Y, or Z rotation field
-    Then the object turns to exactly that angle
-
   Scenario: A whole orbit drag is a single undo step
     Given the user has just orbited a 3D object
     When the user presses Ctrl+Z once
@@ -682,6 +677,72 @@ Feature: Colour and Texture on 3D Objects
     Given a 3D object has a texture applied
     When the user exports as ICP JSON or static HTML
     Then the texture is included in the JSON, and the baked HTML image shows the textured surface
+```
+
+### Legible Toolbar Popup Menus
+- **Requested:** 2026-09-13
+- **Ask:** I can't see anything in the 3d shape selector dropdown.
+
+```gherkin
+Feature: Legible Toolbar Popup Menus
+  # src/theme.css, src/App.css — tested in e2e/toolbar-popups.spec.ts
+
+  Scenario: The 3D shape menu is readable against the canvas
+    Given the canvas is open
+    When the user opens the 3D object menu
+    Then the menu is drawn on an opaque panel whose colour clearly contrasts with its option labels, rather than as invisible text floating over the canvas
+
+  Scenario: Every toolbar popup shares that panel
+    Given an object is selected
+    When the user opens the Blend Mode or Texture menu
+    Then those menus are drawn on the same opaque, readable panel
+
+  Scenario: Menu options still pick their value
+    Given a toolbar popup is open
+    When the user clicks an option
+    Then that option is applied and the menu closes
+```
+
+### On-Object 3D Rotation Gizmo
+- **Requested:** 2026-09-13
+- **Ask:** The rotation settings for the shape object are unwieldy — show them as standard interactive elements on the object itself that can be grabbed and rotated. (This replaces the toolbar's X/Y/Z number fields; Shift-snapping takes over from typing an exact angle.)
+
+```gherkin
+Feature: On-Object 3D Rotation Gizmo
+  # src/components/Model3DRotationGizmo.tsx, src/components/Canvas.tsx, src/components/Toolbar.tsx — tested in e2e/model-3d-gizmo.spec.ts
+
+  Scenario: Rotation rings sit on the selected 3D object
+    Given a 3D object is selected
+    Then three coloured rings are drawn over it — a flat horizontal one for yaw, a flat vertical one for pitch, and an outer circle for roll — each clear of the resize handles
+
+  Scenario: Grab a ring to turn that one axis
+    Given a 3D object is selected
+    When the user drags the yaw, pitch, or roll ring
+    Then the object turns about only that axis, and the other two angles are left alone
+
+  Scenario: The roll ring winds the object around with the pointer
+    Given a 3D object is selected
+    When the user drags the outer ring a quarter turn around the object's centre
+    Then the object rolls by about a quarter turn, following the pointer's angle rather than its distance
+
+  Scenario: Hold Shift to land on an exact angle
+    Given the user is dragging a rotation ring
+    When Shift is held
+    Then the angle snaps to 15 degree steps
+
+  Scenario: A whole ring drag is a single undo step
+    Given the user has just dragged a rotation ring
+    When the user presses Ctrl+Z once
+    Then the object returns to the orientation it had before the drag began
+
+  Scenario: A ring turns the object without moving or deselecting it
+    Given a 3D object is selected
+    When the user drags a ring and releases over empty canvas
+    Then the object's position is unchanged and it stays selected, with its rings and toolbar controls still on screen
+
+  Scenario: The rings are only offered for 3D objects
+    Given the selected object is an image or a text object
+    Then no rotation rings are drawn and dragging on empty canvas marquee-selects as usual
 ```
 
 ### Lossless ICP JSON Export

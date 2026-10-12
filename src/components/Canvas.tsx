@@ -5,6 +5,7 @@ import { CollageObject, GradientMask, MaskData, ObjectChanges, Rotation3D, Tool 
 import { CollageImageNode } from './CollageImageNode';
 import { CollageTextNode } from './CollageTextNode';
 import { CollageModel3DNode } from './CollageModel3DNode';
+import { Model3DRotationGizmo } from './Model3DRotationGizmo';
 import { useMaskDrawer } from '../hooks/useMaskDrawer';
 import { useGradientMaskDrawer } from '../hooks/useGradientMaskDrawer';
 import { useModel3DRotator } from '../hooks/useModel3DRotator';
@@ -130,6 +131,12 @@ export function Canvas({
   const isBgRectTool = tool === 'bg-rect';
   const isSelectTool = tool === 'select';
   const isTextTool = tool === 'text';
+
+  // The rotation gizmo is drawn on a single selected 3D object, and only in
+  // the modes where grabbing it makes sense — while panning, or mid mask or
+  // gradient drag, it would just be three more things in the way.
+  const selectedModel3D =
+    selectedImage?.kind === 'model3d' && (isSelectTool || isRotate3DTool) ? selectedImage : null;
 
   const marqueeStartRef = useRef<{ x: number; y: number } | null>(null);
   const [marqueeRect, setMarqueeRect] = useState<MarqueeRect | null>(null);
@@ -628,6 +635,17 @@ export function Canvas({
               return newBox;
             }}
           />
+          {selectedModel3D && (
+            <Model3DRotationGizmo
+              model={selectedModel3D}
+              stageScale={stageScale}
+              stageRef={stageRef}
+              onChange={handleRotation3DChange}
+              onGestureStart={() => {
+                suppressNextClickRef.current = true;
+              }}
+            />
+          )}
           {renderPreview()}
           {gradientPreviewLine && (
             <Line name="gradient-preview" points={gradientPreviewLine.points} {...GRADIENT_LINE_STYLE} />
