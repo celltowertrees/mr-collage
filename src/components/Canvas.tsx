@@ -17,7 +17,7 @@ interface CanvasProps {
   stagePosition: { x: number; y: number };
   stageScale: number;
   onSelect: (ids: string[]) => void;
-  onUpdateImage: (id: string, changes: ObjectChanges, options?: { coalesce?: boolean }) => void;
+  onUpdateImage: (id: string, changes: ObjectChanges, options?: { coalesce?: boolean; amend?: boolean }) => void;
   onMoveSelected: (draggedId: string, dx: number, dy: number) => void;
   onStagePositionChange: (pos: { x: number; y: number }) => void;
   onStageScaleChange: (scale: number) => void;
@@ -588,7 +588,7 @@ export function Canvas({
                   key={obj.id}
                   {...shared}
                   textObj={obj}
-                  onChange={(changes) => onUpdateImage(obj.id, changes)}
+                  onChange={(changes, options) => onUpdateImage(obj.id, changes, options)}
                   onEditStart={() => onStartEditingText(obj.id)}
                 />
               );

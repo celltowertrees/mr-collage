@@ -773,3 +773,57 @@ Feature: Lossless ICP JSON Export
     When the user exports ICP JSON
     Then the file includes the current pan position and zoom level
 ```
+
+### Import a Collage from ICP JSON
+- **Requested:** 2026-10-12
+- **Ask:** Import a collage from an ICP JSON file, being prompted to either add it to or replace the current canvas.
+
+```gherkin
+Feature: Import a Collage from ICP JSON
+  # src/store/importICP.ts, src/hooks/useCollage.ts, src/hooks/useHistory.ts, src/components/ImportDialog.tsx, src/components/CollageTextNode.tsx, src/components/Canvas.tsx, src/components/Toolbar.tsx, src/App.tsx, src/App.css — tested in src/__tests__/importICP.test.ts, src/__tests__/history.test.ts, e2e/import-json.spec.ts
+
+  Scenario: Import onto an empty canvas
+    Given the canvas is empty
+    When the user clicks "Import" and picks an ICP JSON file
+    Then the file's objects and its pan and zoom are loaded straight away, with no prompt
+
+  Scenario: Choose to add to or replace the current canvas
+    Given the canvas already has objects on it
+    When the user picks an ICP JSON file to import
+    Then a dialog asks whether to add the file's objects to the canvas, replace the canvas with them, or cancel
+
+  Scenario: Add to Canvas
+    Given the import dialog is open
+    When the user clicks "Add to Canvas"
+    Then the existing objects stay, and the imported ones are added on top of them, keeping their own stacking order, and selected
+
+  Scenario: Replace Canvas
+    Given the import dialog is open
+    When the user clicks "Replace Canvas"
+    Then the existing objects are swapped for the file's, and the view moves to the file's saved pan and zoom
+
+  Scenario: Cancel an import
+    Given the import dialog is open
+    When the user clicks "Cancel" (or presses Escape)
+    Then the canvas is unchanged
+
+  Scenario: An import is undone in a single step
+    Given the user has just imported a file
+    When the user presses Ctrl+Z once
+    Then the canvas returns to how it was before the import, even if an imported text object resized itself once its font loaded
+
+  Scenario: An exported collage round-trips
+    Given a collage was exported with "Export JSON"
+    When that file is imported
+    Then every object comes back identical, with its own new id and its image data stored, so it survives a reload
+
+  Scenario: Older files still import
+    Given an ICP JSON file from before scale was exported separately
+    When it is imported
+    Then each object takes its exported size at a scale of 1
+
+  Scenario: An unreadable file is rejected
+    Given a file that isn't valid JSON, isn't an ICP export, or has an object the app can't rebuild
+    When the user tries to import it
+    Then an error explains what's wrong, and the canvas is unchanged
+```

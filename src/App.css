@@ -759,3 +759,73 @@ details[open] .sticker-key-summary::before {
   font-family: var(--toolbar-font);
   font-size: 11px;
 }
+
+/* ── Import dialog ── */
+.import-dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(0, 0, 0, 0.45);
+}
+
+.import-dialog {
+  width: 100%;
+  max-width: 420px;
+  padding: 20px;
+  background: var(--popup-bg);
+  border: 1px solid var(--popup-border);
+  border-radius: 10px;
+  box-shadow: var(--popup-shadow);
+  color: var(--popup-text);
+}
+
+.import-dialog-title {
+  margin: 0 0 8px;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.import-dialog-body {
+  margin: 0 0 18px;
+  font-size: 14px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.import-dialog-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.import-dialog-actions button {
+  padding: 7px 14px;
+  border-radius: 6px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.import-dialog-secondary {
+  background: transparent;
+  border: 1px solid var(--popup-border);
+  color: var(--popup-text);
+}
+
+.import-dialog-secondary:hover {
+  background: var(--popup-hover);
+}
+
+.import-dialog-primary {
+  background: var(--accent);
+  border: 1px solid var(--accent-border);
+  color: var(--accent-text);
+}
+
+.import-dialog-primary:hover {
+  background: var(--accent-hover);
+}

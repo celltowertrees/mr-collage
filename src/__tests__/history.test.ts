@@ -107,3 +107,30 @@ describe('historyReducer memory bounds', () => {
     expect(stillReferenced).toBe(false);
   });
 });
+
+// Maps to CLAUDE.md → "Import a Collage from ICP JSON" → "An import is undone
+// in a single step". Some updates aren't user actions — a text object syncing
+// its stored size to what it measured once its font loaded — and must not
+// cost the user an undo step of their own.
+describe('historyReducer amend', () => {
+  it('folds a derived update into the current step instead of adding one', () => {
+    let state = createHistoryState(0);
+    state = historyReducer(state, { type: 'set', updater: 1, coalesce: false });
+    state = historyReducer(state, { type: 'amend', updater: 2 });
+    expect(state.present).toBe(2);
+
+    state = historyReducer(state, { type: 'undo' });
+    expect(state.present).toBe(0);
+  });
+
+  it('leaves the redo stack intact', () => {
+    let state = createHistoryState(0);
+    state = historyReducer(state, { type: 'set', updater: 1, coalesce: false });
+    state = historyReducer(state, { type: 'undo' });
+    state = historyReducer(state, { type: 'amend', updater: (n: number) => n + 10 });
+    expect(state.present).toBe(10);
+
+    state = historyReducer(state, { type: 'redo' });
+    expect(state.present).toBe(1);
+  });
+});

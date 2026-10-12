@@ -21,6 +21,7 @@ export interface HistoryState<T> {
 
 export type HistoryAction<T> =
   | { type: 'set'; updater: T | ((prev: T) => T); coalesce: boolean }
+  | { type: 'amend'; updater: T | ((prev: T) => T) }
   | { type: 'undo' }
   | { type: 'redo' }
   | { type: 'reset'; value: T };
@@ -40,6 +41,17 @@ export function historyReducer<T>(state: HistoryState<T>, action: HistoryAction<
       const grown = action.coalesce ? state.past : [...state.past, state.present];
       const past = grown.length > MAX_HISTORY_STEPS ? grown.slice(grown.length - MAX_HISTORY_STEPS) : grown;
       return { past, present: value, future: [] };
+    }
+    // Rewrites the present in place: no step is added and the redo stack
+    // survives. For updates the app derives on its own rather than ones the
+    // user made, which would otherwise each eat a Ctrl+Z.
+    case 'amend': {
+      const value =
+        typeof action.updater === 'function'
+          ? (action.updater as (prev: T) => T)(state.present)
+          : action.updater;
+      if (value === state.present) return state;
+      return { ...state, present: value };
     }
     case 'undo': {
       if (state.past.length === 0) return state;
@@ -77,7 +89,11 @@ export function useHistory<T>(initial: T) {
   // recently — for continuous input (e.g. dragging a slider), not discrete
   // actions (add/delete/drag-end), which must always be their own undo step
   // regardless of how close together they land in time.
-  const set = useCallback((updater: T | ((prev: T) => T), options?: { coalesce?: boolean }) => {
+  const set = useCallback((updater: T | ((prev: T) => T), options?: { coalesce?: boolean; amend?: boolean }) => {
+    if (options?.amend) {
+      dispatch({ type: 'amend', updater });
+      return;
+    }
     const requestCoalesce = options?.coalesce ?? false;
     const now = Date.now();
     const coalesce =
