@@ -1,9 +1,23 @@
 import { CollageObject } from '../types';
 
-export function exportToICP(objects: CollageObject[]): object {
+export interface ICPViewport {
+  stagePosition: { x: number; y: number };
+  stageScale: number;
+}
+
+// Lossless: every CollageObject field is written somewhere, so a file can be
+// rebuilt into an identical collage. `size` stays the displayed size for
+// readers that only care what's on screen; `baseSize` and `scale` carry the
+// two halves separately because dividing them back apart isn't exact in
+// floating point. Shadow and vignette are kept even while switched off so
+// their settings survive.
+export function exportToICP(objects: CollageObject[], viewport?: ICPViewport): object {
   return {
     "infinite-canvas": {
-      version: "0.1",
+      version: "0.2",
+      ...(viewport
+        ? { viewport: { position: viewport.stagePosition, scale: viewport.stageScale } }
+        : {}),
       nodes: objects.map((obj) => {
         const base = {
           id: obj.id,
@@ -12,9 +26,19 @@ export function exportToICP(objects: CollageObject[]): object {
             width: obj.width * obj.scaleX,
             height: obj.height * obj.scaleY,
           },
+          baseSize: { width: obj.width, height: obj.height },
+          scale: { x: obj.scaleX, y: obj.scaleY },
           rotation: obj.rotation,
           opacity: obj.opacity,
           zIndex: obj.zIndex,
+        };
+
+        const effects = {
+          ...(obj.gradientMask ? { gradientMask: obj.gradientMask } : {}),
+          ...(obj.shadow ? { shadow: obj.shadow } : {}),
+          ...(obj.blendMode ? { blendMode: obj.blendMode } : {}),
+          ...(obj.flipX ? { flipX: obj.flipX } : {}),
+          ...(obj.flipY ? { flipY: obj.flipY } : {}),
         };
 
         if (obj.kind === 'text') {
@@ -30,11 +54,7 @@ export function exportToICP(objects: CollageObject[]): object {
               italic: obj.italic,
               underline: obj.underline,
               color: obj.color,
-              ...(obj.gradientMask ? { gradientMask: obj.gradientMask } : {}),
-              ...(obj.shadow?.enabled ? { shadow: obj.shadow } : {}),
-              ...(obj.blendMode ? { blendMode: obj.blendMode } : {}),
-              ...(obj.flipX ? { flipX: obj.flipX } : {}),
-              ...(obj.flipY ? { flipY: obj.flipY } : {}),
+              ...effects,
             },
           };
         }
@@ -49,11 +69,7 @@ export function exportToICP(objects: CollageObject[]): object {
               rotation3D: obj.rotation3D,
               light: obj.light,
               material: obj.material,
-              ...(obj.gradientMask ? { gradientMask: obj.gradientMask } : {}),
-              ...(obj.shadow?.enabled ? { shadow: obj.shadow } : {}),
-              ...(obj.blendMode ? { blendMode: obj.blendMode } : {}),
-              ...(obj.flipX ? { flipX: obj.flipX } : {}),
-              ...(obj.flipY ? { flipY: obj.flipY } : {}),
+              ...effects,
             },
           };
         }
@@ -65,13 +81,9 @@ export function exportToICP(objects: CollageObject[]): object {
             src: obj.src,
             name: obj.name,
             ...(obj.mask ? { mask: obj.mask } : {}),
-            ...(obj.gradientMask ? { gradientMask: obj.gradientMask } : {}),
-            ...(obj.vignette?.enabled ? { vignette: obj.vignette } : {}),
-            ...(obj.shadow?.enabled ? { shadow: obj.shadow } : {}),
-            ...(obj.blendMode ? { blendMode: obj.blendMode } : {}),
+            ...(obj.vignette ? { vignette: obj.vignette } : {}),
             ...(obj.crop ? { crop: obj.crop } : {}),
-            ...(obj.flipX ? { flipX: obj.flipX } : {}),
-            ...(obj.flipY ? { flipY: obj.flipY } : {}),
+            ...effects,
           },
         };
       }),

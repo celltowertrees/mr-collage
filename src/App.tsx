@@ -367,7 +367,7 @@ function App() {
   }, [images]);
 
   const handleExportJSON = useCallback(() => {
-    const data = exportToICP(images);
+    const data = exportToICP(images, { stagePosition, stageScale });
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
@@ -375,7 +375,7 @@ function App() {
     link.href = url;
     link.click();
     URL.revokeObjectURL(url);
-  }, [images]);
+  }, [images, stagePosition, stageScale]);
 
   const handleExportHTML = useCallback(async () => {
     const stage = stageRef.current;

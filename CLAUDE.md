@@ -683,3 +683,32 @@ Feature: Colour and Texture on 3D Objects
     When the user exports as ICP JSON or static HTML
     Then the texture is included in the JSON, and the baked HTML image shows the textured surface
 ```
+
+### Lossless ICP JSON Export
+- **Requested:** 2026-10-12
+- **Ask:** The JSON export absolutely should include scale information, as well as every other field it was missing, so a file could be re-imported into an identical collage.
+
+```gherkin
+Feature: Lossless ICP JSON Export
+  # src/store/exportICP.ts, src/App.tsx — tested in src/__tests__/exportICPLossless.test.ts, src/__tests__/store.test.ts
+
+  Scenario: Scale is exported separately from size
+    Given an object has been resized so its scale is not 1
+    When the user exports the collage as ICP JSON
+    Then each node carries its unscaled size and its X/Y scale as well as its displayed size
+
+  Scenario: Switched-off effects keep their settings
+    Given an image's drop shadow or vignette has been configured and then switched off
+    When the user exports ICP JSON
+    Then the shadow or vignette settings are still included, with their enabled flag off
+
+  Scenario: Every object rebuilds identically from its node
+    Given an image, a text object, and a 3D object with every property set (including an uploaded texture)
+    When the user exports ICP JSON
+    Then each object can be rebuilt from its exported node, field for field, with nothing lost
+
+  Scenario: The viewport is exported
+    Given the canvas has been panned and zoomed
+    When the user exports ICP JSON
+    Then the file includes the current pan position and zoom level
+```

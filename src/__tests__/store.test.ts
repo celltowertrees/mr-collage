@@ -71,7 +71,7 @@ describe('exportToICP', () => {
     expect(unmaskedNode.data.mask).toBeUndefined();
   });
 
-  it('includes shadow data only when the shadow is enabled', () => {
+  it('includes shadow settings whenever set, keeping the enabled flag', () => {
     const enabled = makeImage({
       id: 'img-enabled',
       shadow: { enabled: true, color: '#000', blur: 10, offsetX: 5, offsetY: 5, opacity: 0.5 },
@@ -85,7 +85,7 @@ describe('exportToICP', () => {
     const [enabledNode, disabledNode] = result['infinite-canvas'].nodes;
 
     expect(enabledNode.data.shadow).toEqual(enabled.shadow);
-    expect(disabledNode.data.shadow).toBeUndefined();
+    expect(disabledNode.data.shadow).toEqual(disabled.shadow);
   });
 });
 
