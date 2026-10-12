@@ -32,6 +32,17 @@
   --btn-bevel-light: transparent;
   --btn-bevel-dark: transparent;
 
+  /* ── Popup menus ── */
+  /* Popups float over the white canvas, not over the toolbar, so they need a
+     surface of their own — the button tokens above are deliberately
+     transparent so buttons sit flush in the toolbar, and a menu borrowing
+     them ends up as white text on nothing. */
+  --popup-bg: #232323;
+  --popup-border: rgba(255, 255, 255, 0.20);
+  --popup-text: #f2f2f2;
+  --popup-hover: rgba(255, 255, 255, 0.14);
+  --popup-shadow: 0 8px 28px rgba(0, 0, 0, 0.45);
+
   /* ── Accent / Danger ── */
   --accent: linear-gradient(305deg, #ff9810, #ff4410);
   --accent-hover: linear-gradient(305deg, #ffaa33, #ff5c26);
