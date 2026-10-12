@@ -10,7 +10,7 @@ interface Props {
   isSelected: boolean;
   tool: Tool;
   onSelect: (addToSelection: boolean) => void;
-  onChange: (changes: Partial<CollageText>) => void;
+  onChange: (changes: Partial<CollageText>, options?: { amend?: boolean }) => void;
   onMove: (dx: number, dy: number) => void;
   onEditStart: () => void;
   onGroupDragStart?: () => void;
@@ -73,7 +73,9 @@ export function CollageTextNode({ textObj, tool, onSelect, onChange, onMove, onE
       measuredHeight > 0 &&
       (measuredWidth !== textObj.width || measuredHeight !== textObj.height)
     ) {
-      onChange({ width: measuredWidth, height: measuredHeight });
+      // A derived sync, not an edit — amend the current undo step rather than
+      // adding one, or Ctrl+Z would first just undo the measurement.
+      onChange({ width: measuredWidth, height: measuredHeight }, { amend: true });
     }
     // fontReady is a signal to re-measure once the real font has loaded, not
     // a value read inside the effect.

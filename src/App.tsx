@@ -4,13 +4,14 @@ import { Canvas } from './components/Canvas';
 import { Toolbar } from './components/Toolbar';
 import { TextEditOverlay } from './components/TextEditOverlay';
 import { StickerGenerator } from './components/StickerGenerator';
+import { ImportChoiceDialog, ImportErrorDialog } from './components/ImportDialog';
 import { useCollage } from './hooks/useCollage';
 import { useImageLoader } from './hooks/useImageLoader';
 import { useCropDrawer } from './hooks/useCropDrawer';
 import { useBgRectDrawer, type BgRect } from './hooks/useBgRectDrawer';
 import { analyzeImages, generateBackgroundFromPrompt, type VisionDetail, type BgProgressEvent } from './utils/generateBackground';
 import { localToStage } from './utils/geometry';
-import { exportToICP, exportToStaticHTML } from './store';
+import { exportToICP, exportToStaticHTML, parseICP, ICPImportError, type ParsedICP } from './store';
 import { renderModelToDataURL } from './utils/model3dRenderer';
 import { CollageImage, CollageModel3D, CollageText } from './types';
 import './App.css';
@@ -122,6 +123,7 @@ function App() {
     bringToFront,
     sendToBack,
     duplicateImage,
+    importObjects,
     undo,
     redo,
     canUndo,
@@ -132,6 +134,8 @@ function App() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [editingTextId, setEditingTextId] = useState<string | null>(null);
   const [stickerGeneratorOpen, setStickerGeneratorOpen] = useState(false);
+  const [pendingImport, setPendingImport] = useState<(ParsedICP & { fileName: string }) | null>(null);
+  const [importError, setImportError] = useState<string | null>(null);
   const [bgLoading, setBgLoading] = useState<BgRect | null>(null);
   const [bgProgress, setBgProgress] = useState<BgProgressEvent | null>(null);
   const bgStartedAtRef = useRef<number>(0);
@@ -377,6 +381,48 @@ function App() {
     URL.revokeObjectURL(url);
   }, [images, stagePosition, stageScale]);
 
+  // The picker is a detached <input>, not one rendered into the page: the
+  // image upload input is the page's only file input, and keeping it that way
+  // keeps it unambiguous.
+  const handleImportJSON = useCallback(() => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'application/json,.json';
+    input.onchange = async () => {
+      const file = input.files?.[0];
+      if (!file) return;
+      try {
+        const parsed = parseICP(await file.text());
+        if (parsed.objects.length === 0) {
+          setImportError(`${file.name} doesn't contain any objects.`);
+        } else if (images.length === 0) {
+          // Nothing on the canvas to keep, so there's nothing to ask about.
+          importObjects(parsed.objects, 'replace', parsed.viewport);
+        } else {
+          setPendingImport({ ...parsed, fileName: file.name });
+        }
+      } catch (err) {
+        setImportError(
+          err instanceof ICPImportError ? err.message : `Couldn't read ${file.name}.`
+        );
+      }
+    };
+    input.click();
+  }, [images.length, importObjects]);
+
+  const handleImportChoice = useCallback(
+    (mode: 'add' | 'replace') => {
+      if (!pendingImport) return;
+      importObjects(pendingImport.objects, mode, pendingImport.viewport);
+      setPendingImport(null);
+    },
+    [pendingImport, importObjects]
+  );
+  const handleImportAdd = useCallback(() => handleImportChoice('add'), [handleImportChoice]);
+  const handleImportReplace = useCallback(() => handleImportChoice('replace'), [handleImportChoice]);
+  const handleImportCancel = useCallback(() => setPendingImport(null), []);
+  const handleImportErrorClose = useCallback(() => setImportError(null), []);
+
   const handleExportHTML = useCallback(async () => {
     const stage = stageRef.current;
     if (!stage || images.length === 0) return;
@@ -464,6 +510,9 @@ function App() {
       // undo/typing/Escape handling — let all of that through untouched
       // rather than hijacking it with app-level shortcuts below.
       if (e.target instanceof HTMLTextAreaElement) return;
+      // A modal dialog owns the keyboard while it's open — Backspace or an
+      // arrow key there shouldn't reach the canvas behind it.
+      if (document.querySelector('[aria-modal="true"]')) return;
 
       // Undo/redo bypasses the input-element guard below: sliders/color
       // pickers keep focus after a drag — the most common moment a user
@@ -599,6 +648,7 @@ function App() {
         onExportJPEG={handleExportJPEG}
         onExportJSON={handleExportJSON}
         onExportHTML={handleExportHTML}
+        onImportJSON={handleImportJSON}
         hasPendingCrop={cropDrawer.committedRect !== null}
         onApplyCrop={applyCrop}
         onCancelCrop={cancelCrop}
@@ -669,6 +719,16 @@ function App() {
           <button className="bg-error-dismiss" onClick={() => setBgError(null)}>✕</button>
         </div>
       )}
+      {pendingImport && (
+        <ImportChoiceDialog
+          fileName={pendingImport.fileName}
+          objectCount={pendingImport.objects.length}
+          onAdd={handleImportAdd}
+          onReplace={handleImportReplace}
+          onCancel={handleImportCancel}
+        />
+      )}
+      {importError && <ImportErrorDialog message={importError} onClose={handleImportErrorClose} />}
       {images.length === 0 && (
         <div className="empty-state">
           <p>Drop images here, paste from clipboard, or click upload</p>

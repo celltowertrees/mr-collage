@@ -147,6 +147,7 @@ interface ToolbarProps {
   onExportJPEG: () => void;
   onExportJSON: () => void;
   onExportHTML: () => void;
+  onImportJSON: () => void;
   hasPendingCrop: boolean;
   onApplyCrop: () => void;
   onCancelCrop: () => void;
@@ -175,6 +176,7 @@ export function Toolbar({
   onExportJPEG,
   onExportJSON,
   onExportHTML,
+  onImportJSON,
   hasPendingCrop,
   onApplyCrop,
   onCancelCrop,
@@ -957,6 +959,9 @@ export function Toolbar({
       )}
 
       <div className="toolbar-section toolbar-right">
+        <ToolButton onClick={onImportJSON} title="Import ICP JSON" className="export-btn">
+          Import
+        </ToolButton>
         <ToolButton onClick={onExportJPEG} title="Export JPEG" className="export-btn">
           JPEG
         </ToolButton>

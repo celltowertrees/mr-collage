@@ -204,7 +204,7 @@ export function useCollage() {
   }, [setImages]);
 
   const updateImage = useCallback(
-    (id: string, changes: ObjectChanges, options?: { coalesce?: boolean }) => {
+    (id: string, changes: ObjectChanges, options?: { coalesce?: boolean; amend?: boolean }) => {
       setImages(
         (prev) => prev.map((obj) => (obj.id === id ? ({ ...obj, ...changes } as CollageObject) : obj)),
         options
@@ -298,6 +298,44 @@ export function useCollage() {
     });
   }, [setImages]);
 
+  // Brings in a parsed ICP file as one undo step. Every object gets a fresh
+  // id: blobs are keyed by id and written only the first time an id is seen,
+  // so reusing a file's ids could leave a stale blob under a new image (or
+  // collide with an object already on the canvas when adding).
+  const importObjects = useCallback(
+    (
+      incoming: CollageObject[],
+      mode: 'add' | 'replace',
+      viewport?: { stagePosition: { x: number; y: number }; stageScale: number }
+    ) => {
+      // Keep the file's own stacking order, but restack it from nextZIndex up
+      // so added objects land above everything already on the canvas.
+      const minZ = incoming.reduce((min, obj) => Math.min(min, obj.zIndex), Infinity);
+      const zBase = mode === 'add' ? nextZIndex.current : 1;
+      const fresh = incoming.map((obj) => ({
+        ...obj,
+        id: uuidv4(),
+        zIndex: obj.zIndex - minZ + zBase,
+      }));
+      const maxZ = fresh.reduce((max, obj) => Math.max(max, obj.zIndex), zBase - 1);
+
+      if (mode === 'replace') {
+        setImages(fresh);
+        setSelectedIds([]);
+        nextZIndex.current = maxZ + 1;
+        if (viewport) {
+          setStagePosition(viewport.stagePosition);
+          setStageScale(viewport.stageScale);
+        }
+      } else {
+        setImages((prev) => [...prev, ...fresh]);
+        setSelectedIds(fresh.map((obj) => obj.id));
+        nextZIndex.current = Math.max(nextZIndex.current, maxZ + 1);
+      }
+    },
+    [setImages]
+  );
+
   return {
     images,
     setImages,
@@ -320,6 +358,7 @@ export function useCollage() {
     bringToFront,
     sendToBack,
     duplicateImage,
+    importObjects,
     undo,
     redo,
     canUndo,
