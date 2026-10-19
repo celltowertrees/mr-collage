@@ -21,6 +21,7 @@ import {
 import type { VisionDetail } from '../utils/generateBackground';
 import { GOOGLE_FONTS } from '../utils/googleFonts';
 import { warmUpModelRenderer } from '../utils/model3dRenderer';
+import { features } from '../featureFlags';
 import { fileToTextureDataURL } from '../utils/textureImage';
 import {
   SelectIcon, PanIcon, TextToolIcon,
@@ -345,13 +346,15 @@ export function Toolbar({
         <ToolButton active={tool === 'text'} onClick={() => onToolChange('text')} title="Text (T)">
           <TextToolIcon />
         </ToolButton>
-        <ToolButton
-          active={tool === 'bg-rect'}
-          onClick={() => onToolChange(tool === 'bg-rect' ? 'select' : 'bg-rect')}
-          title="Generate Background — draw a rectangle over the images to use as context"
-        >
-          <BgGenIcon />
-        </ToolButton>
+        {features.backgroundGeneration && (
+          <ToolButton
+            active={tool === 'bg-rect'}
+            onClick={() => onToolChange(tool === 'bg-rect' ? 'select' : 'bg-rect')}
+            title="Generate Background — draw a rectangle over the images to use as context"
+          >
+            <BgGenIcon />
+          </ToolButton>
+        )}
         {tool === 'bg-rect' && (
           <>
             <span className="toolbar-field"><span>Detail</span></span>
@@ -380,48 +383,50 @@ export function Toolbar({
         <ToolButton onClick={onOpenStickerGenerator} title="Generate Sticker (AI)">
           <SparkleIcon />
         </ToolButton>
-        <div className="blend-mode-field">
-          <ToolButton
-            ref={shapeButtonRef}
-            onClick={() => {
-              if (shapeMenuPos) {
-                setShapeMenuPos(null);
-                return;
-              }
-              // Pay the WebGL context + shader compile now, while the menu is
-              // open, instead of inside the click that places the object.
-              warmUpModelRenderer();
-              const rect = shapeButtonRef.current?.getBoundingClientRect();
-              if (rect) setShapeMenuPos({ top: rect.bottom + 6, left: rect.left });
-            }}
-            title="Add 3D Object"
-            active={!!shapeMenuPos}
-          >
-            <CubeIcon />
-          </ToolButton>
-          {shapeMenuPos && (
-            <div
-              ref={shapeMenuRef}
-              className="blend-mode-popup shape-picker-popup"
-              role="menu"
-              style={{ top: shapeMenuPos.top, left: shapeMenuPos.left }}
+        {features.model3d && (
+          <div className="blend-mode-field">
+            <ToolButton
+              ref={shapeButtonRef}
+              onClick={() => {
+                if (shapeMenuPos) {
+                  setShapeMenuPos(null);
+                  return;
+                }
+                // Pay the WebGL context + shader compile now, while the menu is
+                // open, instead of inside the click that places the object.
+                warmUpModelRenderer();
+                const rect = shapeButtonRef.current?.getBoundingClientRect();
+                if (rect) setShapeMenuPos({ top: rect.bottom + 6, left: rect.left });
+              }}
+              title="Add 3D Object"
+              active={!!shapeMenuPos}
             >
-              {PRIMITIVE_SHAPES.map((shape) => (
-                <button
-                  key={shape}
-                  role="menuitem"
-                  className="blend-mode-option"
-                  onClick={() => {
-                    onAddModel3D(shape);
-                    setShapeMenuPos(null);
-                  }}
-                >
-                  {SHAPE_LABELS[shape]}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
+              <CubeIcon />
+            </ToolButton>
+            {shapeMenuPos && (
+              <div
+                ref={shapeMenuRef}
+                className="blend-mode-popup shape-picker-popup"
+                role="menu"
+                style={{ top: shapeMenuPos.top, left: shapeMenuPos.left }}
+              >
+                {PRIMITIVE_SHAPES.map((shape) => (
+                  <button
+                    key={shape}
+                    role="menuitem"
+                    className="blend-mode-option"
+                    onClick={() => {
+                      onAddModel3D(shape);
+                      setShapeMenuPos(null);
+                    }}
+                  >
+                    {SHAPE_LABELS[shape]}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
         <div className="toolbar-divider" />
         <ToolButton onClick={onUndo} disabled={!canUndo} title="Undo (Ctrl+Z)">
           <UndoIcon />

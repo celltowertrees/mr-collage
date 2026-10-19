@@ -38,7 +38,7 @@ async function settledRotation(page: Page) {
 }
 
 test.beforeEach(async ({ page }) => {
-  await page.goto('/');
+  await page.goto('/?enable=model3d');
   await page.evaluate(() => localStorage.clear());
 });
 

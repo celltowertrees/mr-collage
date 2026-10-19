@@ -827,3 +827,29 @@ Feature: Import a Collage from ICP JSON
     When the user tries to import it
     Then an error explains what's wrong, and the canvas is unchanged
 ```
+
+### Temporarily Disabled Toolbar Tools
+- **Requested:** 2026-10-19
+- **Ask:** Temporarily disable some toolbar features that aren't as good as others, starting with the 3D object creation tool and the background generation tool.
+
+```gherkin
+Feature: Temporarily Disabled Toolbar Tools
+  # src/featureFlags.ts, src/components/Toolbar.tsx — tested in e2e/feature-flags.spec.ts
+
+  Scenario: The 3D object tool is not offered
+    Given the canvas is open
+    Then the toolbar has no "Add 3D Object" button
+
+  Scenario: The background generation tool is not offered
+    Given the canvas is open
+    Then the toolbar has no "Generate Background" button
+
+  Scenario: A disabled tool can be switched back on from the URL
+    Given the app is opened with ?enable=model3d,backgroundGeneration
+    Then the toolbar offers the 3D object and background generation tools again
+
+  Scenario: A 3D object already on the canvas still works
+    Given a 3D object was saved to the collage before its tool was disabled
+    When the app loads and the user selects it
+    Then it renders and its 3D controls are still offered
+```
