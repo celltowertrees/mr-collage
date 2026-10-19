@@ -853,3 +853,38 @@ Feature: Temporarily Disabled Toolbar Tools
     When the app loads and the user selects it
     Then it renders and its 3D controls are still offered
 ```
+
+### Descriptive Sticker Generation Errors
+- **Requested:** 2026-10-19
+- **Ask:** A sticker generation request to OpenAI seemingly timed out — give more descriptive error messages, and double-check the generation code works.
+
+```gherkin
+Feature: Descriptive Sticker Generation Errors
+  # src/utils/openaiErrors.ts, src/components/StickerGenerator.tsx, src/utils/generateBackground.ts — tested in src/__tests__/openaiErrors.test.ts, e2e/sticker-errors.spec.ts
+
+  Scenario: A successful generation adds the sticker
+    Given the user has entered a prompt and an API key
+    When OpenAI returns an image
+    Then the sticker is added to the canvas, selected, and the dialog closes
+
+  Scenario: A failed request explains what went wrong and what to do
+    Given the user submits a sticker request
+    When OpenAI rejects it (bad key, unverified organization, out of credits, rate limited, safety-blocked, or a server error)
+    Then the error names the likely cause and the fix, followed by the HTTP status, elapsed time, and OpenAI's own message
+
+  Scenario: An unreachable server is reported as a connection problem
+    Given the request can't reach api.openai.com at all
+    When the user submits a sticker request
+    Then the error says OpenAI couldn't be reached and suggests checking the connection, extensions, VPN, or firewall
+
+  Scenario: A request that never answers times out with an explanation
+    Given OpenAI doesn't respond
+    When 180 seconds pass
+    Then the request is stopped and the error says how long it waited, how long generation normally takes, and to check status.openai.com
+
+  Scenario: The wait shows progress and can be cancelled
+    Given a sticker request is in progress
+    Then the dialog shows the seconds elapsed so far
+    When the user clicks Cancel (or presses Escape)
+    Then the request is abandoned with no error shown and the form is ready to try again
+```

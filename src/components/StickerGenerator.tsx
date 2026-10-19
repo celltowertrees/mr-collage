@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
+import { IMAGE_TIMEOUT_MS, describeHttpError, describeNetworkError, describeTimeout } from '../utils/openaiErrors';
 
 const API_KEY_STORAGE_KEY = 'mr-collage-openai-key';
-const TIMEOUT_MS = 90_000;
 
 interface StickerGeneratorProps {
   onAddSticker: (src: string, name: string, width: number, height: number) => void;
@@ -13,22 +13,48 @@ export function StickerGenerator({ onAddSticker, onClose }: StickerGeneratorProp
   const [apiKey, setApiKey] = useState(() => localStorage.getItem(API_KEY_STORAGE_KEY) ?? '');
   const [showKey, setShowKey] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [elapsedSec, setElapsedSec] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const promptRef = useRef<HTMLTextAreaElement>(null);
+  // The in-flight request, so Cancel (or closing the dialog) can abort it.
+  const requestRef = useRef<{ controller: AbortController; cancelled: boolean } | null>(null);
 
   useEffect(() => {
     promptRef.current?.focus();
   }, []);
 
+  // Abandon a request still running when the dialog goes away.
+  useEffect(() => () => requestRef.current?.controller.abort(), []);
+
+  // Tick a visible timer while waiting, so a slow generation reads as
+  // "still working" rather than "frozen".
+  useEffect(() => {
+    if (!loading) return;
+    const startedAt = Date.now();
+    setElapsedSec(0);
+    const id = setInterval(() => setElapsedSec(Math.floor((Date.now() - startedAt) / 1000)), 1000);
+    return () => clearInterval(id);
+  }, [loading]);
+
+  const cancel = () => {
+    const request = requestRef.current;
+    if (!request) return;
+    request.cancelled = true;
+    request.controller.abort();
+  };
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && !loading) onClose();
+      if (e.key !== 'Escape') return;
+      if (loading) cancel();
+      else onClose();
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose, loading]);
 
   const handleGenerate = async () => {
+    if (loading) return;
     const key = apiKey.trim();
     const text = prompt.trim();
     if (!key) { setError('Enter your OpenAI API key.'); return; }
@@ -38,49 +64,51 @@ export function StickerGenerator({ onAddSticker, onClose }: StickerGeneratorProp
     setError(null);
     setLoading(true);
 
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), TIMEOUT_MS);
+    const request = { controller: new AbortController(), cancelled: false };
+    requestRef.current = request;
+    const timeout = setTimeout(() => request.controller.abort(), IMAGE_TIMEOUT_MS);
     const startedAt = Date.now();
+    const elapsed = () => ((Date.now() - startedAt) / 1000).toFixed(1);
 
     try {
-      const res = await fetch('https://api.openai.com/v1/images/generations', {
-        method: 'POST',
-        signal: controller.signal,
-        headers: {
-          Authorization: `Bearer ${key}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          model: 'gpt-image-1',
-          prompt: `${text}. The subject must be shown in full, with clear empty space on all sides — nothing cropped, clipped, or touching the edges of the image.`,
-          n: 1,
-          size: '1024x1024',
-          background: 'transparent',
-        }),
-      });
-
-      const elapsed = ((Date.now() - startedAt) / 1000).toFixed(1);
-
-      if (!res.ok) {
-        const raw = await res.text();
-        let detail = raw;
-        try {
-          const body = JSON.parse(raw);
-          detail = body?.error?.message ?? raw;
-        } catch { /* use raw text */ }
-        throw new Error(`HTTP ${res.status} after ${elapsed}s: ${detail}`);
+      let res: Response;
+      try {
+        res = await fetch('https://api.openai.com/v1/images/generations', {
+          method: 'POST',
+          signal: request.controller.signal,
+          headers: {
+            Authorization: `Bearer ${key}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            model: 'gpt-image-1',
+            prompt: `${text}. The subject must be shown in full, with clear empty space on all sides — nothing cropped, clipped, or touching the edges of the image.`,
+            n: 1,
+            size: '1024x1024',
+            background: 'transparent',
+          }),
+        });
+      } catch (err) {
+        // An abort is ours (timeout or Cancel); anything else thrown by
+        // fetch itself means the request never got an HTTP answer.
+        if (err instanceof DOMException && err.name === 'AbortError') throw err;
+        throw new Error(describeNetworkError(elapsed()));
       }
 
       const raw = await res.text();
-      let json: Record<string, unknown>;
+      let json: unknown;
       try {
         json = JSON.parse(raw);
       } catch {
-        throw new Error(`Non-JSON response after ${elapsed}s: ${raw.slice(0, 300)}`);
+        json = raw;
       }
 
-      const b64 = (json?.data as { b64_json?: string }[])?.[0]?.b64_json;
-      if (!b64) throw new Error(`Unexpected response shape after ${elapsed}s: ${raw.slice(0, 300)}`);
+      if (!res.ok) throw new Error(describeHttpError(res.status, json, elapsed()));
+
+      const b64 = ((json as { data?: { b64_json?: string }[] })?.data)?.[0]?.b64_json;
+      if (!b64) {
+        throw new Error(`OpenAI answered, but without an image in the response. (After ${elapsed()}s: ${raw.slice(0, 300)})`);
+      }
 
       const dataUrl = `data:image/png;base64,${b64}`;
       const img = new Image();
@@ -89,20 +117,20 @@ export function StickerGenerator({ onAddSticker, onClose }: StickerGeneratorProp
         onClose();
       };
       img.onerror = () => {
-        setError('Image decoded but could not be rendered (corrupted data?).');
+        setError('OpenAI sent back image data, but it couldn\'t be decoded as a picture. Try generating again.');
         setLoading(false);
       };
       img.src = dataUrl;
     } catch (err) {
-      const elapsed = ((Date.now() - startedAt) / 1000).toFixed(1);
       if (err instanceof DOMException && err.name === 'AbortError') {
-        setError(`Request timed out after ${elapsed}s (${TIMEOUT_MS / 1000}s limit). OpenAI may be slow — try again.`);
+        if (!request.cancelled) setError(describeTimeout(IMAGE_TIMEOUT_MS, elapsed()));
       } else {
-        setError(err instanceof Error ? err.message : `Unknown error after ${elapsed}s.`);
+        setError(err instanceof Error ? err.message : `Unknown error after ${elapsed()}s.`);
       }
       setLoading(false);
     } finally {
       clearTimeout(timeout);
+      if (requestRef.current === request) requestRef.current = null;
     }
   };
 
@@ -179,7 +207,18 @@ export function StickerGenerator({ onAddSticker, onClose }: StickerGeneratorProp
           {error && <div className="sticker-error">{error}</div>}
 
           <div className="sticker-actions">
-            <span className="sticker-hint">⌘↵ to generate</span>
+            {loading ? (
+              <>
+                <span className="sticker-hint sticker-progress">
+                  Generating… {elapsedSec}s (usually 30–90s)
+                </span>
+                <button type="button" className="sticker-key-toggle" onClick={cancel}>
+                  Cancel
+                </button>
+              </>
+            ) : (
+              <span className="sticker-hint">⌘↵ to generate</span>
+            )}
             <button type="submit" className="sticker-generate-btn" disabled={loading}>
               {loading ? <span className="sticker-spinner" /> : '✦ Generate'}
             </button>
