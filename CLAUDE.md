@@ -827,3 +827,64 @@ Feature: Import a Collage from ICP JSON
     When the user tries to import it
     Then an error explains what's wrong, and the canvas is unchanged
 ```
+
+### Temporarily Disabled Toolbar Tools
+- **Requested:** 2026-10-19
+- **Ask:** Temporarily disable some toolbar features that aren't as good as others, starting with the 3D object creation tool and the background generation tool.
+
+```gherkin
+Feature: Temporarily Disabled Toolbar Tools
+  # src/featureFlags.ts, src/components/Toolbar.tsx — tested in e2e/feature-flags.spec.ts
+
+  Scenario: The 3D object tool is not offered
+    Given the canvas is open
+    Then the toolbar has no "Add 3D Object" button
+
+  Scenario: The background generation tool is not offered
+    Given the canvas is open
+    Then the toolbar has no "Generate Background" button
+
+  Scenario: A disabled tool can be switched back on from the URL
+    Given the app is opened with ?enable=model3d,backgroundGeneration
+    Then the toolbar offers the 3D object and background generation tools again
+
+  Scenario: A 3D object already on the canvas still works
+    Given a 3D object was saved to the collage before its tool was disabled
+    When the app loads and the user selects it
+    Then it renders and its 3D controls are still offered
+```
+
+### Descriptive Sticker Generation Errors
+- **Requested:** 2026-10-19
+- **Ask:** A sticker generation request to OpenAI seemingly timed out — give more descriptive error messages, and double-check the generation code works.
+
+```gherkin
+Feature: Descriptive Sticker Generation Errors
+  # src/utils/openaiErrors.ts, src/components/StickerGenerator.tsx, src/utils/generateBackground.ts — tested in src/__tests__/openaiErrors.test.ts, e2e/sticker-errors.spec.ts
+
+  Scenario: A successful generation adds the sticker
+    Given the user has entered a prompt and an API key
+    When OpenAI returns an image
+    Then the sticker is added to the canvas, selected, and the dialog closes
+
+  Scenario: A failed request explains what went wrong and what to do
+    Given the user submits a sticker request
+    When OpenAI rejects it (bad key, unverified organization, out of credits, rate limited, safety-blocked, or a server error)
+    Then the error names the likely cause and the fix, followed by the HTTP status, elapsed time, and OpenAI's own message
+
+  Scenario: An unreachable server is reported as a connection problem
+    Given the request can't reach api.openai.com at all
+    When the user submits a sticker request
+    Then the error says OpenAI couldn't be reached and suggests checking the connection, extensions, VPN, or firewall
+
+  Scenario: A request that never answers times out with an explanation
+    Given OpenAI doesn't respond
+    When 180 seconds pass
+    Then the request is stopped and the error says how long it waited, how long generation normally takes, and to check status.openai.com
+
+  Scenario: The wait shows progress and can be cancelled
+    Given a sticker request is in progress
+    Then the dialog shows the seconds elapsed so far
+    When the user clicks Cancel (or presses Escape)
+    Then the request is abandoned with no error shown and the form is ready to try again
+```

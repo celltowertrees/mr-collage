@@ -1,3 +1,5 @@
+import { describeHttpError } from './openaiErrors';
+
 const VISION_PROMPT = `Study the provided image carefully. It shows a composite of foreground elements arranged on a collage canvas — you can see their actual positions, sizes, and spatial relationships relative to each other. Any white or pale areas between and around the subjects are empty canvas space, not part of an existing background.
 
 Identify the concrete, literal subject matter of the visible foreground elements.
@@ -39,11 +41,7 @@ async function readJson(res: Response): Promise<unknown> {
 }
 
 function apiError(step: string, status: number, body: unknown, elapsed: string): Error {
-  const msg =
-    typeof body === 'object' && body !== null
-      ? ((body as Record<string, unknown>)?.error as Record<string, unknown>)?.message ?? JSON.stringify(body).slice(0, 400)
-      : String(body).slice(0, 400);
-  return new Error(`[${step}] HTTP ${status} after ${elapsed}s — ${msg}`);
+  return new Error(`[${step}] ${describeHttpError(status, body, elapsed)}`);
 }
 
 export type VisionDetail = 'low' | 'auto' | 'high';
