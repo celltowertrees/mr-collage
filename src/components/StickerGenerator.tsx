@@ -3,6 +3,10 @@ import { IMAGE_TIMEOUT_MS, describeHttpError, describeNetworkError, describeTime
 
 const API_KEY_STORAGE_KEY = 'mr-collage-openai-key';
 
+// Style presets offered in the dialog; the picked one's lower-cased label is
+// appended to the prompt ("cat smoking a cigar" → "cat smoking a cigar, real photograph").
+const STICKER_STYLES = ['Real Photograph', 'Line Drawing', 'Fine Art Illustration', 'Clip Art'];
+
 interface StickerGeneratorProps {
   onAddSticker: (src: string, name: string, width: number, height: number) => void;
   onClose: () => void;
@@ -10,6 +14,7 @@ interface StickerGeneratorProps {
 
 export function StickerGenerator({ onAddSticker, onClose }: StickerGeneratorProps) {
   const [prompt, setPrompt] = useState('');
+  const [style, setStyle] = useState('');
   const [apiKey, setApiKey] = useState(() => localStorage.getItem(API_KEY_STORAGE_KEY) ?? '');
   const [showKey, setShowKey] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -59,6 +64,7 @@ export function StickerGenerator({ onAddSticker, onClose }: StickerGeneratorProp
     const text = prompt.trim();
     if (!key) { setError('Enter your OpenAI API key.'); return; }
     if (!text) { setError('Enter a prompt.'); return; }
+    const styledText = style ? `${text}, ${style.toLowerCase()}` : text;
 
     localStorage.setItem(API_KEY_STORAGE_KEY, key);
     setError(null);
@@ -82,7 +88,7 @@ export function StickerGenerator({ onAddSticker, onClose }: StickerGeneratorProp
           },
           body: JSON.stringify({
             model: 'gpt-image-1',
-            prompt: `${text}. The subject must be shown in full, with clear empty space on all sides — nothing cropped, clipped, or touching the edges of the image.`,
+            prompt: `${styledText}. The subject must be shown in full, with clear empty space on all sides — nothing cropped, clipped, or touching the edges of the image.`,
             n: 1,
             size: '1024x1024',
             background: 'transparent',
@@ -164,6 +170,21 @@ export function StickerGenerator({ onAddSticker, onClose }: StickerGeneratorProp
                 if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) handleGenerate();
               }}
             />
+          </label>
+
+          <label className="sticker-label">
+            <span>Style</span>
+            <select
+              className="sticker-style-select"
+              value={style}
+              onChange={(e) => setStyle(e.target.value)}
+              disabled={loading}
+            >
+              <option value="">None</option>
+              {STICKER_STYLES.map((s) => (
+                <option key={s} value={s}>{s}</option>
+              ))}
+            </select>
           </label>
 
           <details className="sticker-key-section">

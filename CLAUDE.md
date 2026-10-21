@@ -888,3 +888,43 @@ Feature: Descriptive Sticker Generation Errors
     When the user clicks Cancel (or presses Escape)
     Then the request is abandoned with no error shown and the form is ready to try again
 ```
+
+### Sticker Style Presets
+- **Requested:** 2026-10-20
+- **Ask:** Add a style dropdown to the sticker creation modal whose choice is appended to the prompt sent to the generation API (e.g. "cat smoking a cigar, real photograph").
+
+```gherkin
+Feature: Sticker Style Presets
+  # src/components/StickerGenerator.tsx, src/App.css — tested in e2e/sticker-styles.spec.ts
+
+  Scenario: The style menu offers the preset styles
+    Given the Generate Sticker dialog is open
+    Then a Style dropdown offers None, Real Photograph, Line Drawing, Fine Art Illustration, and Clip Art
+
+  Scenario: A picked style is appended to the prompt
+    Given the user has entered the prompt "cat smoking a cigar"
+    When the user picks "Real Photograph" and generates
+    Then the prompt sent to OpenAI begins "cat smoking a cigar, real photograph"
+
+  Scenario: With no style picked the prompt is sent as typed
+    Given the Style dropdown is left at None
+    When the user generates a sticker
+    Then the prompt is sent with nothing appended
+```
+
+### Selection Handles Clear of Text
+- **Requested:** 2026-10-21
+- **Ask:** Pad the selection box around text objects so its resize handles sit clear of the letters (the middle-right handle was covering the last letter, making "hello" read as "hellc").
+
+```gherkin
+Feature: Selection Handles Clear of Text
+  # src/components/Canvas.tsx — tested in e2e/text-selection-padding.spec.ts
+
+  Scenario: A selected text object's handles don't cover its letters
+    Given a text object is selected
+    Then every resize handle is drawn outside the text's own box, leaving its first and last letters fully visible
+
+  Scenario: Images keep their handles on their edges
+    Given an image is selected
+    Then its resize handles sit on the image's edges, as before
+```

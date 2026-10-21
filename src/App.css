@@ -600,6 +600,28 @@ body {
   color: rgba(255, 255, 255, 0.3);
 }
 
+.sticker-style-select {
+  padding: 7px 10px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 6px;
+  color: #fff;
+  font-family: var(--toolbar-font);
+  font-size: 12px;
+  outline: none;
+}
+
+.sticker-style-select:focus {
+  border-color: rgba(255, 100, 20, 0.7);
+}
+
+/* Native option lists ignore the translucent select background, so give
+   them an opaque one or the white labels vanish against the OS default. */
+.sticker-style-select option {
+  background: #222;
+  color: #fff;
+}
+
 .sticker-key-section {
   font-size: 11px;
   color: rgba(255, 255, 255, 0.5);

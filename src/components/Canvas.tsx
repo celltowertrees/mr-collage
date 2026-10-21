@@ -137,6 +137,11 @@ export function Canvas({
   // gradient drag, it would just be three more things in the way.
   const selectedModel3D =
     selectedImage?.kind === 'model3d' && (isSelectTool || isRotate3DTool) ? selectedImage : null;
+  // A text box hugs its glyphs, so handles drawn on its edge sit on top of the
+  // first and last letters (a middle-right handle turns "hello" into "hellc").
+  // Padding pushes them out past the letters; it has to exceed half Konva's
+  // 10px anchor to clear them. Images keep their handles on the edge.
+  const selectionHasText = images.some((obj) => obj.kind === 'text' && selectedIds.includes(obj.id));
 
   const marqueeStartRef = useRef<{ x: number; y: number } | null>(null);
   const [marqueeRect, setMarqueeRect] = useState<MarqueeRect | null>(null);
@@ -615,6 +620,7 @@ export function Canvas({
           })}
           <Transformer
             ref={trRef}
+            padding={selectionHasText ? 8 : 0}
             rotateEnabled={!isMaskTool && !isCropTool && !isRotate3DTool}
             enabledAnchors={
               isMaskTool || isCropTool || isRotate3DTool || tool === 'mask-gradient'
