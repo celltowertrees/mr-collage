@@ -148,6 +148,8 @@ interface ToolbarProps {
   onExportJPEG: () => void;
   onExportJSON: () => void;
   onExportHTML: () => void;
+  onExportPNGs: () => void;
+  hasSelection: boolean;
   onImportJSON: () => void;
   hasPendingCrop: boolean;
   onApplyCrop: () => void;
@@ -177,6 +179,8 @@ export function Toolbar({
   onExportJPEG,
   onExportJSON,
   onExportHTML,
+  onExportPNGs,
+  hasSelection,
   onImportJSON,
   hasPendingCrop,
   onApplyCrop,
@@ -976,6 +980,11 @@ export function Toolbar({
         <ToolButton onClick={onExportHTML} title="Export HTML" className="export-btn">
           HTML
         </ToolButton>
+        {hasSelection && (
+          <ToolButton onClick={onExportPNGs} title="Export Selected as PNG" className="export-btn">
+            PNGs
+          </ToolButton>
+        )}
       </div>
     </div>
   );

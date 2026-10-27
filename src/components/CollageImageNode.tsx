@@ -65,7 +65,8 @@ export function CollageImageNode({ image, tool, onSelect, onChange, onMove, onGr
   return (
     <>
       {shadowActive && image.mask && shadow && (
-        <Group {...transform} listening={false}>
+        // The id lets a per-object PNG export capture this sibling along with the image.
+        <Group id={`${image.id}-mask-shadow`} {...transform} listening={false}>
           <Shape
             width={image.width}
             height={image.height}

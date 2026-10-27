@@ -370,6 +370,60 @@ function App() {
     img.src = dataUrl;
   }, [images]);
 
+  // One PNG per selected object, each holding just that object (with its
+  // effects) on a transparent background. Every other layer child — other
+  // objects, the Transformer, previews — is hidden for the capture and put
+  // back before the next frame draws, so the canvas never flickers.
+  const handleExportPNGs = useCallback(async () => {
+    const stage = stageRef.current;
+    if (!stage || selectedIds.length === 0) return;
+
+    const layer = stage.getLayers()[0];
+    const children = layer.getChildren();
+    const wasVisible = children.map((child) => child.visible());
+    // 2x the object's own canvas size, whatever the current zoom.
+    const pixelRatio = 2 / stage.scaleX();
+    // Stacking order, so the numbering matches what's on screen bottom-up.
+    const targets = images.filter((obj) => selectedIds.includes(obj.id));
+
+    const captures: { name: string; canvas: HTMLCanvasElement }[] = [];
+    try {
+      targets.forEach((obj, i) => {
+        // A masked image's shadow is drawn by a sibling node; take it along.
+        const parts = [stage.findOne(`#${obj.id}`), stage.findOne(`#${obj.id}-mask-shadow`)].filter(
+          (node): node is Konva.Node => !!node
+        );
+        if (parts.length === 0) return;
+        children.forEach((child) => child.visible(parts.includes(child)));
+
+        const rects = parts.map((node) => node.getClientRect());
+        const x = Math.min(...rects.map((r) => r.x));
+        const y = Math.min(...rects.map((r) => r.y));
+        const width = Math.max(...rects.map((r) => r.x + r.width)) - x;
+        const height = Math.max(...rects.map((r) => r.y + r.height)) - y;
+        captures.push({
+          name: `collage-${i + 1}-${obj.kind}.png`,
+          canvas: stage.toCanvas({ x, y, width, height, pixelRatio }),
+        });
+      });
+    } finally {
+      children.forEach((child, i) => child.visible(wasVisible[i]));
+    }
+
+    for (const { name, canvas } of captures) {
+      const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/png'));
+      if (!blob) continue;
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.download = name;
+      link.href = url;
+      link.click();
+      URL.revokeObjectURL(url);
+      // Browsers can drop downloads fired in the same tick as each other.
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+  }, [images, selectedIds]);
+
   const handleExportJSON = useCallback(() => {
     const data = exportToICP(images, { stagePosition, stageScale });
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
@@ -648,6 +702,8 @@ function App() {
         onExportJPEG={handleExportJPEG}
         onExportJSON={handleExportJSON}
         onExportHTML={handleExportHTML}
+        onExportPNGs={handleExportPNGs}
+        hasSelection={selectedIds.length > 0}
         onImportJSON={handleImportJSON}
         hasPendingCrop={cropDrawer.committedRect !== null}
         onApplyCrop={applyCrop}
