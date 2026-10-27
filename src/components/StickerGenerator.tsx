@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { IMAGE_TIMEOUT_MS, describeHttpError, describeNetworkError, describeTimeout } from '../utils/openaiErrors';
+import { IMAGE_MODEL, IMAGE_TIMEOUT_MS, describeHttpError, describeNetworkError, describeTimeout } from '../utils/openaiErrors';
 
 const API_KEY_STORAGE_KEY = 'mr-collage-openai-key';
 
@@ -87,11 +87,14 @@ export function StickerGenerator({ onAddSticker, onClose }: StickerGeneratorProp
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            model: 'gpt-image-1',
-            prompt: `${styledText}. The subject must be shown in full, with clear empty space on all sides — nothing cropped, clipped, or touching the edges of the image.`,
+            model: IMAGE_MODEL,
+            // The 2.5 models let scene wording in the prompt override the
+            // background flag, so the prompt has to ask for transparency too.
+            prompt: `${styledText}. Isolated subject on a transparent background — no scenery, no ground, no backdrop. The subject must be shown in full, with clear empty space on all sides — nothing cropped, clipped, or touching the edges of the image.`,
             n: 1,
             size: '1024x1024',
             background: 'transparent',
+            output_format: 'png',
           }),
         });
       } catch (err) {

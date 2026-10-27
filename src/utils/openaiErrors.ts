@@ -2,7 +2,12 @@
 // what to do about it, keeping OpenAI's own wording (and the status and timing)
 // at the end so nothing useful for debugging is lost.
 
-// gpt-image-1 regularly needs over a minute for one 1024px transparent image,
+// The one image model every generation request names. OpenAI retired
+// gpt-image-1 on 2026-10-23; gpt-image-2.5-sunburst is its recommended
+// replacement and still supports transparent backgrounds for stickers.
+export const IMAGE_MODEL = 'gpt-image-2.5-sunburst';
+
+// Image models regularly need over a minute for one 1024px transparent image,
 // so the wait has to be generous before we call it a timeout.
 export const IMAGE_TIMEOUT_MS = 180_000;
 
@@ -22,7 +27,7 @@ function advice(status: number, message: string, code?: string): string {
     return 'Your OpenAI API key was rejected. Check it was pasted in full and hasn\'t been revoked.';
   }
   if (status === 403 && /verif/i.test(message)) {
-    return 'Your OpenAI organization has to be verified before it can use gpt-image-1. Verify it at platform.openai.com/settings/organization/general, then try again (access can take a few minutes to appear).';
+    return `Your OpenAI organization has to be verified before it can use ${IMAGE_MODEL}. Verify it at platform.openai.com/settings/organization/general, then try again (access can take a few minutes to appear).`;
   }
   if (status === 403) {
     return 'Your OpenAI key doesn\'t have access to this model or endpoint. Check the key\'s project permissions.';
@@ -35,6 +40,9 @@ function advice(status: number, message: string, code?: string): string {
   }
   if (status === 400 && (code === 'moderation_blocked' || /safety/i.test(message))) {
     return 'OpenAI\'s safety system blocked this prompt. Try rewording it.';
+  }
+  if ((status === 400 || status === 404) && (code === 'model_not_found' || /model .*(does not exist|not found)/i.test(message))) {
+    return 'OpenAI no longer offers the image model this app asked for — it has probably been retired. The app needs updating to a current model; there\'s nothing to fix on your end.';
   }
   if (status === 400) {
     return 'OpenAI couldn\'t accept the request.';
