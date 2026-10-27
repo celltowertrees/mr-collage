@@ -928,3 +928,22 @@ Feature: Selection Handles Clear of Text
     Given an image is selected
     Then its resize handles sit on the image's edges, as before
 ```
+
+### Transparent Sticker Output
+- **Requested:** 2026-10-27
+- **Ask:** After moving to gpt-image-2.5-sunburst, generated stickers came back with a background instead of in sticker format — keep them transparent.
+
+```gherkin
+Feature: Transparent Sticker Output
+  # src/components/StickerGenerator.tsx, src/utils/openaiErrors.ts — tested in e2e/sticker-transparency.spec.ts
+
+  Scenario: A sticker request asks for a transparent PNG
+    Given the user has entered a prompt and an API key
+    When the user generates a sticker
+    Then the request asks OpenAI for a transparent background in PNG format
+
+  Scenario: The prompt asks for an isolated subject with no scenery
+    Given the user has entered a prompt and picked a style
+    When the user generates a sticker
+    Then the prompt sent begins with their text and style, and asks for an isolated subject on a transparent background with no scenery
+```
