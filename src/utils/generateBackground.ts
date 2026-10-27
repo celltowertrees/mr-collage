@@ -1,4 +1,4 @@
-import { describeHttpError } from './openaiErrors';
+import { IMAGE_MODEL, describeHttpError } from './openaiErrors';
 
 const VISION_PROMPT = `Study the provided image carefully. It shows a composite of foreground elements arranged on a collage canvas — you can see their actual positions, sizes, and spatial relationships relative to each other. Any white or pale areas between and around the subjects are empty canvas space, not part of an existing background.
 
@@ -123,7 +123,7 @@ export async function generateBackgroundFromPrompt(
 
   onProgress?.({
     step: 2,
-    label: `Generating ${size} background with gpt-image-1…`,
+    label: `Generating ${size} background with ${IMAGE_MODEL}…`,
     visionPrompt: prompt,
     elapsedMs: elapsedMs(),
   });
@@ -133,7 +133,7 @@ export async function generateBackgroundFromPrompt(
     signal,
     headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      model: 'gpt-image-1',
+      model: IMAGE_MODEL,
       prompt: `${prompt} This is a background for a digital collage — wide establishing shot, environment and setting only, no foreground subjects.`,
       n: 1,
       size,

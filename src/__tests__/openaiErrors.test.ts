@@ -32,6 +32,12 @@ describe('describeHttpError', () => {
     expect(msg).toMatch(/reword/i);
   });
 
+  it('explains a retired or unknown model instead of a generic rejection', () => {
+    const msg = describeHttpError(400, body("The model 'gpt-image-1' does not exist.", 'model_not_found'), '1.8');
+    expect(msg).toMatch(/no longer offers the image model/i);
+    expect(msg).toContain("The model 'gpt-image-1' does not exist.");
+  });
+
   it('blames a server error on OpenAI, not the user', () => {
     const msg = describeHttpError(503, 'upstream connect error', '12.0');
     expect(msg).toMatch(/OpenAI's side/i);
