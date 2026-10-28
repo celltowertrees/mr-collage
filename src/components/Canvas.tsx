@@ -281,6 +281,19 @@ export function Canvas({
     const stage = stageRef.current;
     if (!stage) return;
 
+    // With the Pan tool, a plain scroll moves the view instead of zooming.
+    // Ctrl/Cmd still zooms — that's also what a trackpad pinch arrives as.
+    if (tool === 'pan' && !e.evt.ctrlKey && !e.evt.metaKey) {
+      // Firefox can report line-based deltas; scale them to pixels.
+      const unit = e.evt.deltaMode === 1 ? 16 : e.evt.deltaMode === 2 ? stage.height() : 1;
+      let dx = e.evt.deltaX * unit;
+      let dy = e.evt.deltaY * unit;
+      // Shift+wheel means sideways on mice that only have a vertical wheel.
+      if (e.evt.shiftKey && dx === 0) [dx, dy] = [dy, 0];
+      onStagePositionChange({ x: stage.x() - dx, y: stage.y() - dy });
+      return;
+    }
+
     const oldScale = stage.scaleX();
     const pointer = stage.getPointerPosition();
     if (!pointer) return;
@@ -302,7 +315,7 @@ export function Canvas({
 
     onStageScaleChange(clampedScale);
     onStagePositionChange(newPos);
-  }, [onStageScaleChange, onStagePositionChange, stageRef]);
+  }, [tool, onStageScaleChange, onStagePositionChange, stageRef]);
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
