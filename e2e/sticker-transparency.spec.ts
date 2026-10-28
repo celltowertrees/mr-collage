@@ -47,7 +47,7 @@ test.describe('Transparent Sticker Output', () => {
     const bodies = await captureBodies(page);
     await generate(page, 'Real Photograph');
     const prompt = bodies[0].prompt as string;
-    expect(prompt.startsWith('cat smoking a cigar, real photograph.')).toBe(true);
+    expect(prompt.startsWith('A real photograph of cat smoking a cigar.')).toBe(true);
     expect(prompt).toMatch(/isolated/i);
     expect(prompt).toMatch(/transparent background/i);
     expect(prompt).toMatch(/no scenery/i);
