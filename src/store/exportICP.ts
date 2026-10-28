@@ -83,6 +83,7 @@ export function exportToICP(objects: CollageObject[], viewport?: ICPViewport): o
             ...(obj.mask ? { mask: obj.mask } : {}),
             ...(obj.vignette ? { vignette: obj.vignette } : {}),
             ...(obj.crop ? { crop: obj.crop } : {}),
+            ...(obj.generation ? { generation: obj.generation } : {}),
             ...effects,
           },
         };

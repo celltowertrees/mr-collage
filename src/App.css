@@ -851,3 +851,26 @@ details[open] .sticker-key-summary::before {
 .import-dialog-primary:hover {
   background: var(--accent-hover);
 }
+
+/* Hung off the bottom-right corner of a selected generated image: the
+   anchor point is that corner, and the button sits just below it,
+   right-aligned. */
+.regenerate-btn {
+  position: absolute;
+  transform: translate(-100%, 8px);
+  padding: 4px 10px;
+  border: 1px solid var(--accent-border);
+  border-radius: var(--btn-radius);
+  background: var(--accent);
+  color: var(--accent-text);
+  font-family: var(--toolbar-font);
+  font-size: var(--toolbar-font-size);
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+}
+
+.regenerate-btn:hover {
+  background: var(--accent-hover);
+}

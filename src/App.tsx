@@ -117,6 +117,7 @@ function App() {
     addText,
     addModel3D,
     updateImage,
+    regenerateImage,
     moveImages,
     nudgeImages,
     deleteImage,
@@ -134,6 +135,8 @@ function App() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [editingTextId, setEditingTextId] = useState<string | null>(null);
   const [stickerGeneratorOpen, setStickerGeneratorOpen] = useState(false);
+  // The generated image the sticker dialog is regenerating, if any.
+  const [regeneratingId, setRegeneratingId] = useState<string | null>(null);
   const [pendingImport, setPendingImport] = useState<(ParsedICP & { fileName: string }) | null>(null);
   const [importError, setImportError] = useState<string | null>(null);
   const [bgLoading, setBgLoading] = useState<BgRect | null>(null);
@@ -152,6 +155,12 @@ function App() {
   } | null>(null);
 
   const { loadFromFiles, loadFromClipboard } = useImageLoader(addImage);
+
+  const regeneratingObj = regeneratingId ? images.find((obj) => obj.id === regeneratingId) : undefined;
+  const regenerating =
+    regeneratingObj?.kind === 'image' && regeneratingObj.generation
+      ? { id: regeneratingObj.id, generation: regeneratingObj.generation }
+      : null;
 
   const selectedImage = selectedIds.length === 1 ? images.find((img) => img.id === selectedIds[0]) ?? null : null;
   // The crop tool only ever targets images — narrow here so useCropDrawer
@@ -734,6 +743,7 @@ function App() {
         onBgRectMouseUp={bgRectDrawer.handleMouseUp}
         bgRectPreview={bgRectDrawer.previewRect}
         bgLoadingRect={bgLoading}
+        onRegenerate={setRegeneratingId}
       />
       {editingText && (
         <TextEditOverlay
@@ -756,6 +766,15 @@ function App() {
         <StickerGenerator
           onAddSticker={addImage}
           onClose={() => setStickerGeneratorOpen(false)}
+        />
+      )}
+      {regenerating && (
+        <StickerGenerator
+          initial={regenerating.generation}
+          onAddSticker={(src, _name, width, height, generation) =>
+            regenerateImage(regenerating.id, src, width, height, generation)
+          }
+          onClose={() => setRegeneratingId(null)}
         />
       )}
       {bgProgress && (

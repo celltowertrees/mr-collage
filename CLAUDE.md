@@ -1009,3 +1009,49 @@ Feature: Scroll to Pan with the Pan Tool
     When the user scrolls
     Then the view zooms about the pointer, as before
 ```
+
+### Regenerate a Sticker from Its Prompt
+- **Requested:** 2026-10-28
+- **Ask:** Record the prompt on every generated item, and let a selected item be regenerated from a button at the bottom right of its selection that opens a modal with the existing prompt to edit and resubmit.
+
+```gherkin
+Feature: Regenerate a Sticker from Its Prompt
+  # src/types.ts, src/components/StickerGenerator.tsx, src/components/Canvas.tsx, src/hooks/useCollage.ts, src/App.tsx, src/App.css, src/store/exportICP.ts, src/store/importICP.ts — tested in e2e/regenerate-sticker.spec.ts, src/__tests__/regeneratePrompt.test.ts
+
+  Scenario: A generated sticker remembers what it was made from
+    Given the user generates a sticker with a prompt and a style
+    Then the sticker is saved with that prompt as typed and the picked style, and they survive a reload
+
+  Scenario: The regenerate button sits on a selected generated sticker
+    Given exactly one generated sticker is selected
+    Then a Regenerate button is shown just below the bottom-right corner of its selection
+
+  Scenario: The button is only offered for a single generated sticker
+    Given the selection is an uploaded image, or several objects at once
+    Then no Regenerate button is shown
+
+  Scenario: The dialog opens on the saved prompt
+    Given a generated sticker is selected
+    When the user clicks Regenerate
+    Then the sticker dialog opens with the saved prompt and style filled in
+
+  Scenario: Resubmitting regenerates the sticker in place
+    Given the regenerate dialog is open
+    When the user edits the prompt and clicks Regenerate
+    Then the sticker's picture is replaced by the new generation at the same position, rotation, and displayed width, it stays selected, and the edited prompt is saved on it
+
+  Scenario: A regeneration survives a reload
+    Given a sticker has just been regenerated
+    When the app is reloaded
+    Then the new picture comes back, not the original
+
+  Scenario: One undo restores the original
+    Given a sticker has just been regenerated
+    When the user presses Ctrl+Z once
+    Then the original picture and its original prompt are back
+
+  Scenario: Exports carry the prompt
+    Given a generated sticker is on the canvas
+    When the user exports as ICP JSON and imports that file
+    Then the sticker's prompt and style come back with it
+```
