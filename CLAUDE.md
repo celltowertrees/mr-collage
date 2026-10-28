@@ -947,3 +947,31 @@ Feature: Transparent Sticker Output
     When the user generates a sticker
     Then the prompt sent begins with their text and style, and asks for an isolated subject on a transparent background with no scenery
 ```
+
+### Export Selected Objects as PNGs
+- **Requested:** 2026-10-27
+- **Ask:** Select multiple items and export each of them as its own PNG file.
+
+```gherkin
+Feature: Export Selected Objects as PNGs
+  # src/App.tsx, src/components/Toolbar.tsx, src/components/CollageImageNode.tsx — tested in e2e/export-png.spec.ts
+
+  Scenario: Each selected object downloads as its own PNG
+    Given several objects are on the canvas and some of them are selected
+    When the user clicks "Export Selected as PNG"
+    Then one PNG downloads per selected object, each with its own filename, and unselected objects are not exported
+
+  Scenario: Each PNG holds just its object
+    Given objects are selected
+    When the user exports them as PNGs
+    Then each PNG is cropped to that object alone at 2x its canvas size, on a transparent background, with no selection handles or other objects drawn in
+
+  Scenario: A masked object keeps its shape and shadow
+    Given a selected image has a shape mask and a drop shadow
+    When the user exports it as a PNG
+    Then the PNG is transparent outside the mask and includes the shadow that follows the mask's outline
+
+  Scenario: The PNG export is only offered with a selection
+    Given nothing is selected
+    Then the toolbar has no "Export Selected as PNG" button
+```
