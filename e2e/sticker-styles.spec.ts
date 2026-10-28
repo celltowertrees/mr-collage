@@ -39,14 +39,27 @@ test.describe('Sticker Style Presets', () => {
     await expect(options).toHaveText(['None', 'Real Photograph', 'Line Drawing', 'Fine Art Illustration', 'Clip Art']);
   });
 
-  test('a picked style is appended to the prompt', async ({ page }) => {
+  test('a picked style leads the prompt', async ({ page }) => {
     const prompts = await capturePrompts(page);
     const dialog = await openDialog(page);
     await dialog.getByLabel('Style').selectOption({ label: 'Real Photograph' });
     await dialog.getByRole('button', { name: /Generate/ }).click();
     await expect(dialog).toHaveCount(0);
     expect(prompts).toHaveLength(1);
-    expect(prompts[0].startsWith('cat smoking a cigar, real photograph.')).toBe(true);
+    expect(prompts[0].startsWith('A real photograph of cat smoking a cigar.')).toBe(true);
+  });
+
+  test('the picked style is spelled out before the sticker instructions', async ({ page }) => {
+    const prompts = await capturePrompts(page);
+    const dialog = await openDialog(page);
+    await dialog.getByLabel('Style').selectOption({ label: 'Real Photograph' });
+    await dialog.getByRole('button', { name: /Generate/ }).click();
+    await expect(dialog).toHaveCount(0);
+    const prompt = prompts[0];
+    const styleAt = prompt.search(/photorealistic/i);
+    expect(styleAt).toBeGreaterThan(0);
+    expect(prompt).toMatch(/not an illustration/i);
+    expect(styleAt).toBeLessThan(prompt.search(/transparent background/i));
   });
 
   test('with no style picked the prompt is sent as typed', async ({ page }) => {

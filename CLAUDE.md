@@ -891,7 +891,7 @@ Feature: Descriptive Sticker Generation Errors
 
 ### Sticker Style Presets
 - **Requested:** 2026-10-20
-- **Ask:** Add a style dropdown to the sticker creation modal whose choice is appended to the prompt sent to the generation API (e.g. "cat smoking a cigar, real photograph").
+- **Ask:** Add a style dropdown to the sticker creation modal whose choice is appended to the prompt sent to the generation API (e.g. "cat smoking a cigar, real photograph"). (Reworded on 2026-10-28: a trailing style tag was ignored once the transparency instructions followed it, so the style now leads the prompt and is described in full.)
 
 ```gherkin
 Feature: Sticker Style Presets
@@ -901,10 +901,15 @@ Feature: Sticker Style Presets
     Given the Generate Sticker dialog is open
     Then a Style dropdown offers None, Real Photograph, Line Drawing, Fine Art Illustration, and Clip Art
 
-  Scenario: A picked style is appended to the prompt
+  Scenario: A picked style leads the prompt
     Given the user has entered the prompt "cat smoking a cigar"
     When the user picks "Real Photograph" and generates
-    Then the prompt sent to OpenAI begins "cat smoking a cigar, real photograph"
+    Then the prompt sent to OpenAI begins "A real photograph of cat smoking a cigar."
+
+  Scenario: The picked style is spelled out ahead of the sticker instructions
+    Given the user has picked "Real Photograph"
+    When the user generates a sticker
+    Then the prompt describes the style (photorealistic, not an illustration) before it asks for a transparent background, so the style isn't drowned out
 
   Scenario: With no style picked the prompt is sent as typed
     Given the Style dropdown is left at None

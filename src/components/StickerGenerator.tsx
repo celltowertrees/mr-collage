@@ -3,9 +3,28 @@ import { IMAGE_MODEL, IMAGE_TIMEOUT_MS, describeHttpError, describeNetworkError,
 
 const API_KEY_STORAGE_KEY = 'mr-collage-openai-key';
 
-// Style presets offered in the dialog; the picked one's lower-cased label is
-// appended to the prompt ("cat smoking a cigar" → "cat smoking a cigar, real photograph").
-const STICKER_STYLES = ['Real Photograph', 'Line Drawing', 'Fine Art Illustration', 'Clip Art'];
+// Style presets offered in the dialog. A trailing ", real photograph" tag got
+// drowned out by the sticker instructions that follow it, so the picked style
+// both leads the prompt ("A real photograph of cat smoking a cigar.") and is
+// spelled out — including what it is not — before those instructions.
+const STICKER_STYLES: Record<string, { lead: string; description: string }> = {
+  'Real Photograph': {
+    lead: 'A real photograph of',
+    description: 'Photorealistic, as if shot on a camera, with natural lighting and real-world textures — not an illustration, drawing, painting, or cartoon.',
+  },
+  'Line Drawing': {
+    lead: 'A line drawing of',
+    description: 'Clean black ink line art with no shading, colour fill, or texture — not a photograph or painting.',
+  },
+  'Fine Art Illustration': {
+    lead: 'A fine art illustration of',
+    description: 'Painterly, gallery-quality illustration with visible brushwork and rich colour — not a photograph, clip art, or cartoon.',
+  },
+  'Clip Art': {
+    lead: 'A clip art image of',
+    description: 'Flat, simple shapes with bold outlines and solid colours — not a photograph or painting.',
+  },
+};
 
 interface StickerGeneratorProps {
   onAddSticker: (src: string, name: string, width: number, height: number) => void;
@@ -64,7 +83,8 @@ export function StickerGenerator({ onAddSticker, onClose }: StickerGeneratorProp
     const text = prompt.trim();
     if (!key) { setError('Enter your OpenAI API key.'); return; }
     if (!text) { setError('Enter a prompt.'); return; }
-    const styledText = style ? `${text}, ${style.toLowerCase()}` : text;
+    const preset = STICKER_STYLES[style];
+    const styledText = preset ? `${preset.lead} ${text}. Style: ${preset.description}` : `${text}.`;
 
     localStorage.setItem(API_KEY_STORAGE_KEY, key);
     setError(null);
@@ -90,7 +110,7 @@ export function StickerGenerator({ onAddSticker, onClose }: StickerGeneratorProp
             model: IMAGE_MODEL,
             // The 2.5 models let scene wording in the prompt override the
             // background flag, so the prompt has to ask for transparency too.
-            prompt: `${styledText}. Isolated subject on a transparent background — no scenery, no ground, no backdrop. The subject must be shown in full, with clear empty space on all sides — nothing cropped, clipped, or touching the edges of the image.`,
+            prompt: `${styledText} Isolated subject on a transparent background — no scenery, no ground, no backdrop. The subject must be shown in full, with clear empty space on all sides — nothing cropped, clipped, or touching the edges of the image.`,
             n: 1,
             size: '1024x1024',
             background: 'transparent',
@@ -184,7 +204,7 @@ export function StickerGenerator({ onAddSticker, onClose }: StickerGeneratorProp
               disabled={loading}
             >
               <option value="">None</option>
-              {STICKER_STYLES.map((s) => (
+              {Object.keys(STICKER_STYLES).map((s) => (
                 <option key={s} value={s}>{s}</option>
               ))}
             </select>
