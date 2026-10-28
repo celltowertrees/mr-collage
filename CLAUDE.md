@@ -980,3 +980,32 @@ Feature: Export Selected Objects as PNGs
     Given nothing is selected
     Then the toolbar has no "Export Selected as PNG" button
 ```
+
+### Scroll to Pan with the Pan Tool
+- **Requested:** 2026-10-28
+- **Ask:** When the Pan tool is selected, pan by scrolling, not just by grabbing.
+
+```gherkin
+Feature: Scroll to Pan with the Pan Tool
+  # src/components/Canvas.tsx — tested in e2e/pan-scroll.spec.ts
+
+  Scenario: Scrolling with the Pan tool pans the view
+    Given the Pan tool is active
+    When the user scrolls vertically or horizontally (mouse wheel or trackpad)
+    Then the view moves by the scroll amount in that direction, and the zoom level is unchanged
+
+  Scenario: Shift+scroll pans sideways
+    Given the Pan tool is active
+    When the user holds Shift and scrolls a vertical-only wheel
+    Then the view moves horizontally instead
+
+  Scenario: Ctrl/Cmd+scroll or a pinch still zooms
+    Given the Pan tool is active
+    When the user scrolls while holding Ctrl or Cmd, or pinches on a trackpad
+    Then the view zooms about the pointer, as before
+
+  Scenario: Other tools keep scroll-to-zoom
+    Given the Select tool is active
+    When the user scrolls
+    Then the view zooms about the pointer, as before
+```
