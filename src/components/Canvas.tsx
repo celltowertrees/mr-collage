@@ -188,26 +188,35 @@ export function Canvas({
   const regenTargetId =
     isSelectTool && selectedImage?.kind === 'image' && selectedImage.generation ? selectedImage.id : null;
   const [regenAnchor, setRegenAnchor] = useState<{ x: number; y: number } | null>(null);
+  // The last anchor handed to React. This runs after EVERY render, and a
+  // setState there — even one whose updater returns the same value — can
+  // schedule another render, which runs this again: an infinite loop. So
+  // setState is only called when the anchor genuinely moved.
+  const regenAnchorRef = useRef<{ x: number; y: number } | null>(null);
   const updateRegenAnchor = useCallback(() => {
     const node = regenTargetId ? stageRef.current?.findOne(`#${regenTargetId}`) : null;
-    if (!node) {
-      setRegenAnchor(null);
-      return;
+    let next: { x: number; y: number } | null = null;
+    if (node) {
+      const box = node.getClientRect({ skipShadow: true });
+      next = { x: box.x + box.width, y: box.y + box.height };
     }
-    const box = node.getClientRect({ skipShadow: true });
-    const x = box.x + box.width;
-    const y = box.y + box.height;
-    setRegenAnchor((prev) => (prev && prev.x === x && prev.y === y ? prev : { x, y }));
+    const prev = regenAnchorRef.current;
+    if (prev === next || (prev && next && prev.x === next.x && prev.y === next.y)) return;
+    regenAnchorRef.current = next;
+    setRegenAnchor(next);
   }, [regenTargetId, stageRef]);
   useLayoutEffect(updateRegenAnchor);
+  // Drag and transform events bubble from the node to the stage (and a pan
+  // drags the stage itself), so one stage listener covers every way the
+  // selection moves on screen mid-gesture.
   useEffect(() => {
-    const tr = trRef.current;
-    if (!tr || !regenTargetId) return;
-    tr.on('dragmove.regen transform.regen', updateRegenAnchor);
+    const stage = stageRef.current;
+    if (!stage || !regenTargetId) return;
+    stage.on('dragmove.regen transform.regen', updateRegenAnchor);
     return () => {
-      tr.off('.regen');
+      stage.off('.regen');
     };
-  }, [regenTargetId, updateRegenAnchor]);
+  }, [regenTargetId, updateRegenAnchor, stageRef]);
 
   // Runs after every render (no deps) because the selected Konva nodes can
   // appear or be replaced without the selection changing — e.g. an uploaded
@@ -592,10 +601,7 @@ export function Canvas({
         onDragMove={(e) => {
           // The Transformer caches the selection's screen-space rect; recompute
           // it every pan frame so the handles can't lag behind the content.
-          if (e.target === e.target.getStage()) {
-            trRef.current?.forceUpdate();
-            updateRegenAnchor();
-          }
+          if (e.target === e.target.getStage()) trRef.current?.forceUpdate();
         }}
         onDragEnd={(e) => {
           if (e.target === e.target.getStage()) {

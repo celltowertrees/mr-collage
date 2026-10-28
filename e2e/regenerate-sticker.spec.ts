@@ -100,6 +100,35 @@ test.describe('Regenerate a Sticker from Its Prompt', () => {
     expect(Math.abs(box.x + box.width - (center.x + 100))).toBeLessThanOrEqual(12);
     expect(box.y).toBeGreaterThanOrEqual(center.y + 100);
     expect(box.y).toBeLessThanOrEqual(center.y + 140);
+
+    // Mid-drag, before the move is committed, it keeps up with the sticker.
+    await page.mouse.move(center.x, center.y);
+    await page.mouse.down();
+    await page.mouse.move(center.x + 60, center.y + 30, { steps: 5 });
+    await settle(page);
+    const moved = await regenerateButton(page).boundingBox();
+    await page.mouse.up();
+    if (!moved) throw new Error('regenerate button not visible mid-drag');
+    expect(Math.abs(moved.x + moved.width - (center.x + 160))).toBeLessThanOrEqual(12);
+    expect(Math.abs(moved.y - box.y - 30)).toBeLessThanOrEqual(4);
+  });
+
+  test('selecting and deselecting logs no React errors', async ({ page }) => {
+    const errors: string[] = [];
+    page.on('console', (msg) => {
+      if (msg.type() === 'error') errors.push(msg.text());
+    });
+    page.on('pageerror', (err) => errors.push(err.message));
+    await mockGenerations(page);
+    await generateSticker(page, 'cat smoking a cigar');
+    const center = await getCanvasCenter(page);
+    await page.mouse.click(center.x - 300, center.y + 250);
+    await settle(page);
+    await expect(regenerateButton(page)).toHaveCount(0);
+    await page.mouse.click(center.x, center.y);
+    await settle(page);
+    await expect(regenerateButton(page)).toBeVisible();
+    expect(errors).toEqual([]);
   });
 
   test('the button is not offered for uploaded images or multi-selections', async ({ page }) => {
