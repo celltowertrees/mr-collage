@@ -69,10 +69,14 @@ async function exportPNGs(page: Page, count: number): Promise<Download[]> {
 interface DecodedPNG {
   width: number;
   height: number;
-  pixels: number[]; // flat RGBA
+  pixels: Uint8Array; // flat RGBA
 }
 
-// Decodes a downloaded PNG in the page, where a canvas is at hand.
+// Decodes a downloaded PNG in the page, where a canvas is at hand. The pixels
+// come back as one base64 string rather than a JSON array of numbers: a
+// 600x600 export is 1.44M channel values, and serializing that as an array
+// took seconds per PNG — enough, over three exports, to push a test past its
+// timeout on a slow run.
 async function decodePNG(page: Page, download: Download): Promise<DecodedPNG> {
   const filePath = await download.path();
   if (!filePath) throw new Error('download did not save to disk');
@@ -89,12 +93,17 @@ async function decodePNG(page: Page, download: Download): Promise<DecodedPNG> {
     canvas.height = img.height;
     const ctx = canvas.getContext('2d')!;
     ctx.drawImage(img, 0, 0);
-    return {
-      width: img.width,
-      height: img.height,
-      pixels: Array.from(ctx.getImageData(0, 0, img.width, img.height).data),
-    };
-  }, base64);
+    const data = ctx.getImageData(0, 0, img.width, img.height).data;
+    let binary = '';
+    for (let i = 0; i < data.length; i += 0x8000) {
+      binary += String.fromCharCode(...data.subarray(i, i + 0x8000));
+    }
+    return { width: img.width, height: img.height, pixels: btoa(binary) };
+  }, base64).then(({ width, height, pixels }) => ({
+    width,
+    height,
+    pixels: new Uint8Array(Buffer.from(pixels, 'base64')),
+  }));
 }
 
 function pixelAt(png: DecodedPNG, x: number, y: number) {
