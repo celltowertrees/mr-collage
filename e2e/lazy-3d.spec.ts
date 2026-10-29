@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 
-// Maps to CLAUDE.md → "Lazy-Loaded 3D Renderer"
-test.describe('Lazy-Loaded 3D Renderer', () => {
+// Maps to CLAUDE.md → "Responsive Canvas Rendering"
+test.describe('Responsive Canvas Rendering — lazy 3D renderer', () => {
   test('the 3D renderer is not fetched until the 3D menu is opened', async ({ page }) => {
     const requested: string[] = [];
     page.on('request', (req) => requested.push(req.url()));

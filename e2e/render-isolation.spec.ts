@@ -58,6 +58,7 @@ test.beforeEach(async ({ page }) => {
   await page.reload();
 });
 
+// Maps to CLAUDE.md → "Responsive Canvas Rendering"
 test.describe('Render isolation', () => {
   test('adjusting one object re-renders only that object', async ({ page }) => {
     for (let i = 0; i < 3; i++) {

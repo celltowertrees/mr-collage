@@ -1055,3 +1055,38 @@ Feature: Regenerate a Sticker from Its Prompt
     When the user exports as ICP JSON and imports that file
     Then the sticker's prompt and style come back with it
 ```
+
+### Responsive Canvas Rendering
+- **Requested:** 2026-10-29
+- **Ask:** How would you refactor this codebase and optimise performance? (Render-path pass: per-object re-render isolation, wheel gestures kept out of React until they settle, three.js split out of the main bundle, and one-transaction loads. Downscaled display proxies and bitmap-caching shadowed nodes were measured and skipped — a full redraw of 30 large shadowed images cost ~1.8ms, not worth the blur at high zoom.)
+
+```gherkin
+Feature: Responsive Canvas Rendering
+  # src/hooks/useObjectNode.ts, src/components/Canvas.tsx, src/components/CollageImageNode.tsx, src/components/CollageTextNode.tsx, src/components/CollageModel3DNode.tsx, src/utils/imageCache.ts, src/utils/loadModelRenderer.ts, src/store/db.ts, src/store/persistence.ts — tested in e2e/render-isolation.spec.ts, e2e/viewport-settle.spec.ts, e2e/lazy-3d.spec.ts, src/__tests__/persistenceCost.test.ts
+
+  Scenario: Adjusting one object re-renders only that object
+    Given several images are on the canvas and one is selected
+    When the user drags its Opacity slider
+    Then only the selected image's node re-renders; the others are skipped
+
+  Scenario: A wheel zoom is saved once it settles
+    Given the canvas is open
+    When the user scrolls to zoom several times in quick succession
+    Then the view zooms on every tick, and the zoom it settles on is saved and survives a reload
+
+  Scenario: The 3D renderer isn't downloaded until it's needed
+    Given the app has just loaded and no 3D object is on the canvas
+    Then three.js has not been fetched
+    When the user opens the 3D object menu
+    Then the renderer is fetched
+
+  Scenario: Loading a collage reads its images in one go
+    Given a saved collage with several images
+    When the app loads
+    Then every image's data is read in a single database transaction
+
+  Scenario: Selection chrome redraws apart from the objects
+    Given objects are on the canvas
+    When the user drags a marquee or draws a mask outline
+    Then only the overlay layer holding the selection and previews is redrawn
+```

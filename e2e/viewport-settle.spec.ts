@@ -19,6 +19,7 @@ test.beforeEach(async ({ page }) => {
   await page.mouse.move(640, 360);
 });
 
+// Maps to CLAUDE.md → "Responsive Canvas Rendering"
 test.describe('Wheel zoom settles before it is saved', () => {
   test('a burst of wheel zooms is saved once, at the zoom it settles on', async ({ page }) => {
     for (let i = 0; i < 8; i++) await page.mouse.wheel(0, -100);
