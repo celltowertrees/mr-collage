@@ -280,8 +280,19 @@ export function Canvas({
   // way Konva moves it during a pan-tool drag, and React hears about it once
   // the wheel goes quiet. react-konva only re-applies a prop when its value
   // changes, so a re-render in the meantime can't snap the stage back.
+  //
+  // Only one timer is ever pending. Each wheel event just stamps the time,
+  // and the timer, when it fires, re-arms itself for whatever's left of the
+  // quiet window — rather than every event clearing and re-creating a timer,
+  // which showed up as measurable churn in a trace of a zoom burst.
   const wheelCommitTimer = useRef<number | null>(null);
-  const commitViewport = useCallback(() => {
+  const lastWheelAt = useRef(0);
+  const commitViewport = useCallback(function settle() {
+    const remaining = WHEEL_COMMIT_DELAY_MS - (performance.now() - lastWheelAt.current);
+    if (remaining > 0) {
+      wheelCommitTimer.current = window.setTimeout(settle, remaining);
+      return;
+    }
     wheelCommitTimer.current = null;
     const stage = stageRef.current;
     if (!stage) return;
@@ -337,8 +348,10 @@ export function Canvas({
     trRef.current?.forceUpdate();
     stage.batchDraw();
 
-    if (wheelCommitTimer.current !== null) clearTimeout(wheelCommitTimer.current);
-    wheelCommitTimer.current = window.setTimeout(commitViewport, WHEEL_COMMIT_DELAY_MS);
+    lastWheelAt.current = performance.now();
+    if (wheelCommitTimer.current === null) {
+      wheelCommitTimer.current = window.setTimeout(commitViewport, WHEEL_COMMIT_DELAY_MS);
+    }
   }, [tool, stageRef, commitViewport]);
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
