@@ -1,5 +1,5 @@
 import { CanvasState, CollageImage, CollageModel3D, CollageObject, CollageText } from '../types';
-import { idbGet, idbSyncBlobs } from './db';
+import { idbGetMany, idbSyncBlobs } from './db';
 
 const STORAGE_KEY = 'mr-collage-state';
 
@@ -82,6 +82,13 @@ export async function loadState(): Promise<CanvasState | null> {
   if (!raw) return null;
   try {
     const meta = JSON.parse(raw) as StoredState;
+    // Every entry that might have a blob — images (including pre-union ones
+    // with no `kind`) and textured 3D objects — fetched in one go.
+    const blobs = await idbGetMany(
+      meta.images
+        .filter((entry) => entry.kind !== 'text' && (entry.kind !== 'model3d' || entry.material.texture?.source === 'image'))
+        .map((entry) => entry.id)
+    );
     const images: CollageObject[] = [];
     for (const entry of meta.images) {
       if (entry.kind === 'text') {
@@ -94,7 +101,7 @@ export async function loadState(): Promise<CanvasState | null> {
           images.push(entry as CollageModel3D);
           continue;
         }
-        const texSrc = await idbGet(entry.id);
+        const texSrc = blobs.get(entry.id);
         // A lost texture blob costs the object its surface pattern, not the
         // object — unlike an image, there's still something to draw.
         const material = texSrc
@@ -103,7 +110,7 @@ export async function loadState(): Promise<CanvasState | null> {
         images.push({ ...entry, material } as CollageModel3D);
         continue;
       }
-      const src = await idbGet(entry.id);
+      const src = blobs.get(entry.id);
       if (src) {
         // Entries saved before the object union existed have no `kind` at
         // all — normalize them here rather than trusting the (pre-union) type.

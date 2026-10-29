@@ -37,7 +37,7 @@ test.beforeEach(async ({ page }) => {
 test.describe('Selection Handles Clear of Text', () => {
   test('a selected text object\'s resize handles sit clear of its letters', async ({ page }) => {
     await page.getByTitle('Text (T)').click();
-    const box = (await page.locator('canvas').boundingBox())!;
+    const box = (await page.locator('canvas').first().boundingBox())!;
     await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
     const overlay = page.locator('textarea.text-edit-overlay');
     await overlay.fill('hello');

@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { IDBFactory, IDBKeyRange, IDBObjectStore } from 'fake-indexeddb';
+import { IDBDatabase, IDBFactory, IDBKeyRange, IDBObjectStore } from 'fake-indexeddb';
 import { loadState, saveState } from '../store';
+import { idbGetMany } from '../store/db';
 import { CanvasState, CollageImage } from '../types';
 
 beforeEach(() => {
@@ -99,5 +100,28 @@ describe('saveState cost', () => {
     const loaded = await loadState();
     expect(loaded?.images.map((i) => i.id).sort()).toEqual(['a', 'b']);
     expect((loaded?.images.find((i) => i.id === 'b') as CollageImage).src).toBe(b.src);
+  });
+});
+
+describe('loadState cost', () => {
+  it('reads every blob in a single transaction', async () => {
+    const images = [makeImage('a'), makeImage('b'), makeImage('c'), makeImage('d')];
+    await saveState(state(images));
+
+    const transactions = vi.spyOn(IDBDatabase.prototype, 'transaction');
+    const loaded = await loadState();
+    const count = transactions.mock.calls.length;
+    transactions.mockRestore();
+
+    expect(loaded?.images.map((i) => i.id)).toEqual(['a', 'b', 'c', 'd']);
+    expect(count).toBe(1);
+  });
+
+  it('idbGetMany returns undefined for keys that are missing', async () => {
+    await saveState(state([makeImage('a')]));
+    const result = await idbGetMany(['a', 'gone']);
+    expect(result.get('a')).toBe(makeImage('a').src);
+    expect(result.has('gone')).toBe(true);
+    expect(result.get('gone')).toBeUndefined();
   });
 });

@@ -1,4 +1,4 @@
-import { useRef, useState, useEffect, useLayoutEffect, useCallback, useReducer } from 'react';
+import { useRef, useEffect, useCallback, useReducer, useMemo } from 'react';
 import { Stage, Layer, Circle, Rect, Line, Transformer } from 'react-konva';
 import Konva from 'konva';
 import { CollageObject, GradientMask, MaskData, ObjectChanges, Rotation3D, Tool } from '../types';
@@ -6,9 +6,12 @@ import { CollageImageNode } from './CollageImageNode';
 import { CollageTextNode } from './CollageTextNode';
 import { CollageModel3DNode } from './CollageModel3DNode';
 import { Model3DRotationGizmo } from './Model3DRotationGizmo';
+import { RegenerateButton } from './RegenerateButton';
 import { useMaskDrawer } from '../hooks/useMaskDrawer';
 import { useGradientMaskDrawer } from '../hooks/useGradientMaskDrawer';
 import { useModel3DRotator } from '../hooks/useModel3DRotator';
+import { useMarqueeSelect } from '../hooks/useMarqueeSelect';
+import type { PointerToolHandlers } from '../hooks/pointerTool';
 
 interface CanvasProps {
   images: CollageObject[];
@@ -26,13 +29,9 @@ interface CanvasProps {
   onAddText: (point: { x: number; y: number }) => void;
   onStartEditingText: (id: string) => void;
   stageRef: React.RefObject<Konva.Stage | null>;
-  onCropMouseDown: (e: Konva.KonvaEventObject<MouseEvent>) => void;
-  onCropMouseMove: () => void;
-  onCropMouseUp: () => void;
+  cropDrawer: PointerToolHandlers;
   cropPreviewRect: { x: number; y: number; width: number; height: number; rotation: number } | null;
-  onBgRectMouseDown: (e: Konva.KonvaEventObject<MouseEvent>) => void;
-  onBgRectMouseMove: () => void;
-  onBgRectMouseUp: () => void;
+  bgRectDrawer: PointerToolHandlers;
   bgRectPreview: { x: number; y: number; width: number; height: number } | null;
   // Region (content coords) a background is currently being generated for.
   bgLoadingRect: { x: number; y: number; width: number; height: number } | null;
@@ -87,11 +86,9 @@ const GRADIENT_LINE_STYLE = {
 
 const GRADIENT_HANDLE_RADIUS = 6;
 
-type MarqueeRect = { x: number; y: number; width: number; height: number };
-
-// Minimum drag distance (in screen px) before a mousedown-drag-mouseup on
-// empty canvas counts as a marquee rather than a plain click-to-deselect.
-const MARQUEE_DRAG_THRESHOLD = 3;
+// How long the wheel has to stay still before the pan/zoom it produced is
+// handed to React (and so saved, and seen by the text-edit overlay).
+const WHEEL_COMMIT_DELAY_MS = 150;
 
 export function Canvas({
   images,
@@ -109,13 +106,9 @@ export function Canvas({
   onAddText,
   onStartEditingText,
   stageRef,
-  onCropMouseDown,
-  onCropMouseMove,
-  onCropMouseUp,
+  cropDrawer,
   cropPreviewRect,
-  onBgRectMouseDown,
-  onBgRectMouseMove,
-  onBgRectMouseUp,
+  bgRectDrawer,
   bgRectPreview,
   bgLoadingRect,
   onRegenerate,
@@ -146,8 +139,6 @@ export function Canvas({
   // 10px anchor to clear them. Images keep their handles on the edge.
   const selectionHasText = images.some((obj) => obj.kind === 'text' && selectedIds.includes(obj.id));
 
-  const marqueeStartRef = useRef<{ x: number; y: number } | null>(null);
-  const [marqueeRect, setMarqueeRect] = useState<MarqueeRect | null>(null);
   // Tracks start positions of follower nodes during a group drag so they can
   // be moved imperatively to keep up with the dragged node in real time.
   // Konva's Transformer._proxyDrag already moves all attached nodes together
@@ -180,43 +171,9 @@ export function Canvas({
     };
   }, [bgLoadingRect]);
 
-  // A single selected AI-generated image gets a regenerate button hung off
-  // the bottom-right corner of its on-screen box. It's HTML rather than a
-  // Konva shape so it's a real, focusable button; its position is read back
-  // from the node itself, after every render (the node may mount late, while
-  // its image loads) and on every frame of a drag, resize or pan.
+  // A single selected AI-generated image gets a Regenerate button.
   const regenTargetId =
     isSelectTool && selectedImage?.kind === 'image' && selectedImage.generation ? selectedImage.id : null;
-  const [regenAnchor, setRegenAnchor] = useState<{ x: number; y: number } | null>(null);
-  // The last anchor handed to React. This runs after EVERY render, and a
-  // setState there — even one whose updater returns the same value — can
-  // schedule another render, which runs this again: an infinite loop. So
-  // setState is only called when the anchor genuinely moved.
-  const regenAnchorRef = useRef<{ x: number; y: number } | null>(null);
-  const updateRegenAnchor = useCallback(() => {
-    const node = regenTargetId ? stageRef.current?.findOne(`#${regenTargetId}`) : null;
-    let next: { x: number; y: number } | null = null;
-    if (node) {
-      const box = node.getClientRect({ skipShadow: true });
-      next = { x: box.x + box.width, y: box.y + box.height };
-    }
-    const prev = regenAnchorRef.current;
-    if (prev === next || (prev && next && prev.x === next.x && prev.y === next.y)) return;
-    regenAnchorRef.current = next;
-    setRegenAnchor(next);
-  }, [regenTargetId, stageRef]);
-  useLayoutEffect(updateRegenAnchor);
-  // Drag and transform events bubble from the node to the stage (and a pan
-  // drags the stage itself), so one stage listener covers every way the
-  // selection moves on screen mid-gesture.
-  useEffect(() => {
-    const stage = stageRef.current;
-    if (!stage || !regenTargetId) return;
-    stage.on('dragmove.regen transform.regen', updateRegenAnchor);
-    return () => {
-      stage.off('.regen');
-    };
-  }, [regenTargetId, updateRegenAnchor, stageRef]);
 
   // Runs after every render (no deps) because the selected Konva nodes can
   // appear or be replaced without the selection changing — e.g. an uploaded
@@ -317,6 +274,38 @@ export function Canvas({
     return () => window.removeEventListener('paste', handler);
   }, [onPaste]);
 
+  // A wheel gesture fires dozens of events a second. Each used to push the
+  // new pan/zoom into React state, re-rendering the app (toolbar included) and
+  // booking a save on every tick. Instead the stage is moved directly, the
+  // way Konva moves it during a pan-tool drag, and React hears about it once
+  // the wheel goes quiet. react-konva only re-applies a prop when its value
+  // changes, so a re-render in the meantime can't snap the stage back.
+  //
+  // Only one timer is ever pending. Each wheel event just stamps the time,
+  // and the timer, when it fires, re-arms itself for whatever's left of the
+  // quiet window — rather than every event clearing and re-creating a timer,
+  // which showed up as measurable churn in a trace of a zoom burst.
+  const wheelCommitTimer = useRef<number | null>(null);
+  const lastWheelAt = useRef(0);
+  const commitViewport = useCallback(function settle() {
+    const remaining = WHEEL_COMMIT_DELAY_MS - (performance.now() - lastWheelAt.current);
+    if (remaining > 0) {
+      wheelCommitTimer.current = window.setTimeout(settle, remaining);
+      return;
+    }
+    wheelCommitTimer.current = null;
+    const stage = stageRef.current;
+    if (!stage) return;
+    onStageScaleChange(stage.scaleX());
+    onStagePositionChange({ x: stage.x(), y: stage.y() });
+  }, [onStageScaleChange, onStagePositionChange, stageRef]);
+  useEffect(
+    () => () => {
+      if (wheelCommitTimer.current !== null) clearTimeout(wheelCommitTimer.current);
+    },
+    []
+  );
+
   const handleWheel = useCallback((e: Konva.KonvaEventObject<WheelEvent>) => {
     e.evt.preventDefault();
     const stage = stageRef.current;
@@ -331,32 +320,39 @@ export function Canvas({
       let dy = e.evt.deltaY * unit;
       // Shift+wheel means sideways on mice that only have a vertical wheel.
       if (e.evt.shiftKey && dx === 0) [dx, dy] = [dy, 0];
-      onStagePositionChange({ x: stage.x() - dx, y: stage.y() - dy });
-      return;
+      stage.position({ x: stage.x() - dx, y: stage.y() - dy });
+    } else {
+      const oldScale = stage.scaleX();
+      const pointer = stage.getPointerPosition();
+      if (!pointer) return;
+
+      const scaleBy = 1.05;
+      const direction = e.evt.deltaY > 0 ? -1 : 1;
+      const newScale = direction > 0 ? oldScale * scaleBy : oldScale / scaleBy;
+      const clampedScale = Math.max(0.05, Math.min(10, newScale));
+
+      const mousePointTo = {
+        x: (pointer.x - stage.x()) / oldScale,
+        y: (pointer.y - stage.y()) / oldScale,
+      };
+
+      stage.scale({ x: clampedScale, y: clampedScale });
+      stage.position({
+        x: pointer.x - mousePointTo.x * clampedScale,
+        y: pointer.y - mousePointTo.y * clampedScale,
+      });
     }
 
-    const oldScale = stage.scaleX();
-    const pointer = stage.getPointerPosition();
-    if (!pointer) return;
+    // What a pan drag's onDragMove does, for the same reason: the
+    // Transformer caches its screen-space rect.
+    trRef.current?.forceUpdate();
+    stage.batchDraw();
 
-    const scaleBy = 1.05;
-    const direction = e.evt.deltaY > 0 ? -1 : 1;
-    const newScale = direction > 0 ? oldScale * scaleBy : oldScale / scaleBy;
-    const clampedScale = Math.max(0.05, Math.min(10, newScale));
-
-    const mousePointTo = {
-      x: (pointer.x - stage.x()) / oldScale,
-      y: (pointer.y - stage.y()) / oldScale,
-    };
-
-    const newPos = {
-      x: pointer.x - mousePointTo.x * clampedScale,
-      y: pointer.y - mousePointTo.y * clampedScale,
-    };
-
-    onStageScaleChange(clampedScale);
-    onStagePositionChange(newPos);
-  }, [tool, onStageScaleChange, onStagePositionChange, stageRef]);
+    lastWheelAt.current = performance.now();
+    if (wheelCommitTimer.current === null) {
+      wheelCommitTimer.current = window.setTimeout(commitViewport, WHEEL_COMMIT_DELAY_MS);
+    }
+  }, [tool, stageRef, commitViewport]);
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -391,123 +387,71 @@ export function Canvas({
     }
   }, [onSelect, isMaskTool, isCropTool, isBgRectTool, isTextTool, onAddText, toContentPoint]);
 
-  // MouseDown — mask/crop drawing and marquee selection all start here
-  const handleStageMouseDown = useCallback((e: Konva.KonvaEventObject<MouseEvent>) => {
-    if (isRotate3DTool) {
-      model3DRotator.handleMouseDown(e);
-      return;
-    }
-    if (isGradientTool) {
-      gradientMaskDrawer.handleMouseDown(e);
-      return;
-    }
-    if (isMaskTool) {
-      maskDrawer.handleMouseDown(e);
-      return;
-    }
-    if (isCropTool) {
-      onCropMouseDown(e);
-      return;
-    }
-    if (isBgRectTool) {
-      onBgRectMouseDown(e);
-      return;
-    }
-    const stage = stageRef.current;
-    if (isSelectTool && stage && e.target === stage) {
-      const pointer = stage.getPointerPosition();
-      if (pointer) marqueeStartRef.current = pointer;
-    }
-  }, [isRotate3DTool, isGradientTool, isMaskTool, isCropTool, isBgRectTool, isSelectTool, model3DRotator, gradientMaskDrawer, maskDrawer, onCropMouseDown, onBgRectMouseDown, stageRef]);
+  const marquee = useMarqueeSelect({
+    active: isSelectTool,
+    images,
+    stageRef,
+    toContentPoint,
+    onSelect,
+    suppressNextClickRef,
+  });
 
-  const handleStageMouseMove = useCallback((e: Konva.KonvaEventObject<MouseEvent>) => {
-    if (isRotate3DTool) {
-      model3DRotator.handleMouseMove(e);
-      return;
-    }
-    if (isGradientTool) {
-      gradientMaskDrawer.handleMouseMove();
-      return;
-    }
-    if (isMaskTool) {
-      maskDrawer.handleMouseMove();
-      return;
-    }
-    if (isCropTool) {
-      onCropMouseMove();
-      return;
-    }
-    if (isBgRectTool) {
-      onBgRectMouseMove();
-      return;
-    }
-    const stage = stageRef.current;
-    if (!marqueeStartRef.current || !stage) return;
-    const pointer = stage.getPointerPosition();
-    if (!pointer) return;
-    const start = toContentPoint(marqueeStartRef.current);
-    const current = toContentPoint(pointer);
-    setMarqueeRect({
-      x: Math.min(start.x, current.x),
-      y: Math.min(start.y, current.y),
-      width: Math.abs(current.x - start.x),
-      height: Math.abs(current.y - start.y),
-    });
-  }, [isRotate3DTool, isGradientTool, isMaskTool, isCropTool, isBgRectTool, model3DRotator, gradientMaskDrawer, maskDrawer, onCropMouseMove, onBgRectMouseMove, stageRef, toContentPoint]);
+  // Whichever tool is active owns the stage's mouse events. Anything not
+  // listed (select, pan, text) falls through to marquee selection, which only
+  // starts a box under the Select tool.
+  const pointerTool: PointerToolHandlers = isRotate3DTool
+    ? model3DRotator
+    : isGradientTool
+      ? gradientMaskDrawer
+      : isMaskTool
+        ? maskDrawer
+        : isCropTool
+          ? cropDrawer
+          : isBgRectTool
+            ? bgRectDrawer
+            : marquee;
 
-  const handleStageMouseUp = useCallback(() => {
-    if (isRotate3DTool) {
-      model3DRotator.handleMouseUp();
-      return;
-    }
-    if (isGradientTool) {
-      gradientMaskDrawer.handleMouseUp();
-      return;
-    }
-    if (isMaskTool) {
-      maskDrawer.handleMouseUp();
-      return;
-    }
-    if (isCropTool) {
-      onCropMouseUp();
-      return;
-    }
-    if (isBgRectTool) {
-      onBgRectMouseUp();
-      return;
-    }
-    const start = marqueeStartRef.current;
-    marqueeStartRef.current = null;
-    setMarqueeRect(null);
-    if (!start) return;
+  // Read through refs so the per-node handlers below never change identity
+  // when the selection does — they're shared by every node, and a new
+  // function would defeat each node's React.memo.
+  const selectedIdsRef = useRef(selectedIds);
+  selectedIdsRef.current = selectedIds;
 
-    const stage = stageRef.current;
-    const pointer = stage?.getPointerPosition();
-    if (!stage || !pointer) return;
+  // Shared by every kind: shift-click toggles membership in the selection, a
+  // plain click replaces it.
+  const handleNodeSelect = useCallback(
+    (id: string, addToSelection: boolean) => {
+      const current = selectedIdsRef.current;
+      if (addToSelection) {
+        onSelect(current.includes(id) ? current.filter((sid) => sid !== id) : [...current, id]);
+      } else {
+        onSelect([id]);
+      }
+    },
+    [onSelect]
+  );
 
-    const dragDistance = Math.hypot(pointer.x - start.x, pointer.y - start.y);
-    if (dragDistance < MARQUEE_DRAG_THRESHOLD) return; // a plain click; handleStageClick deselects
+  // Only the node the user actually grabbed commits the group delta; the
+  // Transformer drags the rest along and they bail out here.
+  const handleNodeMove = useCallback(
+    (id: string, dx: number, dy: number) => {
+      if (id !== primaryDragRef.current) return;
+      primaryDragRef.current = null;
+      onMoveSelected(id, dx, dy);
+    },
+    [onMoveSelected]
+  );
 
-    const startContent = toContentPoint(start);
-    const currentContent = toContentPoint(pointer);
-    const rect = {
-      x: Math.min(startContent.x, currentContent.x),
-      y: Math.min(startContent.y, currentContent.y),
-      width: Math.abs(currentContent.x - startContent.x),
-      height: Math.abs(currentContent.y - startContent.y),
-    };
-
-    const overlapped = images
-      .filter((img) => {
-        const node = stage.findOne(`#${img.id}`);
-        const box = node?.getClientRect({ relativeTo: stage });
-        return box ? Konva.Util.haveIntersection(rect, box) : false;
-      })
-      .map((img) => img.id);
-
-    suppressNextClickRef.current = true;
-    onSelect(overlapped);
-  }, [isRotate3DTool, isGradientTool, isMaskTool, isCropTool, isBgRectTool, model3DRotator, onCropMouseUp, onBgRectMouseUp, gradientMaskDrawer, maskDrawer, stageRef, toContentPoint, images, onSelect]);
+  const nodeHandlers = useMemo(
+    () => ({
+      tool,
+      onSelect: handleNodeSelect,
+      onChange: onUpdateImage,
+      onMove: handleNodeMove,
+      onDragStart: handleNodeDragStart,
+    }),
+    [tool, handleNodeSelect, onUpdateImage, handleNodeMove, handleNodeDragStart]
+  );
 
   const getCursor = () => {
     if (tool === 'pan') return 'grab';
@@ -516,7 +460,7 @@ export function Canvas({
     return 'default';
   };
 
-  const sorted = [...images].sort((a, b) => a.zIndex - b.zIndex);
+  const sorted = useMemo(() => [...images].sort((a, b) => a.zIndex - b.zIndex), [images]);
 
   // Render mask preview shape
   const preview = maskDrawer.getPreview();
@@ -593,9 +537,9 @@ export function Canvas({
         draggable={tool === 'pan'}
         onClick={handleStageClick}
         onTap={handleStageClick}
-        onMouseDown={handleStageMouseDown}
-        onMouseMove={handleStageMouseMove}
-        onMouseUp={handleStageMouseUp}
+        onMouseDown={pointerTool.handleMouseDown}
+        onMouseMove={pointerTool.handleMouseMove}
+        onMouseUp={pointerTool.handleMouseUp}
         onDblClick={isMaskTool ? maskDrawer.handleDblClick : undefined}
         onWheel={handleWheel}
         onDragMove={(e) => {
@@ -610,68 +554,28 @@ export function Canvas({
         }}
         style={{ cursor: getCursor() }}
       >
-        <Layer>
+        <Layer name="content">
           {sorted.map((obj) => {
-            // Shared by every kind: shift-click toggles membership in the
-            // selection, a plain click replaces it.
-            const handleSelect = (addToSelection: boolean) => {
-              if (addToSelection) {
-                const newIds = selectedIds.includes(obj.id)
-                  ? selectedIds.filter((id) => id !== obj.id)
-                  : [...selectedIds, obj.id];
-                onSelect(newIds);
-              } else {
-                onSelect([obj.id]);
-              }
-            };
-            // Only the node the user actually grabbed commits the group delta;
-            // the Transformer drags the rest along and they bail out here.
-            const handleMove = (dx: number, dy: number) => {
-              if (obj.id !== primaryDragRef.current) return;
-              primaryDragRef.current = null;
-              onMoveSelected(obj.id, dx, dy);
-            };
-            // `key` is deliberately NOT part of this bag — React warns when a
-            // key is spread in rather than passed directly on the element.
-            const shared = {
-              isSelected: selectedIds.includes(obj.id),
-              tool,
-              onSelect: handleSelect,
-              onMove: handleMove,
-              onGroupDragStart: () => handleNodeDragStart(obj.id),
-            };
-
             if (obj.kind === 'text') {
               return (
                 <CollageTextNode
                   key={obj.id}
-                  {...shared}
+                  {...nodeHandlers}
                   textObj={obj}
-                  onChange={(changes, options) => onUpdateImage(obj.id, changes, options)}
-                  onEditStart={() => onStartEditingText(obj.id)}
+                  onEditStart={onStartEditingText}
                 />
               );
             }
             if (obj.kind === 'model3d') {
-              return (
-                <CollageModel3DNode
-                  key={obj.id}
-                  {...shared}
-                  model={obj}
-                  onChange={(changes) => onUpdateImage(obj.id, changes)}
-                />
-              );
+              return <CollageModel3DNode key={obj.id} {...nodeHandlers} model={obj} />;
             }
-            return (
-              <CollageImageNode
-                key={obj.id}
-                {...shared}
-                image={obj}
-                onChange={(changes) => onUpdateImage(obj.id, changes)}
-                onNodeMount={onNodeMount}
-              />
-            );
+            return <CollageImageNode key={obj.id} {...nodeHandlers} image={obj} onNodeMount={onNodeMount} />;
           })}
+        </Layer>
+        {/* Selection chrome and in-progress previews live on their own layer,
+            so drawing a marquee or mask outline frame by frame repaints only
+            these few shapes instead of every object (and its shadow) below. */}
+        <Layer name="overlay">
           <Transformer
             ref={trRef}
             padding={selectionHasText ? 8 : 0}
@@ -714,24 +618,14 @@ export function Canvas({
           {isCropTool && cropPreviewRect && (
             <Rect name="crop-preview" {...cropPreviewRect} {...CROP_PREVIEW_STYLE} />
           )}
-          {marqueeRect && <Rect name="marquee" {...marqueeRect} {...MARQUEE_STYLE} />}
+          {marquee.marqueeRect && <Rect name="marquee" {...marquee.marqueeRect} {...MARQUEE_STYLE} />}
           {bgRectPreview && <Rect name="bg-rect-preview" {...bgRectPreview} {...BG_RECT_PREVIEW_STYLE} />}
           {bgLoadingRect && (
             <Rect ref={bgLoadingRef} name="bg-loading" {...bgLoadingRect} {...BG_LOADING_STYLE} />
           )}
         </Layer>
       </Stage>
-      {regenTargetId && regenAnchor && (
-        <button
-          className="regenerate-btn"
-          style={{ left: regenAnchor.x, top: regenAnchor.y }}
-          onClick={() => onRegenerate(regenTargetId)}
-          title="Edit prompt and regenerate"
-          aria-label="Regenerate from prompt"
-        >
-          ✦ Regenerate
-        </button>
-      )}
+      <RegenerateButton targetId={regenTargetId} stageRef={stageRef} onRegenerate={onRegenerate} />
     </div>
   );
 }

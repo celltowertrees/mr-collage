@@ -25,7 +25,7 @@ function readState(page: Page) {
 }
 
 async function getCanvasCenter(page: Page) {
-  const box = await page.locator('canvas').boundingBox();
+  const box = await page.locator('canvas').first().boundingBox();
   if (!box) throw new Error('canvas not found');
   return { x: Math.round(box.x + box.width / 2), y: Math.round(box.y + box.height / 2) };
 }
@@ -132,7 +132,7 @@ test.describe('Export Scene to Static HTML — visual parity with the canvas', (
     if (!filePath) throw new Error('download did not save to disk');
     const html = fs.readFileSync(filePath, 'utf-8');
 
-    const canvasBox = await page.locator('canvas').boundingBox();
+    const canvasBox = await page.locator('canvas').first().boundingBox();
     if (!canvasBox) throw new Error('canvas not found');
 
     const exportPage = await context.newPage();
