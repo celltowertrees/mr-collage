@@ -8,98 +8,14 @@ import { ImportChoiceDialog, ImportErrorDialog } from './components/ImportDialog
 import { useCollage } from './hooks/useCollage';
 import { useImageLoader } from './hooks/useImageLoader';
 import { useCropDrawer } from './hooks/useCropDrawer';
-import { useBgRectDrawer, type BgRect } from './hooks/useBgRectDrawer';
-import { analyzeImages, generateBackgroundFromPrompt, type VisionDetail, type BgProgressEvent } from './utils/generateBackground';
+import { useBackgroundGeneration } from './hooks/useBackgroundGeneration';
+import { useExports } from './hooks/useExports';
+import { useImportFlow } from './hooks/useImportFlow';
+import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
+import { BgPromptEditPanel, BgStatusPanel } from './components/BackgroundStatus';
 import { localToStage } from './utils/geometry';
-import { exportToICP, exportToStaticHTML, parseICP, ICPImportError, type ParsedICP } from './store';
-import { loadModelRenderer } from './utils/loadModelRenderer';
-import { CollageImage, CollageModel3D, CollageText } from './types';
+import { CollageText } from './types';
 import './App.css';
-
-const API_KEY_STORAGE_KEY = 'mr-collage-openai-key';
-
-function ElapsedTimer({ startedAt }: { startedAt: number }) {
-  const [elapsed, setElapsed] = useState(() => Math.floor((Date.now() - startedAt) / 1000));
-  useEffect(() => {
-    const id = setInterval(() => setElapsed(Math.floor((Date.now() - startedAt) / 1000)), 500);
-    return () => clearInterval(id);
-  }, [startedAt]);
-  const m = Math.floor(elapsed / 60);
-  const s = elapsed % 60;
-  return <span className="bg-status-elapsed">{m}:{s.toString().padStart(2, '0')}</span>;
-}
-
-function BgStatusPanel({ progress, startedAt }: { progress: BgProgressEvent; startedAt: number }) {
-  const step1Done = progress.step === 2;
-  const visionPrompt = progress.visionPrompt ?? null;
-
-  return (
-    <div className="bg-status-panel">
-      <div className="bg-status-header">
-        <span className="bg-status-title">Generating Background</span>
-        <ElapsedTimer startedAt={startedAt} />
-      </div>
-      <div className="bg-status-steps">
-        <div className={`bg-status-step ${step1Done ? 'done' : 'active'}`}>
-          <span className="bg-status-dot">{step1Done ? '✓' : '○'}</span>
-          <span>
-            {step1Done ? 'Vision analysis complete' : progress.label}
-          </span>
-        </div>
-        <div className={`bg-status-step ${step1Done ? 'active' : 'pending'}`}>
-          <span className="bg-status-dot">{step1Done ? '○' : '·'}</span>
-          <span>{step1Done ? progress.label : 'Generating background image…'}</span>
-        </div>
-      </div>
-      {visionPrompt && (
-        <div className="bg-status-prompt">
-          <span className="bg-status-prompt-label">Vision prompt</span>
-          <span className="bg-status-prompt-text">{visionPrompt}</span>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function BgPromptEditPanel({
-  prompt,
-  startedAt,
-  onGenerate,
-  onCancel,
-}: {
-  prompt: string;
-  startedAt: number;
-  onGenerate: (prompt: string) => void;
-  onCancel: () => void;
-}) {
-  const [edited, setEdited] = useState(prompt);
-  return (
-    <div className="bg-status-panel bg-prompt-edit-panel">
-      <div className="bg-status-header">
-        <span className="bg-status-title">Edit Vision Prompt</span>
-        <ElapsedTimer startedAt={startedAt} />
-      </div>
-      <p className="bg-prompt-hint">GPT-4o derived this prompt from your images. Edit it before generating.</p>
-      <textarea
-        className="bg-prompt-textarea"
-        value={edited}
-        onChange={(e) => setEdited(e.target.value)}
-        rows={5}
-        autoFocus
-      />
-      <div className="bg-prompt-actions">
-        <button className="bg-prompt-cancel" onClick={onCancel}>Cancel</button>
-        <button
-          className="bg-prompt-generate"
-          onClick={() => onGenerate(edited.trim())}
-          disabled={!edited.trim()}
-        >
-          Generate →
-        </button>
-      </div>
-    </div>
-  );
-}
 
 function App() {
   const {
@@ -137,23 +53,6 @@ function App() {
   const [stickerGeneratorOpen, setStickerGeneratorOpen] = useState(false);
   // The generated image the sticker dialog is regenerating, if any.
   const [regeneratingId, setRegeneratingId] = useState<string | null>(null);
-  const [pendingImport, setPendingImport] = useState<(ParsedICP & { fileName: string }) | null>(null);
-  const [importError, setImportError] = useState<string | null>(null);
-  const [bgLoading, setBgLoading] = useState<BgRect | null>(null);
-  const [bgProgress, setBgProgress] = useState<BgProgressEvent | null>(null);
-  const bgStartedAtRef = useRef<number>(0);
-  const [bgError, setBgError] = useState<string | null>(null);
-  const [visionDetail, setVisionDetail] = useState<VisionDetail>(
-    () => (localStorage.getItem('mr-collage-vision-detail') as VisionDetail | null) ?? 'low'
-  );
-  const bgAbortRef = useRef<AbortController | null>(null);
-  const [bgAwaiting, setBgAwaiting] = useState<{
-    prompt: string;
-    rect: BgRect;
-    minZIndex: number;
-    aspectRatio: number;
-  } | null>(null);
-
   const { loadFromFiles, loadFromClipboard } = useImageLoader(addImage);
 
   const regeneratingObj = regeneratingId ? images.find((obj) => obj.id === regeneratingId) : undefined;
@@ -170,132 +69,20 @@ function App() {
   const editingText: CollageText | null =
     (images.find((obj): obj is CollageText => obj.kind === 'text' && obj.id === editingTextId) ?? null);
 
+  const bg = useBackgroundGeneration({ images, tool, setTool, stageRef, addBackground });
+  const { handleExportJPEG, handleExportPNGs, handleExportJSON, handleExportHTML } = useExports({
+    stageRef,
+    images,
+    selectedIds,
+    stagePosition,
+    stageScale,
+  });
+  const importFlow = useImportFlow({ hasObjects: images.length > 0, importObjects });
+
   const cropDrawer = useCropDrawer({
     active: tool === 'crop',
     targetImage: selectedImageOnly,
     stageRef,
-  });
-
-  const handleBgRectComplete = useCallback(
-    (rect: BgRect) => {
-      const apiKey = localStorage.getItem(API_KEY_STORAGE_KEY)?.trim() ?? '';
-      if (!apiKey) {
-        setBgError('No OpenAI API key found. Generate a sticker first to save your key, or open the sticker generator to add one.');
-        setTool('select');
-        return;
-      }
-
-      const stage = stageRef.current;
-      const containedImages = images.filter((obj): obj is CollageImage => {
-        if (obj.kind !== 'image') return false;
-        const node = stage?.findOne(`#${obj.id}`);
-        const box = node?.getClientRect({ relativeTo: stage ?? undefined });
-        return box ? Konva.Util.haveIntersection(rect, box) : false;
-      });
-
-      if (containedImages.length === 0) {
-        setBgError('No images found within the drawn area. Draw the rectangle over the images you want to use as context.');
-        setTool('select');
-        return;
-      }
-
-      const minZIndex = Math.min(...containedImages.map((img) => img.zIndex));
-      const aspectRatio = rect.width / rect.height;
-
-      // Render the drawn region to a JPEG so the vision model sees how everything
-      // is laid out together rather than each image in isolation.
-      const scale = stage!.scaleX();
-      const compositeJpeg = stage!.toDataURL({
-        x: rect.x * scale + stage!.x(),
-        y: rect.y * scale + stage!.y(),
-        width: rect.width * scale,
-        height: rect.height * scale,
-        pixelRatio: 2,
-        mimeType: 'image/jpeg',
-        quality: 0.85,
-      });
-
-      setTool('select');
-      bgStartedAtRef.current = Date.now();
-      setBgLoading(rect);
-
-      const controller = new AbortController();
-      bgAbortRef.current = controller;
-
-      analyzeImages([compositeJpeg], apiKey, visionDetail, controller.signal, (event) => setBgProgress(event))
-        .then((visionPrompt) => {
-          setBgAwaiting({ prompt: visionPrompt, rect, minZIndex, aspectRatio });
-        })
-        .catch((err: unknown) => {
-          if (err instanceof DOMException && err.name === 'AbortError') {
-            setBgLoading(null);
-            return;
-          }
-          setBgError(err instanceof Error ? err.message : 'Vision analysis failed.');
-          setBgLoading(null);
-        })
-        .finally(() => {
-          setBgProgress(null);
-        });
-    },
-    [images, stageRef, setTool, visionDetail]
-  );
-
-  const handleBgGenerate = useCallback(
-    (editedPrompt: string) => {
-      if (!bgAwaiting) return;
-      const { rect, minZIndex, aspectRatio } = bgAwaiting;
-      const apiKey = localStorage.getItem(API_KEY_STORAGE_KEY)?.trim() ?? '';
-
-      setBgAwaiting(null);
-
-      const controller = new AbortController();
-      bgAbortRef.current = controller;
-
-      generateBackgroundFromPrompt(editedPrompt, apiKey, aspectRatio, controller.signal, (event) => setBgProgress(event))
-        .then(({ dataUrl, naturalWidth, naturalHeight }) =>
-          new Promise<void>((resolve, reject) => {
-            const img = new Image();
-            img.onload = () => {
-              if (img.naturalWidth === 0 || img.naturalHeight === 0) {
-                reject(new Error('API returned a blank image. Try editing the prompt and generating again.'));
-                return;
-              }
-              try {
-                addBackground(dataUrl, 'AI Background', naturalWidth, naturalHeight, rect, minZIndex);
-                setBgError(null);
-                resolve();
-              } catch (e) {
-                reject(e);
-              }
-            };
-            img.onerror = () => reject(new Error('Background image was generated but could not be decoded.'));
-            img.src = dataUrl;
-          })
-        )
-        .catch((err: unknown) => {
-          if (err instanceof DOMException && err.name === 'AbortError') return;
-          setBgError(err instanceof Error ? err.message : 'Background generation failed.');
-        })
-        .finally(() => {
-          setBgLoading(null);
-          setBgProgress(null);
-        });
-    },
-    [bgAwaiting, addBackground]
-  );
-
-  const handleBgCancel = useCallback(() => {
-    bgAbortRef.current?.abort();
-    setBgAwaiting(null);
-    setBgLoading(null);
-    setBgProgress(null);
-  }, []);
-
-  const bgRectDrawer = useBgRectDrawer({
-    active: tool === 'bg-rect',
-    stageRef,
-    onComplete: handleBgRectComplete,
   });
 
   const applyCrop = useCallback(() => {
@@ -336,303 +123,7 @@ function App() {
     [loadFromFiles]
   );
 
-  const handleExportJPEG = useCallback(() => {
-    const stage = stageRef.current;
-    if (!stage || images.length === 0) return;
-
-    const layer = stage.findOne<Konva.Layer>('.content')!;
-    // No `relativeTo`: getClientRect() defaults to absolute/screen coordinates,
-    // which is the same space stage.toDataURL()'s x/y/width/height expect
-    // (they include the stage's current pan and zoom). Passing `relativeTo: stage`
-    // stripped that transform out, so the crop region didn't match the content.
-    const rect = layer.getClientRect();
-
-    const padding = 40;
-    const pixelRatio = 2;
-    const dataUrl = stage.toDataURL({
-      x: rect.x - padding,
-      y: rect.y - padding,
-      width: rect.width + padding * 2,
-      height: rect.height + padding * 2,
-      pixelRatio,
-      mimeType: 'image/png',
-    });
-
-    // JPEG has no alpha channel, so transparent canvas pixels would otherwise
-    // composite to black. Draw the PNG capture over a white background first.
-    const img = new Image();
-    img.onload = () => {
-      const canvas = document.createElement('canvas');
-      canvas.width = img.width;
-      canvas.height = img.height;
-      const ctx = canvas.getContext('2d');
-      if (!ctx) return;
-      ctx.fillStyle = '#ffffff';
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-      ctx.drawImage(img, 0, 0);
-
-      const link = document.createElement('a');
-      link.download = 'collage.jpg';
-      link.href = canvas.toDataURL('image/jpeg', 0.95);
-      link.click();
-    };
-    img.src = dataUrl;
-  }, [images]);
-
-  // One PNG per selected object, each holding just that object (with its
-  // effects) on a transparent background. Every other layer child — other
-  // objects, the Transformer, previews — is hidden for the capture and put
-  // back before the next frame draws, so the canvas never flickers.
-  const handleExportPNGs = useCallback(async () => {
-    const stage = stageRef.current;
-    if (!stage || selectedIds.length === 0) return;
-
-    const layer = stage.findOne<Konva.Layer>('.content')!;
-    const children = layer.getChildren();
-    const wasVisible = children.map((child) => child.visible());
-    // The Transformer and previews sit on their own layers; none belong in an
-    // object's PNG.
-    const otherLayers = stage.getLayers().filter((l) => l !== layer);
-    const layersWereVisible = otherLayers.map((l) => l.visible());
-    // 2x the object's own canvas size, whatever the current zoom.
-    const pixelRatio = 2 / stage.scaleX();
-    // Stacking order, so the numbering matches what's on screen bottom-up.
-    const targets = images.filter((obj) => selectedIds.includes(obj.id));
-
-    const captures: { name: string; canvas: HTMLCanvasElement }[] = [];
-    try {
-      targets.forEach((obj, i) => {
-        // A masked image's shadow is drawn by a sibling node; take it along.
-        const parts = [stage.findOne(`#${obj.id}`), stage.findOne(`#${obj.id}-mask-shadow`)].filter(
-          (node): node is Konva.Node => !!node
-        );
-        if (parts.length === 0) return;
-        children.forEach((child) => child.visible(parts.includes(child)));
-        otherLayers.forEach((l) => l.visible(false));
-
-        const rects = parts.map((node) => node.getClientRect());
-        const x = Math.min(...rects.map((r) => r.x));
-        const y = Math.min(...rects.map((r) => r.y));
-        const width = Math.max(...rects.map((r) => r.x + r.width)) - x;
-        const height = Math.max(...rects.map((r) => r.y + r.height)) - y;
-        captures.push({
-          name: `collage-${i + 1}-${obj.kind}.png`,
-          canvas: stage.toCanvas({ x, y, width, height, pixelRatio }),
-        });
-      });
-    } finally {
-      children.forEach((child, i) => child.visible(wasVisible[i]));
-      otherLayers.forEach((l, i) => l.visible(layersWereVisible[i]));
-    }
-
-    for (const { name, canvas } of captures) {
-      const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/png'));
-      if (!blob) continue;
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.download = name;
-      link.href = url;
-      link.click();
-      URL.revokeObjectURL(url);
-      // Browsers can drop downloads fired in the same tick as each other.
-      await new Promise((resolve) => setTimeout(resolve, 100));
-    }
-  }, [images, selectedIds]);
-
-  const handleExportJSON = useCallback(() => {
-    const data = exportToICP(images, { stagePosition, stageScale });
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.download = 'collage-icp.json';
-    link.href = url;
-    link.click();
-    URL.revokeObjectURL(url);
-  }, [images, stagePosition, stageScale]);
-
-  // The picker is a detached <input>, not one rendered into the page: the
-  // image upload input is the page's only file input, and keeping it that way
-  // keeps it unambiguous.
-  const handleImportJSON = useCallback(() => {
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = 'application/json,.json';
-    input.onchange = async () => {
-      const file = input.files?.[0];
-      if (!file) return;
-      try {
-        const parsed = parseICP(await file.text());
-        if (parsed.objects.length === 0) {
-          setImportError(`${file.name} doesn't contain any objects.`);
-        } else if (images.length === 0) {
-          // Nothing on the canvas to keep, so there's nothing to ask about.
-          importObjects(parsed.objects, 'replace', parsed.viewport);
-        } else {
-          setPendingImport({ ...parsed, fileName: file.name });
-        }
-      } catch (err) {
-        setImportError(
-          err instanceof ICPImportError ? err.message : `Couldn't read ${file.name}.`
-        );
-      }
-    };
-    input.click();
-  }, [images.length, importObjects]);
-
-  const handleImportChoice = useCallback(
-    (mode: 'add' | 'replace') => {
-      if (!pendingImport) return;
-      importObjects(pendingImport.objects, mode, pendingImport.viewport);
-      setPendingImport(null);
-    },
-    [pendingImport, importObjects]
-  );
-  const handleImportAdd = useCallback(() => handleImportChoice('add'), [handleImportChoice]);
-  const handleImportReplace = useCallback(() => handleImportChoice('replace'), [handleImportChoice]);
-  const handleImportCancel = useCallback(() => setPendingImport(null), []);
-  const handleImportErrorClose = useCallback(() => setImportError(null), []);
-
-  const handleExportHTML = useCallback(async () => {
-    const stage = stageRef.current;
-    if (!stage || images.length === 0) return;
-
-    // Only cropped images need their natural (pre-crop) pixel size to scale
-    // the <img> element up so the cropped region fills its display box.
-    const naturalSizes: Record<string, { width: number; height: number }> = {};
-    const croppedImages = images.filter((obj): obj is CollageImage => obj.kind === 'image' && !!obj.crop);
-    await Promise.all(
-      croppedImages.map(
-        (img) =>
-          new Promise<void>((resolve) => {
-            const el = new window.Image();
-            el.onload = () => {
-              naturalSizes[img.id] = { width: el.naturalWidth, height: el.naturalHeight };
-              resolve();
-            };
-            el.src = img.src;
-          })
-      )
-    );
-
-    // A static file can't carry the live WebGL renderer, so each 3D object is
-    // rendered once here and embedded as a PNG — the same pre-pass shape as
-    // naturalSizes above.
-    const models = images.filter((obj): obj is CollageModel3D => obj.kind === 'model3d');
-
-    // An uploaded texture has to be decoded before it can be baked in, and the
-    // live node's copy isn't reachable from here — so load them up front, the
-    // same pre-pass shape as naturalSizes above. A texture that won't decode
-    // just bakes the object untextured rather than failing the export.
-    const textureImages = new Map<string, HTMLImageElement>();
-    await Promise.all(
-      models
-        .filter((model) => model.material.texture?.source === 'image')
-        .map(
-          (model) =>
-            new Promise<void>((resolve) => {
-              const el = new window.Image();
-              el.onload = () => {
-                textureImages.set(model.id, el);
-                resolve();
-              };
-              el.onerror = () => resolve();
-              el.src = (model.material.texture as { src: string }).src;
-            })
-        )
-    );
-
-    const modelSnapshots: Record<string, string> = {};
-    const renderModelToDataURL = models.length > 0 ? (await loadModelRenderer()).renderModelToDataURL : null;
-    for (const model of models) {
-      if (!renderModelToDataURL) break;
-      const snapshot = renderModelToDataURL(
-        {
-          shape: model.shape,
-          rotation3D: model.rotation3D,
-          light: model.light,
-          material: model.material,
-          textureImage: textureImages.get(model.id) ?? null,
-        },
-        model.width,
-        model.height
-      );
-      if (snapshot) modelSnapshots[model.id] = snapshot;
-    }
-
-    const html = await exportToStaticHTML(
-      images,
-      { x: stagePosition.x, y: stagePosition.y, scale: stageScale, width: stage.width(), height: stage.height() },
-      naturalSizes,
-      modelSnapshots
-    );
-
-    const blob = new Blob([html], { type: 'text/html' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.download = 'collage.html';
-    link.href = url;
-    link.click();
-    URL.revokeObjectURL(url);
-  }, [images, stagePosition, stageScale]);
-
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      // The text-edit overlay is a real <textarea> with its own native
-      // undo/typing/Escape handling — let all of that through untouched
-      // rather than hijacking it with app-level shortcuts below.
-      if (e.target instanceof HTMLTextAreaElement) return;
-      // A modal dialog owns the keyboard while it's open — Backspace or an
-      // arrow key there shouldn't reach the canvas behind it.
-      if (document.querySelector('[aria-modal="true"]')) return;
-
-      // Undo/redo bypasses the input-element guard below: sliders/color
-      // pickers keep focus after a drag — the most common moment a user
-      // reaches for Ctrl+Z — and have no native text-undo of their own to
-      // conflict with.
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
-        e.preventDefault();
-        if (e.shiftKey) redo();
-        else undo();
-        return;
-      }
-
-      if (e.target instanceof HTMLInputElement) return;
-
-      if (e.key === 'v' || e.key === 'V') setTool('select');
-      if (e.key === 'h' || e.key === 'H') setTool('pan');
-      if (e.key === 't' || e.key === 'T') setTool('text');
-      if (e.key === 'r' || e.key === 'R') setTool('rotate3d');
-      if ((e.key === 'Delete' || e.key === 'Backspace') && selectedIds.length > 0) {
-        deleteImage(selectedIds);
-      }
-      if (e.key === ' ') {
-        e.preventDefault();
-        setTool('pan');
-      }
-      if (selectedIds.length > 0) {
-        const nudge = { ArrowUp: [0, -1], ArrowDown: [0, 1], ArrowLeft: [-1, 0], ArrowRight: [1, 0] }[
-          e.key
-        ];
-        if (nudge) {
-          e.preventDefault();
-          nudgeImages(selectedIds, nudge[0], nudge[1]);
-        }
-      }
-    };
-
-    const handleKeyUp = (e: KeyboardEvent) => {
-      if (e.key === ' ') {
-        setTool('select');
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    window.addEventListener('keyup', handleKeyUp);
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-      window.removeEventListener('keyup', handleKeyUp);
-    };
-  }, [selectedIds, nudgeImages, deleteImage, setTool, undo, redo]);
+  useKeyboardShortcuts({ selectedIds, setTool, deleteImage, nudgeImages, undo, redo });
 
   useEffect(() => {
     const handleResize = () => {
@@ -706,11 +197,8 @@ function App() {
         onUpload={handleUploadClick}
         onAddModel3D={addModel3D}
         onOpenStickerGenerator={() => setStickerGeneratorOpen(true)}
-        visionDetail={visionDetail}
-        onVisionDetailChange={(d) => {
-          setVisionDetail(d);
-          localStorage.setItem('mr-collage-vision-detail', d);
-        }}
+        visionDetail={bg.visionDetail}
+        onVisionDetailChange={bg.setVisionDetail}
         onUpdateImage={updateImage}
         onDelete={deleteImage}
         onUndo={undo}
@@ -727,7 +215,7 @@ function App() {
         onExportHTML={handleExportHTML}
         onExportPNGs={handleExportPNGs}
         hasSelection={selectedIds.length > 0}
-        onImportJSON={handleImportJSON}
+        onImportJSON={importFlow.handleImportJSON}
         hasPendingCrop={cropDrawer.committedRect !== null}
         onApplyCrop={applyCrop}
         onCancelCrop={cancelCrop}
@@ -752,11 +240,11 @@ function App() {
         onCropMouseMove={cropDrawer.handleMouseMove}
         onCropMouseUp={cropDrawer.handleMouseUp}
         cropPreviewRect={cropDrawer.getPreviewRect()}
-        onBgRectMouseDown={bgRectDrawer.handleMouseDown}
-        onBgRectMouseMove={bgRectDrawer.handleMouseMove}
-        onBgRectMouseUp={bgRectDrawer.handleMouseUp}
-        bgRectPreview={bgRectDrawer.previewRect}
-        bgLoadingRect={bgLoading}
+        onBgRectMouseDown={bg.bgRectDrawer.handleMouseDown}
+        onBgRectMouseMove={bg.bgRectDrawer.handleMouseMove}
+        onBgRectMouseUp={bg.bgRectDrawer.handleMouseUp}
+        bgRectPreview={bg.bgRectDrawer.previewRect}
+        bgLoadingRect={bg.bgLoading}
         onRegenerate={setRegeneratingId}
       />
       {editingText && (
@@ -791,33 +279,35 @@ function App() {
           onClose={() => setRegeneratingId(null)}
         />
       )}
-      {bgProgress && (
-        <BgStatusPanel progress={bgProgress} startedAt={bgStartedAtRef.current} />
+      {bg.bgProgress && (
+        <BgStatusPanel progress={bg.bgProgress} startedAt={bg.startedAt} />
       )}
-      {bgAwaiting && (
+      {bg.bgAwaiting && (
         <BgPromptEditPanel
-          prompt={bgAwaiting.prompt}
-          startedAt={bgStartedAtRef.current}
-          onGenerate={handleBgGenerate}
-          onCancel={handleBgCancel}
+          prompt={bg.bgAwaiting.prompt}
+          startedAt={bg.startedAt}
+          onGenerate={bg.handleBgGenerate}
+          onCancel={bg.handleBgCancel}
         />
       )}
-      {bgError && (
+      {bg.bgError && (
         <div className="bg-error-toast">
-          <span>{bgError}</span>
-          <button className="bg-error-dismiss" onClick={() => setBgError(null)}>✕</button>
+          <span>{bg.bgError}</span>
+          <button className="bg-error-dismiss" onClick={bg.dismissError}>✕</button>
         </div>
       )}
-      {pendingImport && (
+      {importFlow.pendingImport && (
         <ImportChoiceDialog
-          fileName={pendingImport.fileName}
-          objectCount={pendingImport.objects.length}
-          onAdd={handleImportAdd}
-          onReplace={handleImportReplace}
-          onCancel={handleImportCancel}
+          fileName={importFlow.pendingImport.fileName}
+          objectCount={importFlow.pendingImport.objects.length}
+          onAdd={importFlow.handleImportAdd}
+          onReplace={importFlow.handleImportReplace}
+          onCancel={importFlow.handleImportCancel}
         />
       )}
-      {importError && <ImportErrorDialog message={importError} onClose={handleImportErrorClose} />}
+      {importFlow.importError && (
+        <ImportErrorDialog message={importFlow.importError} onClose={importFlow.handleImportErrorClose} />
+      )}
       {images.length === 0 && (
         <div className="empty-state">
           <p>Drop images here, paste from clipboard, or click upload</p>
