@@ -42,6 +42,26 @@ export async function idbGet(key: string): Promise<string | undefined> {
   });
 }
 
+// Reads several blobs in one transaction, with every get in flight at once.
+// Loading a collage used to await one idbGet per object in turn, so startup
+// paid a full IndexedDB round trip per image. Missing keys come back
+// undefined, same as idbGet.
+export async function idbGetMany(keys: string[]): Promise<Map<string, string | undefined>> {
+  const result = new Map<string, string | undefined>();
+  if (keys.length === 0) return result;
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(IMG_STORE, 'readonly');
+    const store = tx.objectStore(IMG_STORE);
+    for (const key of keys) {
+      const req = store.get(key);
+      req.onsuccess = () => result.set(key, req.result as string | undefined);
+    }
+    tx.oncomplete = () => resolve(result);
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
 export async function idbAllKeys(): Promise<string[]> {
   const db = await openDB();
   return new Promise((resolve, reject) => {
