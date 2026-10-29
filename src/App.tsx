@@ -12,7 +12,7 @@ import { useBgRectDrawer, type BgRect } from './hooks/useBgRectDrawer';
 import { analyzeImages, generateBackgroundFromPrompt, type VisionDetail, type BgProgressEvent } from './utils/generateBackground';
 import { localToStage } from './utils/geometry';
 import { exportToICP, exportToStaticHTML, parseICP, ICPImportError, type ParsedICP } from './store';
-import { renderModelToDataURL } from './utils/model3dRenderer';
+import { loadModelRenderer } from './utils/loadModelRenderer';
 import { CollageImage, CollageModel3D, CollageText } from './types';
 import './App.css';
 
@@ -542,7 +542,9 @@ function App() {
     );
 
     const modelSnapshots: Record<string, string> = {};
+    const renderModelToDataURL = models.length > 0 ? (await loadModelRenderer()).renderModelToDataURL : null;
     for (const model of models) {
+      if (!renderModelToDataURL) break;
       const snapshot = renderModelToDataURL(
         {
           shape: model.shape,

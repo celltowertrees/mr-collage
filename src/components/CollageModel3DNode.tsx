@@ -3,7 +3,7 @@ import { Image as KonvaImage, Group, Rect } from 'react-konva';
 import Konva from 'konva';
 import { CollageModel3D } from '../types';
 import { buildFadeMaskedCanvas } from '../utils/nodeEffects';
-import { renderModelToCanvas } from '../utils/model3dRenderer';
+import { useModelRenderer } from '../utils/loadModelRenderer';
 import { useLoadedImage } from '../utils/imageCache';
 import { useObjectNode, type ObjectNodeProps } from '../hooks/useObjectNode';
 
@@ -32,8 +32,13 @@ export const CollageModel3DNode = memo(function CollageModel3DNode({ model, ...n
   const fadeRef = useRef<HTMLCanvasElement | null>(null);
   const [surface, setSurface] = useState<HTMLCanvasElement | null>(null);
 
+  // Null until the lazily loaded renderer arrives; the outline placeholder
+  // stands in until then, same as it does without WebGL.
+  const renderer = useModelRenderer();
+
   useLayoutEffect(() => {
-    const rendered = renderModelToCanvas(
+    if (!renderer) return;
+    const rendered = renderer.renderModelToCanvas(
       { shape, rotation3D, light, material, textureImage },
       width,
       height,
@@ -67,7 +72,7 @@ export const CollageModel3DNode = memo(function CollageModel3DNode({ model, ...n
     // effect, and including it would run the whole render a second time
     // for every change just to compare the result against itself.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [shape, rotation3D, light, material, textureImage, width, height, gradientMask]);
+  }, [renderer, shape, rotation3D, light, material, textureImage, width, height, gradientMask]);
 
   return (
     <Group {...groupProps}>

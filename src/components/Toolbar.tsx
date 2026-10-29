@@ -20,7 +20,7 @@ import {
 } from '../types';
 import type { VisionDetail } from '../utils/generateBackground';
 import { GOOGLE_FONTS } from '../utils/googleFonts';
-import { warmUpModelRenderer } from '../utils/model3dRenderer';
+import { loadModelRenderer } from '../utils/loadModelRenderer';
 import { features } from '../featureFlags';
 import { fileToTextureDataURL } from '../utils/textureImage';
 import {
@@ -396,9 +396,10 @@ export function Toolbar({
                   setShapeMenuPos(null);
                   return;
                 }
-                // Pay the WebGL context + shader compile now, while the menu is
-                // open, instead of inside the click that places the object.
-                warmUpModelRenderer();
+                // Fetch the renderer (three.js is lazy-loaded) and pay the WebGL
+                // context + shader compile now, while the menu is open, instead
+                // of inside the click that places the object.
+                loadModelRenderer().then((renderer) => renderer.warmUpModelRenderer(), () => {});
                 const rect = shapeButtonRef.current?.getBoundingClientRect();
                 if (rect) setShapeMenuPos({ top: rect.bottom + 6, left: rect.left });
               }}
