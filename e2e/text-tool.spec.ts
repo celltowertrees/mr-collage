@@ -6,7 +6,7 @@ function readState(page: Page) {
 }
 
 async function getCanvasCenter(page: Page) {
-  const box = await page.locator('canvas').boundingBox();
+  const box = await page.locator('canvas').first().boundingBox();
   if (!box) throw new Error('canvas not found');
   return { x: Math.round(box.x + box.width / 2), y: Math.round(box.y + box.height / 2) };
 }

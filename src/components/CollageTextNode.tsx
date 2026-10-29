@@ -1,19 +1,14 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { memo, useEffect, useMemo, useRef, useState } from 'react';
 import { Text as KonvaText, Image as KonvaImage, Rect as KonvaRect, Group } from 'react-konva';
 import Konva from 'konva';
-import { CollageText, Tool } from '../types';
+import { CollageText } from '../types';
 import { fontWeightFor, loadGoogleFontFace } from '../utils/googleFonts';
 import { buildFadeMaskedCanvas } from '../utils/nodeEffects';
+import { useObjectNode, type ObjectNodeProps } from '../hooks/useObjectNode';
 
-interface Props {
+interface Props extends ObjectNodeProps {
   textObj: CollageText;
-  isSelected: boolean;
-  tool: Tool;
-  onSelect: (addToSelection: boolean) => void;
-  onChange: (changes: Partial<CollageText>, options?: { amend?: boolean }) => void;
-  onMove: (dx: number, dy: number) => void;
-  onEditStart: () => void;
-  onGroupDragStart?: () => void;
+  onEditStart: (id: string) => void;
 }
 
 function fontStyleFor(bold: boolean, italic: boolean): string {
@@ -23,10 +18,10 @@ function fontStyleFor(bold: boolean, italic: boolean): string {
   return 'normal';
 }
 
-export function CollageTextNode({ textObj, tool, onSelect, onChange, onMove, onEditStart, onGroupDragStart }: Props) {
-  const groupRef = useRef<Konva.Group>(null);
+export const CollageTextNode = memo(function CollageTextNode({ textObj, onEditStart, ...nodeProps }: Props) {
+  const { onChange } = nodeProps;
   const textRef = useRef<Konva.Text>(null);
-  const dragStartRef = useRef({ x: textObj.x, y: textObj.y });
+  const { groupProps, shadowActive, shadowProps } = useObjectNode(textObj, nodeProps);
   // Canvas 2D silently falls back to a system font until a picked Google Font
   // finishes downloading, so this flips once it's actually usable, forcing a
   // re-render (and re-measure/re-rasterize, below) with the real font in place.
@@ -75,7 +70,7 @@ export function CollageTextNode({ textObj, tool, onSelect, onChange, onMove, onE
     ) {
       // A derived sync, not an edit — amend the current undo step rather than
       // adding one, or Ctrl+Z would first just undo the measurement.
-      onChange({ width: measuredWidth, height: measuredHeight }, { amend: true });
+      onChange(textObj.id, { width: measuredWidth, height: measuredHeight }, { amend: true });
     }
     // fontReady is a signal to re-measure once the real font has loaded, not
     // a value read inside the effect.
@@ -123,62 +118,12 @@ export function CollageTextNode({ textObj, tool, onSelect, onChange, onMove, onE
     fontReady,
   ]);
 
-  const shadow = textObj.shadow;
-  const shadowActive = shadow?.enabled ?? false;
-
-  const flipX = textObj.flipX ? -1 : 1;
-  const flipY = textObj.flipY ? -1 : 1;
-
-  const transform = {
-    x: textObj.x,
-    y: textObj.y,
-    offsetX: textObj.width / 2,
-    offsetY: textObj.height / 2,
-    scaleX: textObj.scaleX * flipX,
-    scaleY: textObj.scaleY * flipY,
-    rotation: textObj.rotation,
-  };
-
   return (
     <>
       <Group
-        ref={groupRef}
-        id={textObj.id}
-        {...transform}
-        draggable={tool === 'select'}
-        onClick={(e) => onSelect(e.evt.shiftKey)}
-        onTap={() => onSelect(false)}
-        onDblClick={onEditStart}
-        onDblTap={onEditStart}
-        onDragStart={() => {
-          dragStartRef.current = { x: textObj.x, y: textObj.y };
-          onGroupDragStart?.();
-        }}
-        onDragEnd={(e) => {
-          onMove(e.target.x() - dragStartRef.current.x, e.target.y() - dragStartRef.current.y);
-        }}
-        onTransformEnd={() => {
-          const node = groupRef.current;
-          if (!node) return;
-          const newScaleX = node.scaleX() * flipX;
-          const newScaleY = node.scaleY() * flipY;
-          const newRotation = node.rotation();
-          // Konva fires transformend on position changes too (drag), not only
-          // resize/rotate. Skip it when only position changed — onDragEnd
-          // already handles that via onMove.
-          if (
-            Math.abs(newScaleX - textObj.scaleX) < 0.001 &&
-            Math.abs(newScaleY - textObj.scaleY) < 0.001 &&
-            Math.abs(newRotation - textObj.rotation) < 0.001
-          ) return;
-          onChange({
-            x: node.x(),
-            y: node.y(),
-            rotation: newRotation,
-            scaleX: newScaleX,
-            scaleY: newScaleY,
-          });
-        }}
+        {...groupProps}
+        onDblClick={() => onEditStart(textObj.id)}
+        onDblTap={() => onEditStart(textObj.id)}
       >
         {/* Transparent hit rect ensures clicks register across the full bounding box,
             not just the pixels occupied by the text glyphs themselves. Without this,
@@ -196,11 +141,7 @@ export function CollageTextNode({ textObj, tool, onSelect, onChange, onMove, onE
           opacity={textObj.opacity}
           globalCompositeOperation={textObj.blendMode ?? 'source-over'}
           shadowEnabled={!gradientSource && shadowActive}
-          shadowColor={shadow?.color}
-          shadowBlur={shadow?.blur}
-          shadowOffsetX={shadow?.offsetX}
-          shadowOffsetY={shadow?.offsetY}
-          shadowOpacity={shadow?.opacity}
+          {...shadowProps}
         />
         {gradientSource && (
           <KonvaImage
@@ -210,14 +151,10 @@ export function CollageTextNode({ textObj, tool, onSelect, onChange, onMove, onE
             opacity={textObj.opacity}
             globalCompositeOperation={textObj.blendMode ?? 'source-over'}
             shadowEnabled={shadowActive}
-            shadowColor={shadow?.color}
-            shadowBlur={shadow?.blur}
-            shadowOffsetX={shadow?.offsetX}
-            shadowOffsetY={shadow?.offsetY}
-            shadowOpacity={shadow?.opacity}
+            {...shadowProps}
           />
         )}
       </Group>
     </>
   );
-}
+});

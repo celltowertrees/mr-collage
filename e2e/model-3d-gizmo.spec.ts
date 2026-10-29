@@ -29,7 +29,7 @@ async function addShape(page: Page, shape: string) {
   await page.getByRole('menuitem', { name: shape, exact: true }).click();
   await expect(page.getByTitle('Bring to Front')).toBeVisible();
   await expect.poll(async () => (await readState(page)).images.at(-1)?.kind).toBe('model3d');
-  const box = await page.locator('canvas').boundingBox();
+  const box = await page.locator('canvas').first().boundingBox();
   if (!box) throw new Error('canvas not found');
   return { x: Math.round(box.x + box.width / 2), y: Math.round(box.y + box.height / 2) };
 }
@@ -148,7 +148,7 @@ test.describe('On-Object 3D Rotation Gizmo', () => {
     await expect(page.getByLabel('Rot Z')).toHaveCount(0);
     // Reset is still there, and still returns the object to its default pose.
     const c = await (async () => {
-      const box = await page.locator('canvas').boundingBox();
+      const box = await page.locator('canvas').first().boundingBox();
       if (!box) throw new Error('canvas not found');
       return { x: Math.round(box.x + box.width / 2), y: Math.round(box.y + box.height / 2) };
     })();
@@ -160,7 +160,7 @@ test.describe('On-Object 3D Rotation Gizmo', () => {
   test('the gizmo is only offered for 3D objects', async ({ page }) => {
     await page.setInputFiles('input[type="file"]', 'e2e/fixtures/orange-square.png');
     await expect(page.getByTitle('Bring to Front')).toBeVisible();
-    const box = await page.locator('canvas').boundingBox();
+    const box = await page.locator('canvas').first().boundingBox();
     if (!box) throw new Error('canvas not found');
     const c = { x: Math.round(box.x + box.width / 2), y: Math.round(box.y + box.height / 2) };
 

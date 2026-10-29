@@ -340,7 +340,7 @@ function App() {
     const stage = stageRef.current;
     if (!stage || images.length === 0) return;
 
-    const layer = stage.getLayers()[0];
+    const layer = stage.findOne<Konva.Layer>('.content')!;
     // No `relativeTo`: getClientRect() defaults to absolute/screen coordinates,
     // which is the same space stage.toDataURL()'s x/y/width/height expect
     // (they include the stage's current pan and zoom). Passing `relativeTo: stage`
@@ -387,9 +387,13 @@ function App() {
     const stage = stageRef.current;
     if (!stage || selectedIds.length === 0) return;
 
-    const layer = stage.getLayers()[0];
+    const layer = stage.findOne<Konva.Layer>('.content')!;
     const children = layer.getChildren();
     const wasVisible = children.map((child) => child.visible());
+    // The Transformer and previews sit on their own layers; none belong in an
+    // object's PNG.
+    const otherLayers = stage.getLayers().filter((l) => l !== layer);
+    const layersWereVisible = otherLayers.map((l) => l.visible());
     // 2x the object's own canvas size, whatever the current zoom.
     const pixelRatio = 2 / stage.scaleX();
     // Stacking order, so the numbering matches what's on screen bottom-up.
@@ -404,6 +408,7 @@ function App() {
         );
         if (parts.length === 0) return;
         children.forEach((child) => child.visible(parts.includes(child)));
+        otherLayers.forEach((l) => l.visible(false));
 
         const rects = parts.map((node) => node.getClientRect());
         const x = Math.min(...rects.map((r) => r.x));
@@ -417,6 +422,7 @@ function App() {
       });
     } finally {
       children.forEach((child, i) => child.visible(wasVisible[i]));
+      otherLayers.forEach((l, i) => l.visible(layersWereVisible[i]));
     }
 
     for (const { name, canvas } of captures) {
@@ -651,12 +657,18 @@ function App() {
 
   // A dragged image moves the whole selection if it's part of one, so
   // dragging any selected image carries the rest of the group with it.
+  // Reads the selection through a ref so this stays one stable function —
+  // it's handed to every canvas node, and a new identity on each selection
+  // change would re-render all of them.
+  const selectedIdsRef = useRef(selectedIds);
+  selectedIdsRef.current = selectedIds;
   const handleMoveSelected = useCallback(
     (draggedId: string, dx: number, dy: number) => {
-      const ids = selectedIds.includes(draggedId) ? selectedIds : [draggedId];
+      const current = selectedIdsRef.current;
+      const ids = current.includes(draggedId) ? current : [draggedId];
       moveImages(ids, dx, dy);
     },
-    [selectedIds, moveImages]
+    [moveImages]
   );
 
   // Placing text with the Text tool is a single click: create it, switch

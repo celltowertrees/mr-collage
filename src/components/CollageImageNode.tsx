@@ -1,33 +1,18 @@
-import { useRef, useEffect, useState, useMemo } from 'react';
+import { useEffect, useMemo, memo } from 'react';
 import { Image as KonvaImage, Group, Shape } from 'react-konva';
-import Konva from 'konva';
-import { CollageImage, Tool } from '../types';
+import { CollageImage } from '../types';
 import { buildClipFunc, buildFadeMaskedCanvas, buildMaskShadowSceneFunc } from '../utils/nodeEffects';
+import { useLoadedImage } from '../utils/imageCache';
+import { useObjectNode, type ObjectNodeProps } from '../hooks/useObjectNode';
 
-interface Props {
+interface Props extends ObjectNodeProps {
   image: CollageImage;
-  isSelected: boolean;
-  tool: Tool;
-  onSelect: (addToSelection: boolean) => void;
-  onChange: (changes: Partial<CollageImage>) => void;
-  onMove: (dx: number, dy: number) => void;
-  onGroupDragStart?: () => void;
   onNodeMount?: () => void;
 }
 
-export function CollageImageNode({ image, tool, onSelect, onChange, onMove, onGroupDragStart, onNodeMount }: Props) {
-  const groupRef = useRef<Konva.Group>(null);
-  const imageRef = useRef<Konva.Image>(null);
-  const dragStartRef = useRef({ x: image.x, y: image.y });
-  const [img, setImg] = useState<HTMLImageElement | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    const element = new window.Image();
-    element.onload = () => { if (!cancelled) setImg(element); };
-    element.src = image.src;
-    return () => { cancelled = true; };
-  }, [image.src]);
+export const CollageImageNode = memo(function CollageImageNode({ image, onNodeMount, ...nodeProps }: Props) {
+  const img = useLoadedImage(image.src);
+  const { groupProps, transform, shadow, shadowActive, shadowProps } = useObjectNode(image, nodeProps);
 
   // The Konva group only exists once the image has loaded (see the early
   // return below), so tell the parent when it's actually on the stage.
@@ -44,23 +29,15 @@ export function CollageImageNode({ image, tool, onSelect, onChange, onMove, onGr
     return buildFadeMaskedCanvas(img, image.width, image.height, image.crop, gradientMask, vignette);
   }, [img, image.width, image.height, image.crop, gradientMask, vignette]);
 
+  // Rebuilt only when the mask changes, rather than handing Konva a new
+  // function (and so a changed attr and a redraw) on every render.
+  const clipFunc = useMemo(() => (image.mask ? buildClipFunc(image.mask) : undefined), [image.mask]);
+  const maskShadowSceneFunc = useMemo(
+    () => (image.mask ? buildMaskShadowSceneFunc(image.mask) : undefined),
+    [image.mask]
+  );
+
   if (!img) return null;
-
-  const shadow = image.shadow;
-  const shadowActive = shadow?.enabled ?? false;
-
-  const flipX = image.flipX ? -1 : 1;
-  const flipY = image.flipY ? -1 : 1;
-
-  const transform = {
-    x: image.x,
-    y: image.y,
-    offsetX: image.width / 2,
-    offsetY: image.height / 2,
-    scaleX: image.scaleX * flipX,
-    scaleY: image.scaleY * flipY,
-    rotation: image.rotation,
-  };
 
   return (
     <>
@@ -71,57 +48,15 @@ export function CollageImageNode({ image, tool, onSelect, onChange, onMove, onGr
             width={image.width}
             height={image.height}
             fill="black"
-            sceneFunc={buildMaskShadowSceneFunc(image.mask)}
+            sceneFunc={maskShadowSceneFunc}
             shadowEnabled
-            shadowColor={shadow.color}
-            shadowBlur={shadow.blur}
-            shadowOffsetX={shadow.offsetX}
-            shadowOffsetY={shadow.offsetY}
-            shadowOpacity={shadow.opacity}
+            {...shadowProps}
             perfectDrawEnabled={false}
           />
         </Group>
       )}
-      <Group
-        ref={groupRef}
-        id={image.id}
-        {...transform}
-        draggable={tool === 'select'}
-        onClick={(e) => onSelect(e.evt.shiftKey)}
-        onTap={() => onSelect(false)}
-        onDragStart={() => {
-          dragStartRef.current = { x: image.x, y: image.y };
-          onGroupDragStart?.();
-        }}
-        onDragEnd={(e) => {
-          onMove(e.target.x() - dragStartRef.current.x, e.target.y() - dragStartRef.current.y);
-        }}
-        onTransformEnd={() => {
-          const node = groupRef.current;
-          if (!node) return;
-          const newScaleX = node.scaleX() * flipX;
-          const newScaleY = node.scaleY() * flipY;
-          const newRotation = node.rotation();
-          // Konva fires transformend on position changes too (drag), not only
-          // resize/rotate. Skip it when only position changed — onDragEnd
-          // already handles that via onMove.
-          if (
-            Math.abs(newScaleX - image.scaleX) < 0.001 &&
-            Math.abs(newScaleY - image.scaleY) < 0.001 &&
-            Math.abs(newRotation - image.rotation) < 0.001
-          ) return;
-          onChange({
-            x: node.x(),
-            y: node.y(),
-            rotation: newRotation,
-            scaleX: newScaleX,
-            scaleY: newScaleY,
-          });
-        }}
-        clipFunc={image.mask ? buildClipFunc(image.mask) : undefined}
-      >
+      <Group {...groupProps} clipFunc={clipFunc}>
         <KonvaImage
-          ref={imageRef}
           image={gradientSource ?? img}
           width={image.width}
           height={image.height}
@@ -129,13 +64,9 @@ export function CollageImageNode({ image, tool, onSelect, onChange, onMove, onGr
           opacity={image.opacity}
           globalCompositeOperation={image.blendMode ?? 'source-over'}
           shadowEnabled={shadowActive && !image.mask}
-          shadowColor={shadow?.color}
-          shadowBlur={shadow?.blur}
-          shadowOffsetX={shadow?.offsetX}
-          shadowOffsetY={shadow?.offsetY}
-          shadowOpacity={shadow?.opacity}
+          {...shadowProps}
         />
       </Group>
     </>
   );
-}
+});

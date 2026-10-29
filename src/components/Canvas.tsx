@@ -1,4 +1,4 @@
-import { useRef, useState, useEffect, useLayoutEffect, useCallback, useReducer } from 'react';
+import { useRef, useState, useEffect, useLayoutEffect, useCallback, useReducer, useMemo } from 'react';
 import { Stage, Layer, Circle, Rect, Line, Transformer } from 'react-konva';
 import Konva from 'konva';
 import { CollageObject, GradientMask, MaskData, ObjectChanges, Rotation3D, Tool } from '../types';
@@ -509,6 +509,48 @@ export function Canvas({
     onSelect(overlapped);
   }, [isRotate3DTool, isGradientTool, isMaskTool, isCropTool, isBgRectTool, model3DRotator, onCropMouseUp, onBgRectMouseUp, gradientMaskDrawer, maskDrawer, stageRef, toContentPoint, images, onSelect]);
 
+  // Read through refs so the per-node handlers below never change identity
+  // when the selection does — they're shared by every node, and a new
+  // function would defeat each node's React.memo.
+  const selectedIdsRef = useRef(selectedIds);
+  selectedIdsRef.current = selectedIds;
+
+  // Shared by every kind: shift-click toggles membership in the selection, a
+  // plain click replaces it.
+  const handleNodeSelect = useCallback(
+    (id: string, addToSelection: boolean) => {
+      const current = selectedIdsRef.current;
+      if (addToSelection) {
+        onSelect(current.includes(id) ? current.filter((sid) => sid !== id) : [...current, id]);
+      } else {
+        onSelect([id]);
+      }
+    },
+    [onSelect]
+  );
+
+  // Only the node the user actually grabbed commits the group delta; the
+  // Transformer drags the rest along and they bail out here.
+  const handleNodeMove = useCallback(
+    (id: string, dx: number, dy: number) => {
+      if (id !== primaryDragRef.current) return;
+      primaryDragRef.current = null;
+      onMoveSelected(id, dx, dy);
+    },
+    [onMoveSelected]
+  );
+
+  const nodeHandlers = useMemo(
+    () => ({
+      tool,
+      onSelect: handleNodeSelect,
+      onChange: onUpdateImage,
+      onMove: handleNodeMove,
+      onDragStart: handleNodeDragStart,
+    }),
+    [tool, handleNodeSelect, onUpdateImage, handleNodeMove, handleNodeDragStart]
+  );
+
   const getCursor = () => {
     if (tool === 'pan') return 'grab';
     if (isRotate3DTool) return 'grab';
@@ -516,7 +558,7 @@ export function Canvas({
     return 'default';
   };
 
-  const sorted = [...images].sort((a, b) => a.zIndex - b.zIndex);
+  const sorted = useMemo(() => [...images].sort((a, b) => a.zIndex - b.zIndex), [images]);
 
   // Render mask preview shape
   const preview = maskDrawer.getPreview();
@@ -610,68 +652,28 @@ export function Canvas({
         }}
         style={{ cursor: getCursor() }}
       >
-        <Layer>
+        <Layer name="content">
           {sorted.map((obj) => {
-            // Shared by every kind: shift-click toggles membership in the
-            // selection, a plain click replaces it.
-            const handleSelect = (addToSelection: boolean) => {
-              if (addToSelection) {
-                const newIds = selectedIds.includes(obj.id)
-                  ? selectedIds.filter((id) => id !== obj.id)
-                  : [...selectedIds, obj.id];
-                onSelect(newIds);
-              } else {
-                onSelect([obj.id]);
-              }
-            };
-            // Only the node the user actually grabbed commits the group delta;
-            // the Transformer drags the rest along and they bail out here.
-            const handleMove = (dx: number, dy: number) => {
-              if (obj.id !== primaryDragRef.current) return;
-              primaryDragRef.current = null;
-              onMoveSelected(obj.id, dx, dy);
-            };
-            // `key` is deliberately NOT part of this bag — React warns when a
-            // key is spread in rather than passed directly on the element.
-            const shared = {
-              isSelected: selectedIds.includes(obj.id),
-              tool,
-              onSelect: handleSelect,
-              onMove: handleMove,
-              onGroupDragStart: () => handleNodeDragStart(obj.id),
-            };
-
             if (obj.kind === 'text') {
               return (
                 <CollageTextNode
                   key={obj.id}
-                  {...shared}
+                  {...nodeHandlers}
                   textObj={obj}
-                  onChange={(changes, options) => onUpdateImage(obj.id, changes, options)}
-                  onEditStart={() => onStartEditingText(obj.id)}
+                  onEditStart={onStartEditingText}
                 />
               );
             }
             if (obj.kind === 'model3d') {
-              return (
-                <CollageModel3DNode
-                  key={obj.id}
-                  {...shared}
-                  model={obj}
-                  onChange={(changes) => onUpdateImage(obj.id, changes)}
-                />
-              );
+              return <CollageModel3DNode key={obj.id} {...nodeHandlers} model={obj} />;
             }
-            return (
-              <CollageImageNode
-                key={obj.id}
-                {...shared}
-                image={obj}
-                onChange={(changes) => onUpdateImage(obj.id, changes)}
-                onNodeMount={onNodeMount}
-              />
-            );
+            return <CollageImageNode key={obj.id} {...nodeHandlers} image={obj} onNodeMount={onNodeMount} />;
           })}
+        </Layer>
+        {/* Selection chrome and in-progress previews live on their own layer,
+            so drawing a marquee or mask outline frame by frame repaints only
+            these few shapes instead of every object (and its shadow) below. */}
+        <Layer name="overlay">
           <Transformer
             ref={trRef}
             padding={selectionHasText ? 8 : 0}
