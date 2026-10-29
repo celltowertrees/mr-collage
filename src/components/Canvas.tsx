@@ -93,6 +93,10 @@ type MarqueeRect = { x: number; y: number; width: number; height: number };
 // empty canvas counts as a marquee rather than a plain click-to-deselect.
 const MARQUEE_DRAG_THRESHOLD = 3;
 
+// How long the wheel has to stay still before the pan/zoom it produced is
+// handed to React (and so saved, and seen by the text-edit overlay).
+const WHEEL_COMMIT_DELAY_MS = 150;
+
 export function Canvas({
   images,
   selectedIds,
@@ -317,6 +321,27 @@ export function Canvas({
     return () => window.removeEventListener('paste', handler);
   }, [onPaste]);
 
+  // A wheel gesture fires dozens of events a second. Each used to push the
+  // new pan/zoom into React state, re-rendering the app (toolbar included) and
+  // booking a save on every tick. Instead the stage is moved directly, the
+  // way Konva moves it during a pan-tool drag, and React hears about it once
+  // the wheel goes quiet. react-konva only re-applies a prop when its value
+  // changes, so a re-render in the meantime can't snap the stage back.
+  const wheelCommitTimer = useRef<number | null>(null);
+  const commitViewport = useCallback(() => {
+    wheelCommitTimer.current = null;
+    const stage = stageRef.current;
+    if (!stage) return;
+    onStageScaleChange(stage.scaleX());
+    onStagePositionChange({ x: stage.x(), y: stage.y() });
+  }, [onStageScaleChange, onStagePositionChange, stageRef]);
+  useEffect(
+    () => () => {
+      if (wheelCommitTimer.current !== null) clearTimeout(wheelCommitTimer.current);
+    },
+    []
+  );
+
   const handleWheel = useCallback((e: Konva.KonvaEventObject<WheelEvent>) => {
     e.evt.preventDefault();
     const stage = stageRef.current;
@@ -331,32 +356,38 @@ export function Canvas({
       let dy = e.evt.deltaY * unit;
       // Shift+wheel means sideways on mice that only have a vertical wheel.
       if (e.evt.shiftKey && dx === 0) [dx, dy] = [dy, 0];
-      onStagePositionChange({ x: stage.x() - dx, y: stage.y() - dy });
-      return;
+      stage.position({ x: stage.x() - dx, y: stage.y() - dy });
+    } else {
+      const oldScale = stage.scaleX();
+      const pointer = stage.getPointerPosition();
+      if (!pointer) return;
+
+      const scaleBy = 1.05;
+      const direction = e.evt.deltaY > 0 ? -1 : 1;
+      const newScale = direction > 0 ? oldScale * scaleBy : oldScale / scaleBy;
+      const clampedScale = Math.max(0.05, Math.min(10, newScale));
+
+      const mousePointTo = {
+        x: (pointer.x - stage.x()) / oldScale,
+        y: (pointer.y - stage.y()) / oldScale,
+      };
+
+      stage.scale({ x: clampedScale, y: clampedScale });
+      stage.position({
+        x: pointer.x - mousePointTo.x * clampedScale,
+        y: pointer.y - mousePointTo.y * clampedScale,
+      });
     }
 
-    const oldScale = stage.scaleX();
-    const pointer = stage.getPointerPosition();
-    if (!pointer) return;
+    // What a pan drag's onDragMove does, for the same reason: the Transformer
+    // and the regenerate button both cache screen-space positions.
+    trRef.current?.forceUpdate();
+    stage.batchDraw();
+    updateRegenAnchor();
 
-    const scaleBy = 1.05;
-    const direction = e.evt.deltaY > 0 ? -1 : 1;
-    const newScale = direction > 0 ? oldScale * scaleBy : oldScale / scaleBy;
-    const clampedScale = Math.max(0.05, Math.min(10, newScale));
-
-    const mousePointTo = {
-      x: (pointer.x - stage.x()) / oldScale,
-      y: (pointer.y - stage.y()) / oldScale,
-    };
-
-    const newPos = {
-      x: pointer.x - mousePointTo.x * clampedScale,
-      y: pointer.y - mousePointTo.y * clampedScale,
-    };
-
-    onStageScaleChange(clampedScale);
-    onStagePositionChange(newPos);
-  }, [tool, onStageScaleChange, onStagePositionChange, stageRef]);
+    if (wheelCommitTimer.current !== null) clearTimeout(wheelCommitTimer.current);
+    wheelCommitTimer.current = window.setTimeout(commitViewport, WHEEL_COMMIT_DELAY_MS);
+  }, [tool, stageRef, updateRegenAnchor, commitViewport]);
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
