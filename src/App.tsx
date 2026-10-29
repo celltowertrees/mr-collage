@@ -236,13 +236,9 @@ function App() {
         onAddText={handleAddText}
         onStartEditingText={setEditingTextId}
         stageRef={stageRef}
-        onCropMouseDown={cropDrawer.handleMouseDown}
-        onCropMouseMove={cropDrawer.handleMouseMove}
-        onCropMouseUp={cropDrawer.handleMouseUp}
+        cropDrawer={cropDrawer}
         cropPreviewRect={cropDrawer.getPreviewRect()}
-        onBgRectMouseDown={bg.bgRectDrawer.handleMouseDown}
-        onBgRectMouseMove={bg.bgRectDrawer.handleMouseMove}
-        onBgRectMouseUp={bg.bgRectDrawer.handleMouseUp}
+        bgRectDrawer={bg.bgRectDrawer}
         bgRectPreview={bg.bgRectDrawer.previewRect}
         bgLoadingRect={bg.bgLoading}
         onRegenerate={setRegeneratingId}
