@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import type { GenerationData } from '../types';
 import { IMAGE_MODEL, IMAGE_TIMEOUT_MS, describeHttpError, describeNetworkError, describeTimeout } from '../utils/openaiErrors';
 
 const API_KEY_STORAGE_KEY = 'mr-collage-openai-key';
@@ -27,13 +28,19 @@ const STICKER_STYLES: Record<string, { lead: string; description: string }> = {
 };
 
 interface StickerGeneratorProps {
-  onAddSticker: (src: string, name: string, width: number, height: number) => void;
+  onAddSticker: (src: string, name: string, width: number, height: number, generation: GenerationData) => void;
   onClose: () => void;
+  // Set when regenerating an existing sticker: the dialog opens on the prompt
+  // and style it was made from, and its result replaces that sticker.
+  initial?: GenerationData;
 }
 
-export function StickerGenerator({ onAddSticker, onClose }: StickerGeneratorProps) {
-  const [prompt, setPrompt] = useState('');
-  const [style, setStyle] = useState('');
+export function StickerGenerator({ onAddSticker, onClose, initial }: StickerGeneratorProps) {
+  const [prompt, setPrompt] = useState(initial?.prompt ?? '');
+  // A style that's since been renamed or removed falls back to None rather
+  // than leaving the select on a value it has no option for.
+  const [style, setStyle] = useState(initial && initial.style in STICKER_STYLES ? initial.style : '');
+  const title = initial ? 'Regenerate Sticker' : 'Generate Sticker';
   const [apiKey, setApiKey] = useState(() => localStorage.getItem(API_KEY_STORAGE_KEY) ?? '');
   const [showKey, setShowKey] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -44,7 +51,11 @@ export function StickerGenerator({ onAddSticker, onClose }: StickerGeneratorProp
   const requestRef = useRef<{ controller: AbortController; cancelled: boolean } | null>(null);
 
   useEffect(() => {
-    promptRef.current?.focus();
+    const el = promptRef.current;
+    if (!el) return;
+    el.focus();
+    // Caret at the end, so adding to a saved prompt is just typing.
+    el.setSelectionRange(el.value.length, el.value.length);
   }, []);
 
   // Abandon a request still running when the dialog goes away.
@@ -142,7 +153,7 @@ export function StickerGenerator({ onAddSticker, onClose }: StickerGeneratorProp
       const dataUrl = `data:image/png;base64,${b64}`;
       const img = new Image();
       img.onload = () => {
-        onAddSticker(dataUrl, text, img.naturalWidth, img.naturalHeight);
+        onAddSticker(dataUrl, text, img.naturalWidth, img.naturalHeight, { prompt: text, style });
         onClose();
       };
       img.onerror = () => {
@@ -170,9 +181,9 @@ export function StickerGenerator({ onAddSticker, onClose }: StickerGeneratorProp
 
   return (
     <div className="sticker-backdrop">
-      <div className="sticker-modal" role="dialog" aria-modal="true" aria-label="Generate Sticker">
+      <div className="sticker-modal" role="dialog" aria-modal="true" aria-label={title}>
         <div className="sticker-modal-header">
-          <span className="sticker-modal-title">Generate Sticker</span>
+          <span className="sticker-modal-title">{title}</span>
           {!loading && (
             <button className="sticker-close-btn" onClick={onClose} title="Close (Esc)">✕</button>
           )}
@@ -264,7 +275,7 @@ export function StickerGenerator({ onAddSticker, onClose }: StickerGeneratorProp
               <span className="sticker-hint">⌘↵ to generate</span>
             )}
             <button type="submit" className="sticker-generate-btn" disabled={loading}>
-              {loading ? <span className="sticker-spinner" /> : '✦ Generate'}
+              {loading ? <span className="sticker-spinner" /> : initial ? '✦ Regenerate' : '✦ Generate'}
             </button>
           </div>
         </form>

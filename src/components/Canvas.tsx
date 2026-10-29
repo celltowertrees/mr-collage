@@ -1,4 +1,4 @@
-import { useRef, useState, useEffect, useCallback, useReducer } from 'react';
+import { useRef, useState, useEffect, useLayoutEffect, useCallback, useReducer } from 'react';
 import { Stage, Layer, Circle, Rect, Line, Transformer } from 'react-konva';
 import Konva from 'konva';
 import { CollageObject, GradientMask, MaskData, ObjectChanges, Rotation3D, Tool } from '../types';
@@ -36,6 +36,8 @@ interface CanvasProps {
   bgRectPreview: { x: number; y: number; width: number; height: number } | null;
   // Region (content coords) a background is currently being generated for.
   bgLoadingRect: { x: number; y: number; width: number; height: number } | null;
+  // Opens the regenerate dialog for a generated image.
+  onRegenerate: (id: string) => void;
 }
 
 const BG_RECT_PREVIEW_STYLE = {
@@ -116,6 +118,7 @@ export function Canvas({
   onBgRectMouseUp,
   bgRectPreview,
   bgLoadingRect,
+  onRegenerate,
 }: CanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const selectedImage = selectedIds.length === 1 ? images.find((img) => img.id === selectedIds[0]) ?? null : null;
@@ -176,6 +179,44 @@ export function Canvas({
       anim.stop();
     };
   }, [bgLoadingRect]);
+
+  // A single selected AI-generated image gets a regenerate button hung off
+  // the bottom-right corner of its on-screen box. It's HTML rather than a
+  // Konva shape so it's a real, focusable button; its position is read back
+  // from the node itself, after every render (the node may mount late, while
+  // its image loads) and on every frame of a drag, resize or pan.
+  const regenTargetId =
+    isSelectTool && selectedImage?.kind === 'image' && selectedImage.generation ? selectedImage.id : null;
+  const [regenAnchor, setRegenAnchor] = useState<{ x: number; y: number } | null>(null);
+  // The last anchor handed to React. This runs after EVERY render, and a
+  // setState there — even one whose updater returns the same value — can
+  // schedule another render, which runs this again: an infinite loop. So
+  // setState is only called when the anchor genuinely moved.
+  const regenAnchorRef = useRef<{ x: number; y: number } | null>(null);
+  const updateRegenAnchor = useCallback(() => {
+    const node = regenTargetId ? stageRef.current?.findOne(`#${regenTargetId}`) : null;
+    let next: { x: number; y: number } | null = null;
+    if (node) {
+      const box = node.getClientRect({ skipShadow: true });
+      next = { x: box.x + box.width, y: box.y + box.height };
+    }
+    const prev = regenAnchorRef.current;
+    if (prev === next || (prev && next && prev.x === next.x && prev.y === next.y)) return;
+    regenAnchorRef.current = next;
+    setRegenAnchor(next);
+  }, [regenTargetId, stageRef]);
+  useLayoutEffect(updateRegenAnchor);
+  // Drag and transform events bubble from the node to the stage (and a pan
+  // drags the stage itself), so one stage listener covers every way the
+  // selection moves on screen mid-gesture.
+  useEffect(() => {
+    const stage = stageRef.current;
+    if (!stage || !regenTargetId) return;
+    stage.on('dragmove.regen transform.regen', updateRegenAnchor);
+    return () => {
+      stage.off('.regen');
+    };
+  }, [regenTargetId, updateRegenAnchor, stageRef]);
 
   // Runs after every render (no deps) because the selected Konva nodes can
   // appear or be replaced without the selection changing — e.g. an uploaded
@@ -680,6 +721,17 @@ export function Canvas({
           )}
         </Layer>
       </Stage>
+      {regenTargetId && regenAnchor && (
+        <button
+          className="regenerate-btn"
+          style={{ left: regenAnchor.x, top: regenAnchor.y }}
+          onClick={() => onRegenerate(regenTargetId)}
+          title="Edit prompt and regenerate"
+          aria-label="Regenerate from prompt"
+        >
+          ✦ Regenerate
+        </button>
+      )}
     </div>
   );
 }

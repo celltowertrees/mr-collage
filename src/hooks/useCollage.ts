@@ -9,6 +9,7 @@ import {
   DEFAULT_LIGHT_3D,
   DEFAULT_MATERIAL_3D,
   DEFAULT_ROTATION_3D,
+  GenerationData,
   ObjectChanges,
   PrimitiveShape,
   SHAPE_LABELS,
@@ -124,7 +125,13 @@ export function useCollage() {
     };
   }, [flushSave]);
 
-  const addImage = useCallback((src: string, name: string, naturalWidth: number, naturalHeight: number) => {
+  const addImage = useCallback((
+    src: string,
+    name: string,
+    naturalWidth: number,
+    naturalHeight: number,
+    generation?: GenerationData
+  ) => {
     const id = uuidv4();
     const maxDim = 400;
     const ratio = Math.min(maxDim / naturalWidth, maxDim / naturalHeight, 1);
@@ -142,6 +149,7 @@ export function useCollage() {
       opacity: 1,
       zIndex: nextZIndex.current++,
       name,
+      ...(generation ? { generation } : {}),
     };
     setImages((prev) => [...prev, img]);
     setSelectedIds([id]);
@@ -209,6 +217,43 @@ export function useCollage() {
         (prev) => prev.map((obj) => (obj.id === id ? ({ ...obj, ...changes } as CollageObject) : obj)),
         options
       );
+    },
+    [setImages]
+  );
+
+  // Swaps a generated image's picture for a freshly generated one, as one undo
+  // step. Placement, rotation, layering and effects stay; the displayed width
+  // is kept and the height follows the new picture's shape (with any stretch
+  // the user gave the old one). Crop and shape mask were drawn around the old
+  // picture's content, so they're dropped rather than misapplied — undo
+  // brings them back. The replacement takes a NEW id: blobs are keyed by id
+  // and written only the first time an id is seen, so reusing the id would
+  // leave the old picture in storage to come back on reload. The new id also
+  // lets an undo restore the original whole, blob included.
+  const regenerateImage = useCallback(
+    (id: string, src: string, naturalWidth: number, naturalHeight: number, generation: GenerationData) => {
+      const newId = uuidv4();
+      setImages((prev) =>
+        prev.map((obj) => {
+          if (obj.id !== id || obj.kind !== 'image') return obj;
+          // eslint-disable-next-line @typescript-eslint/no-unused-vars
+          const { mask: _mask, crop: _crop, ...rest } = obj;
+          const scaleX = (obj.width * obj.scaleX) / naturalWidth;
+          const replacement: CollageImage = {
+            ...rest,
+            id: newId,
+            src,
+            width: naturalWidth,
+            height: naturalHeight,
+            scaleX,
+            scaleY: scaleX * (obj.scaleY / obj.scaleX),
+            name: generation.prompt,
+            generation,
+          };
+          return replacement;
+        })
+      );
+      setSelectedIds((prev) => prev.map((sid) => (sid === id ? newId : sid)));
     },
     [setImages]
   );
@@ -354,6 +399,7 @@ export function useCollage() {
     updateImage,
     moveImages,
     nudgeImages,
+    regenerateImage,
     deleteImage,
     bringToFront,
     sendToBack,

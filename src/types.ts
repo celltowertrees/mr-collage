@@ -186,9 +186,19 @@ export interface BaseObject {
   flipY?: boolean;
 }
 
+// What an AI-generated image was made from: the prompt as the user typed it
+// and the style preset picked alongside it (empty for None) — not the full
+// text sent to OpenAI, which wraps both in sticker instructions. Kept so the
+// image can be regenerated from an edited prompt.
+export interface GenerationData {
+  prompt: string;
+  style: string;
+}
+
 export interface CollageImage extends BaseObject {
   kind: 'image';
   src: string;
+  generation?: GenerationData;
   mask?: MaskData;
   vignette?: VignetteData;
   crop?: CropRect;

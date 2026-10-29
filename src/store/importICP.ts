@@ -109,7 +109,7 @@ export function parseICP(text: string): ParsedICP {
           kind: 'image',
           ...base,
           src: data.src,
-          ...pick(data, ['mask', 'vignette', 'crop', ...SHARED_EFFECTS]),
+          ...pick(data, ['mask', 'vignette', 'crop', 'generation', ...SHARED_EFFECTS]),
         };
         return image;
       }
