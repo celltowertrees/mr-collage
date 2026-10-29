@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import {
+  BaseObject,
   CanvasState,
   CollageImage,
   CollageModel3D,
@@ -24,6 +25,14 @@ import { DEFAULT_FONT_FAMILY } from '../utils/googleFonts';
 // enough to swallow most of a gesture, short enough that a tab killed
 // mid-gesture loses at most this much of it.
 const SAVE_DEBOUNCE_MS = 400;
+
+// The fields every new object starts with, whatever its kind: a fresh id, no
+// rotation, unit scale, fully opaque.
+function newObjectBase(
+  fields: Pick<BaseObject, 'x' | 'y' | 'width' | 'height' | 'zIndex' | 'name'>
+): Omit<BaseObject, 'gradientMask' | 'shadow' | 'blendMode' | 'flipX' | 'flipY'> {
+  return { id: uuidv4(), rotation: 0, scaleX: 1, scaleY: 1, opacity: 1, ...fields };
+}
 
 export function useCollage() {
   const {
@@ -125,6 +134,16 @@ export function useCollage() {
     };
   }, [flushSave]);
 
+  // The content-space point at the middle of the window, where uploaded and
+  // generated objects are placed.
+  const viewportCenter = useCallback(
+    () => ({
+      x: (-stagePosition.x + window.innerWidth / 2) / stageScale,
+      y: (-stagePosition.y + window.innerHeight / 2) / stageScale,
+    }),
+    [stagePosition, stageScale]
+  );
+
   const addImage = useCallback((
     src: string,
     name: string,
@@ -132,73 +151,54 @@ export function useCollage() {
     naturalHeight: number,
     generation?: GenerationData
   ) => {
-    const id = uuidv4();
     const maxDim = 400;
     const ratio = Math.min(maxDim / naturalWidth, maxDim / naturalHeight, 1);
     const img: CollageImage = {
+      ...newObjectBase({
+        ...viewportCenter(),
+        width: naturalWidth,
+        height: naturalHeight,
+        zIndex: nextZIndex.current++,
+        name,
+      }),
       kind: 'image',
-      id,
       src,
-      x: (-stagePosition.x + window.innerWidth / 2) / stageScale,
-      y: (-stagePosition.y + window.innerHeight / 2) / stageScale,
-      width: naturalWidth,
-      height: naturalHeight,
-      rotation: 0,
       scaleX: ratio,
       scaleY: ratio,
-      opacity: 1,
-      zIndex: nextZIndex.current++,
-      name,
       ...(generation ? { generation } : {}),
     };
     setImages((prev) => [...prev, img]);
-    setSelectedIds([id]);
-  }, [stagePosition, stageScale, setImages]);
+    setSelectedIds([img.id]);
+  }, [viewportCenter, setImages]);
 
   // 3D objects are procedural, so unlike addImage there's no natural pixel
   // size to fit — the box is fixed and scale starts at 1.
   const addModel3D = useCallback((shape: PrimitiveShape) => {
-    const id = uuidv4();
     const model: CollageModel3D = {
+      ...newObjectBase({
+        ...viewportCenter(),
+        width: 360,
+        height: 360,
+        zIndex: nextZIndex.current++,
+        name: SHAPE_LABELS[shape],
+      }),
       kind: 'model3d',
-      id,
       shape,
-      x: (-stagePosition.x + window.innerWidth / 2) / stageScale,
-      y: (-stagePosition.y + window.innerHeight / 2) / stageScale,
-      width: 360,
-      height: 360,
-      rotation: 0,
-      scaleX: 1,
-      scaleY: 1,
-      opacity: 1,
-      zIndex: nextZIndex.current++,
-      name: SHAPE_LABELS[shape],
       rotation3D: { ...DEFAULT_ROTATION_3D },
       light: { ...DEFAULT_LIGHT_3D },
       material: { ...DEFAULT_MATERIAL_3D },
     };
     setImages((prev) => [...prev, model]);
-    setSelectedIds([id]);
-  }, [stagePosition, stageScale, setImages]);
+    setSelectedIds([model.id]);
+  }, [viewportCenter, setImages]);
 
   // Returns the new object's id so callers (e.g. the Text tool's
   // click-to-place handler) can immediately open it for editing.
   const addText = useCallback((point: { x: number; y: number }): string => {
-    const id = uuidv4();
     const textObj: CollageText = {
+      ...newObjectBase({ ...point, width: 200, height: 40, zIndex: nextZIndex.current++, name: 'Text' }),
       kind: 'text',
-      id,
       text: '',
-      x: point.x,
-      y: point.y,
-      width: 200,
-      height: 40,
-      rotation: 0,
-      scaleX: 1,
-      scaleY: 1,
-      opacity: 1,
-      zIndex: nextZIndex.current++,
-      name: 'Text',
       fontFamily: DEFAULT_FONT_FAMILY,
       fontSize: 32,
       bold: false,
@@ -207,8 +207,8 @@ export function useCollage() {
       color: '#000000',
     };
     setImages((prev) => [...prev, textObj]);
-    setSelectedIds([id]);
-    return id;
+    setSelectedIds([textObj.id]);
+    return textObj.id;
   }, [setImages]);
 
   const updateImage = useCallback(
@@ -305,24 +305,22 @@ export function useCollage() {
       rect: BgRect,
       belowZIndex: number
     ) => {
-      const id = uuidv4();
       const bg: CollageImage = {
+        ...newObjectBase({
+          x: rect.x + rect.width / 2,
+          y: rect.y + rect.height / 2,
+          width: naturalWidth,
+          height: naturalHeight,
+          zIndex: belowZIndex - 1,
+          name,
+        }),
         kind: 'image',
-        id,
         src,
-        x: rect.x + rect.width / 2,
-        y: rect.y + rect.height / 2,
-        width: naturalWidth,
-        height: naturalHeight,
-        rotation: 0,
         scaleX: rect.width / naturalWidth,
         scaleY: rect.height / naturalHeight,
-        opacity: 1,
-        zIndex: belowZIndex - 1,
-        name,
       };
       setImages((prev) => [...prev, bg]);
-      setSelectedIds([id]);
+      setSelectedIds([bg.id]);
     },
     [setImages]
   );
