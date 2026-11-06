@@ -6,10 +6,21 @@ interface Props {
   onExportJSON: () => void;
   onExportHTML: () => void;
   onExportPNGs: () => void;
+  onExportCards: () => void;
   hasSelection: boolean;
+  hasCards: boolean;
 }
 
-export function ExportSection({ onImportJSON, onExportJPEG, onExportJSON, onExportHTML, onExportPNGs, hasSelection }: Props) {
+export function ExportSection({
+  onImportJSON,
+  onExportJPEG,
+  onExportJSON,
+  onExportHTML,
+  onExportPNGs,
+  onExportCards,
+  hasSelection,
+  hasCards,
+}: Props) {
   return (
     <div className="toolbar-section toolbar-right">
       <ToolButton onClick={onImportJSON} title="Import ICP JSON" className="export-btn">
@@ -24,6 +35,11 @@ export function ExportSection({ onImportJSON, onExportJPEG, onExportJSON, onExpo
       <ToolButton onClick={onExportHTML} title="Export HTML" className="export-btn">
         HTML
       </ToolButton>
+      {hasCards && (
+        <ToolButton onClick={onExportCards} title="Export All Cards" className="export-btn">
+          Cards
+        </ToolButton>
+      )}
       {hasSelection && (
         <ToolButton onClick={onExportPNGs} title="Export Selected as PNG" className="export-btn">
           PNGs

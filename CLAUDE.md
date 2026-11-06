@@ -1090,3 +1090,57 @@ Feature: Responsive Canvas Rendering
     When the user drags a marquee or draws a mask outline
     Then only the overlay layer holding the selection and previews is redrawn
 ```
+
+### Printable Card Frames
+- **Requested:** 2026-11-06
+- **Ask:** Draw a card canvas inside the infinite canvas so whatever is within its boundary exports as a printable card at 300dpi — starting with a postcard size, with more sizes to pick from later.
+
+```gherkin
+Feature: Printable Card Frames
+  # src/types.ts, src/utils/card.ts, src/utils/pngDpi.ts, src/components/CollageCardNode.tsx, src/components/Canvas.tsx, src/components/toolbar/CardSection.tsx, src/components/toolbar/ToolsSection.tsx, src/components/toolbar/ExportSection.tsx, src/hooks/useCollage.ts, src/hooks/useExports.ts, src/hooks/useMarqueeSelect.ts, src/store/persistence.ts, src/store/exportICP.ts, src/store/importICP.ts, src/store/exportHTML.ts — tested in e2e/card-frame.spec.ts, src/__tests__/cards.test.ts, src/__tests__/pngDpi.test.ts
+
+  Scenario: Add a postcard frame
+    Given the canvas is open
+    When the user picks "Postcard (4×6 in)" from the Add Card menu
+    Then a selected 4×6 in frame appears at the viewport center, with trim, bleed, and safe-margin guides
+
+  Scenario: Export a card at print resolution
+    Given a postcard frame is on the canvas
+    When the user clicks "Export Card"
+    Then a PNG tagged 300dpi downloads at 1875×1275 px with the 1/8 in bleed, or 1800×1200 px with Include Bleed turned off, whatever the current zoom
+
+  Scenario: Only what is inside the frame is exported
+    Given one object straddles the card's edge and another sits wholly outside it
+    When the user exports the card
+    Then the straddling object is clipped at the card's edge, the outside one is absent, and no guides, labels, or selection handles appear
+
+  Scenario: Blend modes composite against the card paper
+    Given an object on the card has a non-normal blend mode
+    When the user exports the card
+    Then the object is blended against the card's white paper, as it looks on screen
+
+  Scenario: Moving the frame re-aims the card
+    Given a card frame with objects inside it
+    When the user drags the frame by its edge or label
+    Then the frame moves and the objects stay where they are
+
+  Scenario: Switch to portrait
+    Given a landscape postcard is selected
+    When the user clicks "Portrait"
+    Then the card's width and height swap, and so do the exported dimensions
+
+  Scenario: Several cards export as several files
+    Given two card frames are on the canvas, overlapping each other
+    When the user clicks "Export All Cards"
+    Then one numbered PNG downloads per card, and neither card's paper covers the other's artwork
+
+  Scenario: Working inside a card
+    Given artwork sits on a card
+    When the user drags a marquee starting on the card's empty paper
+    Then the artwork is selected and the frame neither moves nor joins the selection
+
+  Scenario: Cards persist and round-trip
+    Given a card is on the canvas
+    When the app is reloaded, or the collage is exported as ICP JSON and imported
+    Then the card comes back with its size, orientation, and bleed setting; one undo removes a newly added card; and the static HTML export leaves cards out
+```

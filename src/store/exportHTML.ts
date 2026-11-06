@@ -405,6 +405,8 @@ export async function exportToStaticHTML(
   const nodes = sorted
     .map((obj) => {
       if (obj.kind === 'text') return renderTextNode(obj, viewport);
+      // A card frame marks what prints; it isn't artwork, so it has no markup.
+      if (obj.kind === 'card') return '';
       if (obj.kind === 'model3d') {
         const snapshot = modelSnapshots[obj.id];
         // No snapshot means the 3D render failed (WebGL unavailable). Leave

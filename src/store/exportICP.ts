@@ -74,6 +74,18 @@ export function exportToICP(objects: CollageObject[], viewport?: ICPViewport): o
           };
         }
 
+        if (obj.kind === 'card') {
+          return {
+            ...base,
+            type: "card",
+            data: {
+              name: obj.name,
+              sizeId: obj.sizeId,
+              includeBleed: obj.includeBleed,
+            },
+          };
+        }
+
         return {
           ...base,
           type: "image",

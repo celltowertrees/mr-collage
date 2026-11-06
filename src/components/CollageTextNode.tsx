@@ -4,6 +4,7 @@ import Konva from 'konva';
 import { CollageText } from '../types';
 import { fontWeightFor, loadGoogleFontFace } from '../utils/googleFonts';
 import { buildFadeMaskedCanvas } from '../utils/nodeEffects';
+import { CARD_EXPORT_SCALE } from '../utils/card';
 import { useObjectNode, type ObjectNodeProps } from '../hooks/useObjectNode';
 
 interface Props extends ObjectNodeProps {
@@ -98,9 +99,23 @@ export const CollageTextNode = memo(function CollageTextNode({ textObj, onEditSt
       textDecoration: textObj.underline ? 'underline' : '',
       fill: textObj.color,
     });
-    const rasterized = temp.toCanvas({ width: textObj.width, height: textObj.height, pixelRatio: 1 });
+    // Rasterized at print resolution, not 1:1, so faded text stays crisp
+    // when a card exports it at 3x (or the canvas is zoomed in).
+    const ratio = CARD_EXPORT_SCALE;
+    const rasterized = temp.toCanvas({ width: textObj.width, height: textObj.height, pixelRatio: ratio });
     temp.destroy();
-    return buildFadeMaskedCanvas(rasterized, textObj.width, textObj.height, undefined, gradientMask, undefined);
+    const scaledMask = {
+      start: { x: gradientMask.start.x * ratio, y: gradientMask.start.y * ratio },
+      end: { x: gradientMask.end.x * ratio, y: gradientMask.end.y * ratio },
+    };
+    return buildFadeMaskedCanvas(
+      rasterized,
+      Math.ceil(textObj.width * ratio),
+      Math.ceil(textObj.height * ratio),
+      undefined,
+      scaledMask,
+      undefined
+    );
     // fontReady triggers a re-rasterize once the real font (not a fallback)
     // is what actually gets drawn into the offscreen canvas.
     // eslint-disable-next-line react-hooks/exhaustive-deps
