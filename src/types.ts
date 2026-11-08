@@ -204,6 +204,49 @@ export interface CollageImage extends BaseObject {
   crop?: CropRect;
 }
 
+// WordArt-style warps: each bends the text's baseline (or, for bulge and
+// pinch, each letter's height) along a shape. `amount` runs 0–100.
+export const WARP_SHAPES = [
+  'arch-up',
+  'arch-down',
+  'circle',
+  'wave',
+  'slant-up',
+  'slant-down',
+  'bulge',
+  'pinch',
+] as const;
+export type WarpShape = (typeof WARP_SHAPES)[number];
+
+export interface TextWarp {
+  shape: WarpShape;
+  amount: number;
+}
+
+// The fill runs from the text's `color` to `to`, at `angle` degrees
+// (0 = left to right, 90 = top to bottom), across the text's whole box.
+export interface TextGradient {
+  to: string;
+  angle: number;
+}
+
+export interface TextOutline {
+  color: string;
+  width: number;
+}
+
+// Classic WordArt depth: the letters are stacked `depth` units back along
+// `angle` degrees (45 = down and to the right).
+export interface TextExtrusion {
+  color: string;
+  depth: number;
+  angle: number;
+}
+
+export type TextAlign = 'left' | 'center' | 'right';
+
+// Everything past `color` is optional so saves and ICP files from before
+// WordArt load unchanged, as plain left-aligned text.
 export interface CollageText extends BaseObject {
   kind: 'text';
   text: string;
@@ -213,6 +256,13 @@ export interface CollageText extends BaseObject {
   italic: boolean;
   underline: boolean;
   color: string;
+  align?: TextAlign;
+  letterSpacing?: number;
+  lineHeight?: number;
+  gradient?: TextGradient;
+  outline?: TextOutline;
+  extrusion?: TextExtrusion;
+  warp?: TextWarp;
 }
 
 // A 3D object is pure metadata: the shape is procedural, so unlike an image

@@ -434,7 +434,7 @@ Feature: Add Text to the Canvas
 
   Scenario: Edit a text object's content
     Given a text object is open for editing
-    When the user types content and commits it (clicking away or pressing Enter)
+    When the user types content and finishes (clicking away or pressing Escape)
     Then the object's displayed text updates to match
 
   Scenario: Apply Bold, Italic, and Underline
@@ -1265,4 +1265,107 @@ Feature: Low-Resolution Print Warnings
   Scenario: Resolution follows how the image is shown
     Given an image is stretched, cropped, rotated, or only reaches into a card's bleed
     Then its print resolution is judged by its softer axis and the pixels left after cropping, and it counts as on the card if its rotated footprint reaches the card's printed area
+```
+
+### WYSIWYG Text Editing
+- **Requested:** 2026-11-08
+- **Ask:** Make the text feature a lot more WYSIWYG — it wasn't intuitive (edits happened in a separate box that ignored rotation and scale, Enter couldn't make a new line, and resizing stretched the letters).
+
+```gherkin
+Feature: WYSIWYG Text Editing
+  # src/components/TextEditor.tsx, src/components/TextCaret.tsx, src/components/CollageTextNode.tsx, src/components/Canvas.tsx, src/hooks/useCollage.ts, src/hooks/useHistory.ts, src/utils/wordArt.ts, src/App.tsx — tested in e2e/text-wysiwyg.spec.ts, src/__tests__/wordArt.test.ts
+
+  Scenario: A new text object is ready to type over
+    Given the Text tool is active
+    When the user clicks the canvas
+    Then a text object reading "Your Text Here" appears starting at the click point, with its words selected so typing replaces them
+
+  Scenario: Typing shows up on the canvas object itself
+    Given a text object is being edited
+    When the user types
+    Then the canvas object updates with each keystroke, with every effect (rotation, warp, gradient, shadow) still applied, and a caret is drawn on the canvas at the typing position
+
+  Scenario: Enter makes a new line
+    Given a text object is being edited
+    When the user presses Enter
+    Then a new line starts; Escape, Ctrl/Cmd+Enter, or clicking away finishes editing
+
+  Scenario: The caret follows the object's transform
+    Given a text object is rotated, flipped, or warped
+    When it is being edited
+    Then the caret and selection highlight turn and bend with the letters
+
+  Scenario: Double-click places the caret where you click
+    Given a text object is on the canvas
+    When the user double-clicks between two of its letters
+    Then editing starts with the caret at that point; while editing, clicking places the caret and dragging selects letters
+
+  Scenario: A corner drag sets the font size
+    Given a text object is selected
+    When the user drags a corner handle
+    Then the text grows or shrinks proportionally, re-rendered crisp at its new font size with its scale reset to 1, the Size control shows the new size, and no side handles are offered
+
+  Scenario: Emptied text is removed
+    Given a text object is being edited
+    When the user deletes all of its text and finishes
+    Then the object is removed
+
+  Scenario: One undo per typing session
+    Given the user has edited a text object, however slowly they typed
+    When the user presses Ctrl+Z once after finishing
+    Then the text returns to how it was before that editing session began
+```
+
+### WordArt Text Styles
+- **Requested:** 2026-11-08
+- **Ask:** Make the text tool function like WordArt — warp shapes, gradient fill and outline, 3D extrusion, and a gallery of ready-made styles.
+
+```gherkin
+Feature: WordArt Text Styles
+  # src/types.ts, src/utils/wordArt.ts, src/utils/wordArtPresets.ts, src/components/CollageTextNode.tsx, src/components/toolbar/TextSection.tsx, src/components/Toolbar.tsx, src/hooks/useExports.ts, src/store/exportICP.ts, src/store/importICP.ts, src/store/exportHTML.ts, src/App.tsx, src/App.css — tested in src/__tests__/wordArt.test.ts, src/__tests__/exportICPLossless.test.ts, e2e/wordart.spec.ts
+
+  Scenario: Pick a style from the WordArt gallery
+    Given a text object is selected
+    When the user opens "WordArt Styles" and picks a preset (e.g. "Sunset Arch")
+    Then the text takes that preset's fill, outline, extrusion, warp and font styling, and keeps its words, size and position
+
+  Scenario: Presets replace each other
+    Given a text object has a warped preset applied
+    When the user picks a flat preset
+    Then the warp from the earlier preset is gone
+
+  Scenario: Style the next text before placing it
+    Given the Text tool is active and no text is selected
+    When the user picks a preset from the WordArt gallery and then clicks the canvas
+    Then the new text arrives in that style
+
+  Scenario: Warp the text along a shape
+    Given a text object is selected
+    When the user picks a shape from the Warp menu (Arch Up, Arch Down, Circle, Wave, Slant Up, Slant Down, Bulge, Pinch) and adjusts Amount
+    Then the letters follow that shape, more strongly as Amount rises, and "None" makes the text flat again
+
+  Scenario: Gradient fill, outline and 3D extrusion
+    Given a text object is selected
+    When the user turns on Gradient (with an end colour and angle), Outline (colour and width), or 3D (side colour, depth and direction)
+    Then the text renders with that effect, its box grows to fit the outline and extrusion, and the settings survive a reload
+
+  Scenario: Alignment and letter spacing
+    Given a multi-line text object is selected
+    When the user picks an alignment or adjusts Spacing
+    Then its lines align that way and its letters spread apart
+
+  Scenario: WordArt round-trips through ICP JSON
+    Given a text object has WordArt settings
+    When the collage is exported as ICP JSON and imported
+    Then every setting comes back unchanged, and a warp shape the app doesn't know is dropped rather than rejecting the file
+
+  Scenario: Static HTML keeps live text where CSS can draw it
+    Given a text object has only a gradient fill, outline, alignment or spacing
+    When the user exports HTML
+    Then it stays live HTML text, styled with background-clip text, text stroke, text-align and letter-spacing
+
+  Scenario: Static HTML bakes warped and extruded text
+    Given a text object is warped or extruded
+    When the user exports HTML
+    Then it is drawn once with its real font and embedded as a self-contained image at its viewport-relative position, falling back to flat live text if it can't be drawn
 ```

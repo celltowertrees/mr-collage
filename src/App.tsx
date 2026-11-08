@@ -2,7 +2,7 @@ import { useRef, useCallback, useEffect, useState } from 'react';
 import Konva from 'konva';
 import { Canvas } from './components/Canvas';
 import { Toolbar } from './components/Toolbar';
-import { TextEditOverlay } from './components/TextEditOverlay';
+import { TextEditor, type TextEditorHandle } from './components/TextEditor';
 import { StickerGenerator } from './components/StickerGenerator';
 import { ImportChoiceDialog, ImportErrorDialog } from './components/ImportDialog';
 import { useCollage } from './hooks/useCollage';
@@ -17,6 +17,8 @@ import { localToStage } from './utils/geometry';
 import { lowResImagesOnCard, PRINT_DPI_LOW } from './utils/printQuality';
 import { cardExportFilenames, expandCardPairs } from './utils/cardPair';
 import { CollageCard, CollageText } from './types';
+import { PLACEHOLDER_TEXT } from './hooks/useCollage';
+import { applyWordArtPreset } from './utils/wordArtPresets';
 import { cardSide } from './utils/cardPair';
 import './App.css';
 
@@ -54,7 +56,20 @@ function App() {
 
   const stageRef = useRef<Konva.Stage>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [editingTextId, setEditingTextId] = useState<string | null>(null);
+  // The text being typed into on the canvas. `group` names the editing
+  // session's undo step: every keystroke (and, for a new text, its creation)
+  // lands in it, so one Ctrl+Z undoes the whole session.
+  const [editing, setEditing] = useState<{
+    id: string;
+    group: string;
+    initial: { start: number; end: number };
+  } | null>(null);
+  const [editSelection, setEditSelection] = useState({ start: 0, end: 0 });
+  const editorRef = useRef<TextEditorHandle>(null);
+  const editSession = useRef(0);
+  // A WordArt preset picked with the Text tool, for the next text placed.
+  const [nextTextStyle, setNextTextStyle] = useState<{ name: string; style: Partial<CollageText> } | null>(null);
+  const editingTextId = editing?.id ?? null;
   const [stickerGeneratorOpen, setStickerGeneratorOpen] = useState(false);
   // The generated image the sticker dialog is regenerating, if any.
   const [regeneratingId, setRegeneratingId] = useState<string | null>(null);
@@ -197,29 +212,54 @@ function App() {
     [moveImages]
   );
 
-  // Placing text with the Text tool is a single click: create it, switch
-  // back to Select so the formatting toolbar shows up right away, and open
-  // it for editing immediately.
+  // Placing text with the Text tool is a single click: create it with
+  // placeholder words selected (so typing replaces them), switch back to
+  // Select so the formatting toolbar shows up, and start typing on it.
   const handleAddText = useCallback(
     (point: { x: number; y: number }) => {
-      const id = addText(point);
+      const group = `text-edit:${++editSession.current}`;
+      const id = addText(point, nextTextStyle?.style, { group });
       setTool('select');
-      setEditingTextId(id);
+      setEditing({ id, group, initial: { start: 0, end: PLACEHOLDER_TEXT.length } });
     },
-    [addText, setTool]
+    [addText, setTool, nextTextStyle]
   );
 
-  const handleCommitTextEdit = useCallback(
-    (id: string, text: string) => {
-      updateImage(id, { text });
-      setEditingTextId(null);
+  const handleStartEditingText = useCallback(
+    (id: string, caretIndex?: number) => {
+      const obj = images.find((o) => o.id === id);
+      if (obj?.kind !== 'text') return;
+      const at = caretIndex ?? obj.text.length;
+      setSelectedIds([id]);
+      setEditing({ id, group: `text-edit:${++editSession.current}`, initial: { start: at, end: at } });
     },
-    [updateImage]
+    [images, setSelectedIds]
   );
 
-  const handleCancelTextEdit = useCallback(() => {
-    setEditingTextId(null);
+  const handleEditTextChange = useCallback(
+    (text: string) => {
+      if (editing) updateImage(editing.id, { text }, { group: editing.group });
+    },
+    [editing, updateImage]
+  );
+
+  // Finishing leaves the text as typed — there's nothing to commit, it was
+  // live all along. Text emptied out is removed, in the same undo step.
+  const handleFinishEditing = useCallback(() => {
+    if (!editing) return;
+    const obj = images.find((o) => o.id === editing.id);
+    if (obj?.kind === 'text' && obj.text.trim() === '') deleteImage(editing.id, { group: editing.group });
+    setEditing(null);
+  }, [editing, images, deleteImage]);
+
+  const handleEditPointer = useCallback((index: number, extend: boolean) => {
+    editorRef.current?.place(index, extend);
   }, []);
+
+  // The edited object went away under the editor (undo, delete).
+  useEffect(() => {
+    if (editing && !editingText) setEditing(null);
+  }, [editing, editingText]);
 
   return (
     <div className="app">
@@ -259,6 +299,8 @@ function App() {
         hasPendingCrop={cropDrawer.committedRect !== null}
         onApplyCrop={applyCrop}
         onCancelCrop={cancelCrop}
+        nextTextStyleName={nextTextStyle?.name ?? null}
+        onPickNextTextStyle={(preset) => setNextTextStyle({ name: preset.name, style: applyWordArtPreset(preset) })}
       />
       <Canvas
         images={images}
@@ -274,7 +316,9 @@ function App() {
         onDrop={loadFromFiles}
         onPaste={loadFromClipboard}
         onAddText={handleAddText}
-        onStartEditingText={setEditingTextId}
+        onStartEditingText={handleStartEditingText}
+        textEditing={editing ? { id: editing.id, ...editSelection } : null}
+        onEditPointer={handleEditPointer}
         stageRef={stageRef}
         cropDrawer={cropDrawer}
         cropPreviewRect={cropDrawer.getPreviewRect()}
@@ -283,13 +327,17 @@ function App() {
         bgLoadingRect={bg.bgLoading}
         onRegenerate={setRegeneratingId}
       />
-      {editingText && (
-        <TextEditOverlay
+      {editing && editingText && (
+        <TextEditor
+          key={editing.group}
+          ref={editorRef}
           textObj={editingText}
           stagePosition={stagePosition}
           stageScale={stageScale}
-          onCommit={handleCommitTextEdit}
-          onCancel={handleCancelTextEdit}
+          initialSelection={editing.initial}
+          onTextChange={handleEditTextChange}
+          onSelectionChange={(start, end) => setEditSelection({ start, end })}
+          onFinish={handleFinishEditing}
         />
       )}
       <input

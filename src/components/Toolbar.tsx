@@ -2,7 +2,8 @@ import { CardSide, CardSizeId, CollageObject, PrimitiveShape, Tool } from '../ty
 import type { VisionDetail } from '../utils/generateBackground';
 import { ToolsSection } from './toolbar/ToolsSection';
 import { ObjectSection } from './toolbar/ObjectSection';
-import { TextSection } from './toolbar/TextSection';
+import { TextSection, WordArtStylesButton } from './toolbar/TextSection';
+import type { WordArtPreset } from '../utils/wordArtPresets';
 import { Model3DSection } from './toolbar/Model3DSection';
 import { CropSection, MaskSection } from './toolbar/MaskSection';
 import { ShadowSection, VignetteSection } from './toolbar/EffectSections';
@@ -49,6 +50,9 @@ interface ToolbarProps {
   hasPendingCrop: boolean;
   onApplyCrop: () => void;
   onCancelCrop: () => void;
+  // A WordArt preset picked with the Text tool out, for the next text placed.
+  nextTextStyleName: string | null;
+  onPickNextTextStyle: (preset: WordArtPreset) => void;
 }
 
 export function Toolbar(props: ToolbarProps) {
@@ -82,6 +86,15 @@ export function Toolbar(props: ToolbarProps) {
         canUndo={props.canUndo}
         canRedo={props.canRedo}
       />
+
+      {tool === 'text' && !text && (
+        <div className="toolbar-section">
+          <WordArtStylesButton onPick={props.onPickNextTextStyle} />
+          <span className="toolbar-value">
+            {props.nextTextStyleName ? `Next text: ${props.nextTextStyleName}` : 'Click the canvas to add text'}
+          </span>
+        </div>
+      )}
 
       {card && tool !== 'pan' && (
         <CardSection

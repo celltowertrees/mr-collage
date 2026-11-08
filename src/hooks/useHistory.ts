@@ -76,48 +76,75 @@ export function historyReducer<T>(state: HistoryState<T>, action: HistoryAction<
   }
 }
 
+// Who the last set() came from, for deciding whether the next one joins its
+// undo step.
+export interface CoalesceTracker {
+  lastSetAt: number;
+  lastWasCoalescible: boolean;
+  lastGroup: string | null;
+}
+
+export interface SetOptions {
+  coalesce?: boolean;
+  amend?: boolean;
+  // Sets sharing a group key merge into one undo step for as long as nothing
+  // else is set in between, however far apart they land — a text editing
+  // session typed slowly is still one step.
+  group?: string;
+}
+
+export function freshTracker(): CoalesceTracker {
+  return { lastSetAt: 0, lastWasCoalescible: false, lastGroup: null };
+}
+
+export function decideCoalesce(
+  tracker: CoalesceTracker,
+  options: SetOptions,
+  now: number
+): { coalesce: boolean; tracker: CoalesceTracker } {
+  const group = options.group ?? null;
+  const requestCoalesce = options.coalesce ?? false;
+  const coalesce =
+    group !== null
+      ? tracker.lastGroup === group
+      : requestCoalesce && tracker.lastWasCoalescible && now - tracker.lastSetAt < COALESCE_WINDOW_MS;
+  return { coalesce, tracker: { lastSetAt: now, lastWasCoalescible: requestCoalesce, lastGroup: group } };
+}
+
 export function useHistory<T>(initial: T) {
   const [state, dispatch] = useReducer(historyReducer<T>, initial, createHistoryState);
-  const lastSetAt = useRef(0);
-  // Only true when the previous set() was itself a coalescible (continuous)
-  // one — otherwise a continuous edit right after a discrete action (e.g. the
-  // first slider tick after adding an image) would merge into that discrete
-  // action's step just because it landed inside the time window.
-  const lastWasCoalescible = useRef(false);
+  // Only coalesce with the previous set() when it was itself coalescible
+  // (continuous) — otherwise a continuous edit right after a discrete action
+  // (e.g. the first slider tick after adding an image) would merge into that
+  // discrete action's step just because it landed inside the time window.
+  const tracker = useRef<CoalesceTracker>(freshTracker());
 
   // `coalesce: true` opts in to merging with the previous set if it happened
   // recently — for continuous input (e.g. dragging a slider), not discrete
   // actions (add/delete/drag-end), which must always be their own undo step
   // regardless of how close together they land in time.
-  const set = useCallback((updater: T | ((prev: T) => T), options?: { coalesce?: boolean; amend?: boolean }) => {
+  const set = useCallback((updater: T | ((prev: T) => T), options?: SetOptions) => {
     if (options?.amend) {
       dispatch({ type: 'amend', updater });
       return;
     }
-    const requestCoalesce = options?.coalesce ?? false;
-    const now = Date.now();
-    const coalesce =
-      requestCoalesce && lastWasCoalescible.current && now - lastSetAt.current < COALESCE_WINDOW_MS;
-    lastSetAt.current = now;
-    lastWasCoalescible.current = requestCoalesce;
-    dispatch({ type: 'set', updater, coalesce });
+    const decision = decideCoalesce(tracker.current, options ?? {}, Date.now());
+    tracker.current = decision.tracker;
+    dispatch({ type: 'set', updater, coalesce: decision.coalesce });
   }, []);
 
   const undo = useCallback(() => {
-    lastSetAt.current = 0;
-    lastWasCoalescible.current = false;
+    tracker.current = freshTracker();
     dispatch({ type: 'undo' });
   }, []);
 
   const redo = useCallback(() => {
-    lastSetAt.current = 0;
-    lastWasCoalescible.current = false;
+    tracker.current = freshTracker();
     dispatch({ type: 'redo' });
   }, []);
 
   const reset = useCallback((value: T) => {
-    lastSetAt.current = 0;
-    lastWasCoalescible.current = false;
+    tracker.current = freshTracker();
     dispatch({ type: 'reset', value });
   }, []);
 

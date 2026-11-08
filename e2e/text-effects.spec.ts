@@ -21,7 +21,7 @@ async function placeText(page: Page, content: string) {
   const overlay = page.locator('textarea.text-edit-overlay');
   await expect(overlay).toBeVisible();
   await overlay.fill(content);
-  await overlay.press('Enter');
+  await overlay.press('Escape');
   await expect(overlay).not.toBeVisible();
 
   await expect.poll(async () => (await readState(page)).images.at(-1)?.text).toBe(content);

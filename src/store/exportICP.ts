@@ -54,6 +54,13 @@ export function exportToICP(objects: CollageObject[], viewport?: ICPViewport): o
               italic: obj.italic,
               underline: obj.underline,
               color: obj.color,
+              ...(obj.align ? { align: obj.align } : {}),
+              ...(obj.letterSpacing !== undefined ? { letterSpacing: obj.letterSpacing } : {}),
+              ...(obj.lineHeight !== undefined ? { lineHeight: obj.lineHeight } : {}),
+              ...(obj.gradient ? { gradient: obj.gradient } : {}),
+              ...(obj.outline ? { outline: obj.outline } : {}),
+              ...(obj.extrusion ? { extrusion: obj.extrusion } : {}),
+              ...(obj.warp ? { warp: obj.warp } : {}),
               ...effects,
             },
           };

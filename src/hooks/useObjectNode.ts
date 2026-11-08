@@ -10,7 +10,7 @@ import { BaseObject, ObjectChanges, Tool } from '../types';
 // one slider tick on one image re-reconciled the whole collage.
 export interface ObjectNodeHandlers {
   onSelect: (id: string, addToSelection: boolean) => void;
-  onChange: (id: string, changes: ObjectChanges, options?: { coalesce?: boolean; amend?: boolean }) => void;
+  onChange: (id: string, changes: ObjectChanges, options?: { coalesce?: boolean; amend?: boolean; group?: string }) => void;
   onMove: (id: string, dx: number, dy: number) => void;
   onDragStart: (id: string) => void;
 }

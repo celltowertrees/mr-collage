@@ -1,5 +1,6 @@
 import { CollageImage, CollageModel3D, CollageObject, CollageText, GradientMask, MaskData, VignetteData } from '../types';
 import { embedGoogleFont, fontWeightFor } from '../utils/googleFonts';
+import { DEFAULT_LINE_HEIGHT } from '../utils/wordArt';
 
 // ── Static HTML Export ──
 // Renders the current viewport (pan + zoom) as absolutely-positioned <div>s
@@ -343,8 +344,33 @@ function renderTextNode(text: CollageText, viewport: ExportViewport): string {
     `font-style: ${text.italic ? 'italic' : 'normal'}`,
     `text-decoration: ${text.underline ? 'underline' : 'none'}`,
     `color: ${text.color}`,
-    'white-space: pre-wrap',
+    'white-space: pre',
+    `line-height: ${text.lineHeight ?? DEFAULT_LINE_HEIGHT}`,
+    `text-align: ${text.align ?? 'left'}`,
+    'box-sizing: border-box',
+    // The canvas pads the text box by half the outline (plus a pixel) so a
+    // stroke isn't clipped; the same padding keeps the letters where they are.
+    `padding: ${((text.outline?.width ?? 0) / 2 + 1) * viewport.scale}px`,
   ];
+  if (text.letterSpacing) textStyles.push(`letter-spacing: ${text.letterSpacing * viewport.scale}px`);
+  if (text.gradient) {
+    // The canvas measures gradient angles from "left to right" (0°); CSS
+    // measures from "to top", so it's a quarter turn on.
+    textStyles.push(
+      `background: linear-gradient(${text.gradient.angle + 90}deg, ${text.color}, ${text.gradient.to})`,
+      '-webkit-background-clip: text',
+      'background-clip: text',
+      '-webkit-text-fill-color: transparent'
+    );
+  }
+  if (text.outline && text.outline.width > 0) {
+    // Fill painted over the stroke, as on the canvas, so the outline doesn't
+    // eat into thin letters.
+    textStyles.push(
+      `-webkit-text-stroke: ${text.outline.width * viewport.scale}px ${text.outline.color}`,
+      'paint-order: stroke fill'
+    );
+  }
 
   return `  <div class="collage-object" id="${text.id}" style="${frameStyles.join('; ')}">
     <div style="${textStyles.join('; ')}">${escapeHtml(text.text)}</div>
@@ -390,21 +416,55 @@ function model3dAsImage(model: CollageModel3D, src: string): CollageImage {
   return { ...base, kind: 'image', src };
 }
 
+// Warped or extruded text has no CSS equivalent, so it's drawn once with the
+// canvas renderer and embedded as a picture, through the same image path a
+// baked 3D object takes.
+function textAsImage(text: CollageText, src: string): CollageImage {
+  return {
+    kind: 'image',
+    id: text.id,
+    x: text.x,
+    y: text.y,
+    width: text.width,
+    height: text.height,
+    rotation: text.rotation,
+    scaleX: text.scaleX,
+    scaleY: text.scaleY,
+    opacity: text.opacity,
+    zIndex: text.zIndex,
+    name: text.text,
+    src,
+    ...(text.gradientMask ? { gradientMask: text.gradientMask } : {}),
+    ...(text.shadow ? { shadow: text.shadow } : {}),
+    ...(text.blendMode ? { blendMode: text.blendMode } : {}),
+    ...(text.flipX ? { flipX: text.flipX } : {}),
+    ...(text.flipY ? { flipY: text.flipY } : {}),
+  };
+}
+
 export async function exportToStaticHTML(
   objects: CollageObject[],
   viewport: ExportViewport,
   naturalSizes: Record<string, { width: number; height: number }> = {},
-  modelSnapshots: Record<string, string> = {}
+  modelSnapshots: Record<string, string> = {},
+  textSnapshots: Record<string, string> = {}
 ): Promise<string> {
   const visible = objects.filter((obj) => isVisibleInViewport(obj, viewport));
   const sorted = visible.sort((a, b) => a.zIndex - b.zIndex);
 
-  const textObjects = sorted.filter((obj): obj is CollageText => obj.kind === 'text');
+  const textObjects = sorted.filter(
+    (obj): obj is CollageText => obj.kind === 'text' && !textSnapshots[obj.id]
+  );
   const fontFaces = await embedFontsForObjects(textObjects);
 
   const nodes = sorted
     .map((obj) => {
-      if (obj.kind === 'text') return renderTextNode(obj, viewport);
+      if (obj.kind === 'text') {
+        // No snapshot (the bake failed) falls back to live text: flat, but
+        // the words still show.
+        const snapshot = textSnapshots[obj.id];
+        return snapshot ? renderImageNode(textAsImage(obj, snapshot), viewport) : renderTextNode(obj, viewport);
+      }
       // A card frame marks what prints; it isn't artwork, so it has no markup.
       if (obj.kind === 'card') return '';
       if (obj.kind === 'model3d') {
