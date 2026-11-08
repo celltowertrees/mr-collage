@@ -82,6 +82,7 @@ export function exportToICP(objects: CollageObject[], viewport?: ICPViewport): o
               name: obj.name,
               sizeId: obj.sizeId,
               includeBleed: obj.includeBleed,
+              ...(obj.exportFormat ? { exportFormat: obj.exportFormat } : {}),
             },
           };
         }

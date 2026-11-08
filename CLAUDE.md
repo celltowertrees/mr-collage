@@ -1144,3 +1144,37 @@ Feature: Printable Card Frames
     When the app is reloaded, or the collage is exported as ICP JSON and imported
     Then the card comes back with its size, orientation, and bleed setting; one undo removes a newly added card; and the static HTML export leaves cards out
 ```
+
+### More Card Sizes and Print Formats
+- **Requested:** 2026-11-08
+- **Ask:** For a family Christmas card: add more card sizes (5×7 in, the 4.25×6 in USPS max postcard, A6, 5×5 square), and let a card export as JPEG or PDF as well as PNG. (The PDF is hand-written around the card's JPEG instead of pulling in jsPDF: one image on one page needs about 60 lines, and the JPEG goes in byte-for-byte.)
+
+```gherkin
+Feature: More Card Sizes and Print Formats
+  # src/types.ts, src/utils/card.ts, src/utils/jpegDpi.ts, src/utils/jpegPdf.ts, src/hooks/useExports.ts, src/components/toolbar/CardSection.tsx, src/components/toolbar/ToolsSection.tsx, src/store/exportICP.ts, src/store/importICP.ts — tested in src/__tests__/cardFormats.test.ts, e2e/card-formats.spec.ts
+
+  Scenario: Pick from more card sizes
+    Given the canvas is open
+    When the user opens the Add Card menu
+    Then it offers Postcard (4×6 in), Max Postcard (4.25×6 in), Greeting Card (5×7 in), A6 (105×148 mm), and Square (5×5 in)
+
+  Scenario: Each size exports at its own print resolution
+    Given a card of any size is on the canvas
+    When the user exports it
+    Then it comes out at that size at 300dpi, with or without the 1/8 in bleed (a 5×7 greeting card is 2175×1575 px with bleed), and its filename names the size in its own units ("4.25x6in", "105x148mm")
+
+  Scenario: Export a card as JPEG
+    Given a card's Format is set to JPEG
+    When the user clicks "Export Card"
+    Then a .jpg downloads at the card's pixel size, on white paper rather than black, with 300 dots per inch written into its JFIF header
+
+  Scenario: Export a card as PDF
+    Given a card's Format is set to PDF
+    When the user exports the card
+    Then a single-page .pdf downloads whose page is exactly the card's physical size — trim plus bleed when bleed is on, trim alone when off, swapped for portrait — with the card image filling the page
+
+  Scenario: Each card keeps its own format
+    Given one card is set to PDF and another is left at PNG
+    When the app is reloaded and the user clicks "Export All Cards"
+    Then each card downloads in its own format, and the choice also round-trips through ICP JSON
+```
