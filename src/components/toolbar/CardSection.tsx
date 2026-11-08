@@ -1,11 +1,15 @@
-import { CollageCard } from '../../types';
+import { CARD_EXPORT_FORMATS, CardExportFormat, CardSide, CollageCard } from '../../types';
 import { LowResImage, PRINT_DPI_LOW, PRINT_DPI_VERY_LOW } from '../../utils/printQuality';
 import { DeleteIcon } from '../ToolbarIcons';
 import { ToolButton } from './primitives';
 import type { UpdateObject } from './types';
 
+const FORMAT_LABELS: Record<CardExportFormat, string> = { png: 'PNG', jpeg: 'JPEG', pdf: 'PDF' };
+
 interface Props {
   card: CollageCard;
+  side: CardSide | null;
+  onAddBack: (frontId: string) => void;
   onUpdate: UpdateObject;
   onExport: (id: string) => void;
   onDelete: (id: string) => void;
@@ -14,8 +18,9 @@ interface Props {
 }
 
 // A card has a fixed print size, so instead of the object and effect
-// controls it gets orientation, bleed, and its own export.
-export function CardSection({ card, onUpdate, onExport, onDelete, lowRes, onSelectImages }: Props) {
+// controls it gets orientation, bleed, and its own export. Orientation and
+// bleed apply to both sides of a pair, and exporting either side exports both.
+export function CardSection({ card, side, onAddBack, onUpdate, onExport, onDelete, lowRes, onSelectImages }: Props) {
   const portrait = card.height > card.width;
 
   const setPortrait = (wantPortrait: boolean) => {
@@ -39,6 +44,36 @@ export function CardSection({ card, onUpdate, onExport, onDelete, lowRes, onSele
         />
         <span>Include Bleed</span>
       </label>
+      {side === null && (
+        <ToolButton onClick={() => onAddBack(card.id)} title="Add Back" className="export-btn">
+          Add Back
+        </ToolButton>
+      )}
+      {side === 'back' && (
+        <label className="toolbar-field" title="Show where USPS needs the address, stamp and barcode (guides only, never exported)">
+          <input
+            type="checkbox"
+            checked={!!card.addressGuides}
+            onChange={(e) => onUpdate(card.id, { addressGuides: e.target.checked })}
+          />
+          <span>Address Layout</span>
+        </label>
+      )}
+      <div className="toolbar-divider" />
+      <label className="toolbar-field" title="Print file type">
+        <span>Format</span>
+        <select
+          aria-label="Card Format"
+          value={card.exportFormat ?? 'png'}
+          onChange={(e) => onUpdate(card.id, { exportFormat: e.target.value as CardExportFormat })}
+        >
+          {CARD_EXPORT_FORMATS.map((format) => (
+            <option key={format} value={format}>
+              {FORMAT_LABELS[format]}
+            </option>
+          ))}
+        </select>
+      </label>
       {lowRes.length > 0 && (
         <button
           className={`print-warning${lowRes[0].dpi < PRINT_DPI_VERY_LOW ? ' very-low' : ''}`}
@@ -50,7 +85,7 @@ export function CardSection({ card, onUpdate, onExport, onDelete, lowRes, onSele
         </button>
       )}
       <ToolButton onClick={() => onExport(card.id)} title="Export Card" className="export-btn">
-        Export Card
+        {side ? 'Export Front & Back' : 'Export Card'}
       </ToolButton>
       <ToolButton onClick={() => onDelete(card.id)} title="Delete" danger>
         <DeleteIcon />

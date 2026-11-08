@@ -1145,6 +1145,91 @@ Feature: Printable Card Frames
     Then the card comes back with its size, orientation, and bleed setting; one undo removes a newly added card; and the static HTML export leaves cards out
 ```
 
+### More Card Sizes and Print Formats
+- **Requested:** 2026-11-08
+- **Ask:** For a family Christmas card: add more card sizes (5×7 in, the 4.25×6 in USPS max postcard, A6, 5×5 square), and let a card export as JPEG or PDF as well as PNG. (The PDF is hand-written around the card's JPEG instead of pulling in jsPDF: one image on one page needs about 60 lines, and the JPEG goes in byte-for-byte.)
+
+```gherkin
+Feature: More Card Sizes and Print Formats
+  # src/types.ts, src/utils/card.ts, src/utils/jpegDpi.ts, src/utils/jpegPdf.ts, src/hooks/useExports.ts, src/components/toolbar/CardSection.tsx, src/components/toolbar/ToolsSection.tsx, src/store/exportICP.ts, src/store/importICP.ts — tested in src/__tests__/cardFormats.test.ts, e2e/card-formats.spec.ts
+
+  Scenario: Pick from more card sizes
+    Given the canvas is open
+    When the user opens the Add Card menu
+    Then it offers Postcard (4×6 in), Max Postcard (4.25×6 in), Greeting Card (5×7 in), A6 (105×148 mm), and Square (5×5 in)
+
+  Scenario: Each size exports at its own print resolution
+    Given a card of any size is on the canvas
+    When the user exports it
+    Then it comes out at that size at 300dpi, with or without the 1/8 in bleed (a 5×7 greeting card is 2175×1575 px with bleed), and its filename names the size in its own units ("4.25x6in", "105x148mm")
+
+  Scenario: Export a card as JPEG
+    Given a card's Format is set to JPEG
+    When the user clicks "Export Card"
+    Then a .jpg downloads at the card's pixel size, on white paper rather than black, with 300 dots per inch written into its JFIF header
+
+  Scenario: Export a card as PDF
+    Given a card's Format is set to PDF
+    When the user exports the card
+    Then a single-page .pdf downloads whose page is exactly the card's physical size — trim plus bleed when bleed is on, trim alone when off, swapped for portrait — with the card image filling the page
+
+  Scenario: Each card keeps its own format
+    Given one card is set to PDF and another is left at PNG
+    When the app is reloaded and the user clicks "Export All Cards"
+    Then each card downloads in its own format, and the choice also round-trips through ICP JSON
+
+### Front and Back Cards
+- **Requested:** 2026-11-08
+- **Ask:** Let a card have a linked back side, labelled Front/Back, that exports together with it, plus an optional postcard address layout on the back showing where USPS needs space.
+
+```gherkin
+Feature: Front and Back Cards
+  # src/types.ts, src/utils/cardPair.ts, src/utils/card.ts, src/components/CollageCardNode.tsx, src/components/Canvas.tsx, src/components/toolbar/CardSection.tsx, src/components/Toolbar.tsx, src/hooks/useCollage.ts, src/hooks/useExports.ts, src/store/exportICP.ts, src/store/importICP.ts, src/App.tsx — tested in src/__tests__/cardPairs.test.ts, e2e/card-back.spec.ts
+
+  Scenario: Add a back to a card
+    Given a card is selected
+    When the user clicks "Add Back"
+    Then a card of the same size and orientation appears beside it and is selected, the two are labelled Front and Back, and neither offers another back
+
+  Scenario: Exporting either side exports both
+    Given a card has a back
+    When the user clicks "Export Card" on either side, or "Export All Cards"
+    Then both sides download, named like card-1-front.png and card-1-back.png
+
+  Scenario: Orientation and bleed stay in step
+    Given a card has a back
+    When the user switches either side to portrait, or toggles Include Bleed
+    Then both sides change together, and one undo puts both back
+
+  Scenario: Moving one side leaves the other where it is
+    Given a card has a back
+    When the user drags one side's frame
+    Then only that side moves
+
+  Scenario: Deleting one side leaves a plain card
+    Given a card has a back
+    When the user deletes either side
+    Then the other side stays where it is as an ordinary, unlabelled card that can take a new back and exports under its usual name
+
+  Scenario: Duplicating one side makes a plain card
+    Given a card has a back
+    When the user duplicates either side
+    Then the copy is an ordinary card and the original pair stays linked
+
+  Scenario: A pair survives undo, reload, and ICP round-trips
+    Given a card has a back
+    When the user undoes adding it, reloads the app, or exports and imports the collage as ICP JSON
+    Then one undo removes the back and unlinks the front; a reload or import brings back both sides still linked, with fresh ids on import
+
+  Scenario: Show the postcard address layout on a back
+    Given a back is selected
+    When the user checks "Address Layout"
+    Then guides for a centre divider, address lines, a stamp box, and the USPS barcode clear zone are drawn on the back, turned to run along the long side of a portrait card, and never appear in an export
+
+  Scenario: The address layout is only offered on a back
+    Given an unpaired card or a front is selected
+    Then no Address Layout control is offered
+
 ### Low-Resolution Print Warnings
 - **Requested:** 2026-11-08
 - **Ask:** Warn when a photo on a card is too low-resolution to print well (an AI sticker stretched across a whole 4×6 card lands around 170dpi).

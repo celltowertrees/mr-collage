@@ -1,4 +1,4 @@
-import { CardSizeId, CollageObject, PrimitiveShape, Tool } from '../types';
+import { CardSide, CardSizeId, CollageObject, PrimitiveShape, Tool } from '../types';
 import type { VisionDetail } from '../utils/generateBackground';
 import { ToolsSection } from './toolbar/ToolsSection';
 import { ObjectSection } from './toolbar/ObjectSection';
@@ -21,6 +21,9 @@ interface ToolbarProps {
   onUpload: () => void;
   onAddModel3D: (shape: PrimitiveShape) => void;
   onAddCard: (sizeId: CardSizeId) => void;
+  onAddCardBack: (frontId: string) => void;
+  // Which side of a front/back pair the selected card is, if it's paired.
+  selectedCardSide: CardSide | null;
   onOpenStickerGenerator: () => void;
   visionDetail: VisionDetail;
   onVisionDetailChange: (detail: VisionDetail) => void;
@@ -83,6 +86,8 @@ export function Toolbar(props: ToolbarProps) {
       {card && tool !== 'pan' && (
         <CardSection
           card={card}
+          side={props.selectedCardSide}
+          onAddBack={props.onAddCardBack}
           onUpdate={onUpdateImage}
           onExport={(id) => props.onExportCards([id])}
           onDelete={props.onDelete}

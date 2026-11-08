@@ -43,7 +43,7 @@ async function drag(page: Page, from: { x: number; y: number }, to: { x: number;
 
 async function addPostcard(page: Page) {
   await page.getByTitle('Add Card').click();
-  await page.getByRole('menuitem', { name: /Postcard/ }).click();
+  await page.getByRole('menuitem', { name: /^Postcard/ }).click();
   await expect(page.getByTitle('Export Card')).toBeVisible();
 }
 

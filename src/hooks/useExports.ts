@@ -3,9 +3,12 @@ import Konva from 'konva';
 import { exportToICP, exportToStaticHTML } from '../store';
 import { loadModelRenderer } from '../utils/loadModelRenderer';
 import { downloadBlob, downloadURL } from '../utils/download';
-import { CARD_EXPORT_SCALE, cardExportSize, cardPaperId, cardRect, cardSizeSlug } from '../utils/card';
+import { CARD_EXPORT_SCALE, cardExportSize, cardPaperId, cardPrintSizeIn, cardRect } from '../utils/card';
+import { cardExportFilenames, expandCardPairs } from '../utils/cardPair';
 import { setPngDpi } from '../utils/pngDpi';
-import { CARD_EXPORT_DPI, CollageCard, CollageImage, CollageModel3D, CollageObject } from '../types';
+import { setJpegDpi } from '../utils/jpegDpi';
+import { jpegToPdf } from '../utils/jpegPdf';
+import { CARD_EXPORT_DPI, CardExportFormat, CollageCard, CollageImage, CollageModel3D, CollageObject } from '../types';
 
 interface Options {
   stageRef: React.RefObject<Konva.Stage | null>;
@@ -15,8 +18,33 @@ interface Options {
   stageScale: number;
 }
 
+// JPEG at this quality is visually lossless for print and a fraction of the
+// PNG's size; the PDF embeds the same JPEG.
+const CARD_JPEG_QUALITY = 0.95;
+
+// A captured card canvas (already on white, at print size) as a file.
+async function encodeCard(canvas: HTMLCanvasElement, card: CollageCard, format: CardExportFormat) {
+  const mime = format === 'png' ? 'image/png' : 'image/jpeg';
+  const blob = await new Promise<Blob | null>((resolve) =>
+    canvas.toBlob(resolve, mime, format === 'png' ? undefined : CARD_JPEG_QUALITY)
+  );
+  if (!blob) return null;
+  const bytes = new Uint8Array(await blob.arrayBuffer());
+  if (format === 'png') return new Blob([setPngDpi(bytes, CARD_EXPORT_DPI)], { type: 'image/png' });
+  const jpeg = setJpegDpi(bytes, CARD_EXPORT_DPI);
+  if (format === 'jpeg') return new Blob([jpeg], { type: 'image/jpeg' });
+  const size = cardPrintSizeIn(card);
+  const pdf = jpegToPdf(jpeg, {
+    pixelWidth: canvas.width,
+    pixelHeight: canvas.height,
+    widthIn: size.width,
+    heightIn: size.height,
+  });
+  return new Blob([pdf], { type: 'application/pdf' });
+}
+
 // Every way the collage leaves the app: a JPEG of the whole thing, a PNG per
-// selected object, a print-ready PNG per card, ICP JSON, and a self-contained
+// selected object, a print-ready PNG/JPEG/PDF per card, ICP JSON, and a self-contained
 // static HTML page.
 export function useExports({ stageRef, images, selectedIds, stagePosition, stageScale }: Options) {
   const handleExportJPEG = useCallback(() => {
@@ -124,16 +152,19 @@ export function useExports({ stageRef, images, selectedIds, stagePosition, stage
     }
   }, [images, selectedIds, stageRef]);
 
-  // A print-ready PNG per card (all of them, or just `ids`): whatever falls
-  // inside the frame, at 300dpi and the card's exact physical size, tagged so
-  // print software reads it that way. Captured the same way as the PNG export
+  // A print-ready file per card (all of them, or just `ids`), in each card's
+  // own format: whatever falls inside the frame, at 300dpi and the card's
+  // exact physical size, tagged so print software reads it that way. Captured the same way as the PNG export
   // — guides, handles and every other card's paper hidden for the moment of
   // the capture — but at a pixel ratio that undoes the current zoom.
   const handleExportCards = useCallback(async (ids?: string[]) => {
     const stage = stageRef.current;
     if (!stage) return;
     const allCards = images.filter((obj): obj is CollageCard => obj.kind === 'card');
-    const targets = ids ? allCards.filter((card) => ids.includes(card.id)) : allCards;
+    // Either side of a front/back pair brings the other along.
+    const wanted = ids ? expandCardPairs(ids, images) : null;
+    const targets = wanted ? allCards.filter((card) => wanted.includes(card.id)) : allCards;
+    const names = cardExportFilenames(images);
     if (targets.length === 0) return;
 
     const layer = stage.findOne<Konva.Layer>('.content')!;
@@ -142,7 +173,7 @@ export function useExports({ stageRef, images, selectedIds, stagePosition, stage
     const layersWereVisible = otherLayers.map((l) => l.visible());
     const scale = stage.scaleX();
 
-    const captures: { name: string; canvas: HTMLCanvasElement }[] = [];
+    const captures: { card: CollageCard; canvas: HTMLCanvasElement }[] = [];
     try {
       otherLayers.forEach((l) => l.visible(false));
       for (const card of targets) {
@@ -171,18 +202,18 @@ export function useExports({ stageRef, images, selectedIds, stagePosition, stage
         ctx.fillStyle = '#ffffff';
         ctx.fillRect(0, 0, size.width, size.height);
         ctx.drawImage(raw, 0, 0, size.width, size.height);
-        captures.push({ name: `card-${allCards.indexOf(card) + 1}-${cardSizeSlug(card)}.png`, canvas });
+        captures.push({ card, canvas });
       }
     } finally {
       papers.forEach((paper) => paper.visible(true));
       otherLayers.forEach((l, i) => l.visible(layersWereVisible[i]));
     }
 
-    for (const { name, canvas } of captures) {
-      const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/png'));
-      if (!blob) continue;
-      const tagged = setPngDpi(new Uint8Array(await blob.arrayBuffer()), CARD_EXPORT_DPI);
-      downloadBlob(new Blob([tagged], { type: 'image/png' }), name);
+    for (const { card, canvas } of captures) {
+      const format = card.exportFormat ?? 'png';
+      const file = await encodeCard(canvas, card, format);
+      if (!file) continue;
+      downloadBlob(file, names.get(card.id)!);
       // Browsers can drop downloads fired in the same tick as each other.
       await new Promise((resolve) => setTimeout(resolve, 100));
     }

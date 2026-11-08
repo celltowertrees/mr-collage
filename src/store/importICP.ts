@@ -1,5 +1,7 @@
 import {
+  CARD_EXPORT_FORMATS,
   CARD_SIZES,
+  CardExportFormat,
   CardSizeId,
   CollageCard,
   CollageImage,
@@ -161,7 +163,18 @@ export function parseICP(text: string): ParsedICP {
           ...base,
           sizeId: data.sizeId as CardSizeId,
           includeBleed: data.includeBleed !== false,
+          // The partner's id is the file's; importObjects remaps both sides
+          // together, and a side whose partner is missing becomes plain.
+          ...(isObject(data.pair) &&
+          typeof data.pair.id === 'string' &&
+          (data.pair.side === 'front' || data.pair.side === 'back')
+            ? { pair: { id: data.pair.id, side: data.pair.side } }
+            : {}),
+          ...(data.addressGuides === true ? { addressGuides: true } : {}),
         };
+        if (CARD_EXPORT_FORMATS.includes(data.exportFormat as CardExportFormat)) {
+          card.exportFormat = data.exportFormat as CardExportFormat;
+        }
         return card;
       }
       default:

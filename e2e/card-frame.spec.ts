@@ -52,7 +52,7 @@ async function drag(page: Page, from: { x: number; y: number }, to: { x: number;
 async function addPostcard(page: Page) {
   const before = (await cards(page)).length;
   await page.getByTitle('Add Card').click();
-  await page.getByRole('menuitem', { name: /Postcard/ }).click();
+  await page.getByRole('menuitem', { name: /^Postcard/ }).click();
   await expect.poll(async () => (await cards(page)).length).toBe(before + 1);
 }
 

@@ -15,7 +15,9 @@ import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 import { BgPromptEditPanel, BgStatusPanel } from './components/BackgroundStatus';
 import { localToStage } from './utils/geometry';
 import { lowResImagesOnCard, PRINT_DPI_LOW } from './utils/printQuality';
-import { CollageText } from './types';
+import { cardExportFilenames, expandCardPairs } from './utils/cardPair';
+import { CollageCard, CollageText } from './types';
+import { cardSide } from './utils/cardPair';
 import './App.css';
 
 function App() {
@@ -34,6 +36,7 @@ function App() {
     addText,
     addModel3D,
     addCard,
+    addCardBack,
     updateImage,
     regenerateImage,
     moveImages,
@@ -84,10 +87,14 @@ function App() {
   const [printNotice, setPrintNotice] = useState<string | null>(null);
   const exportCards = useCallback(
     (ids?: string[]) => {
-      const allCards = images.filter((obj) => obj.kind === 'card');
-      const soft = allCards
-        .map((card, i) => ({ name: `card-${i + 1}`, card, lowRes: lowResImagesOnCard(card, images) }))
-        .filter(({ card, lowRes }) => (!ids || ids.includes(card.id)) && lowRes.length > 0);
+      // The same cards, and the same filenames, the export itself will use:
+      // either side of a front/back pair brings the other along.
+      const names = cardExportFilenames(images);
+      const wanted = ids ? expandCardPairs(ids, images) : null;
+      const soft = images
+        .filter((obj): obj is CollageCard => obj.kind === 'card' && (!wanted || wanted.includes(obj.id)))
+        .map((card) => ({ name: names.get(card.id) ?? card.name, lowRes: lowResImagesOnCard(card, images) }))
+        .filter(({ lowRes }) => lowRes.length > 0);
       handleExportCards(ids);
       setPrintNotice(
         soft.length === 0
@@ -225,6 +232,8 @@ function App() {
         onUpload={handleUploadClick}
         onAddModel3D={addModel3D}
         onAddCard={addCard}
+        onAddCardBack={addCardBack}
+        selectedCardSide={selectedImage?.kind === 'card' ? cardSide(selectedImage, images) : null}
         onOpenStickerGenerator={() => setStickerGeneratorOpen(true)}
         visionDetail={bg.visionDetail}
         onVisionDetailChange={bg.setVisionDetail}
