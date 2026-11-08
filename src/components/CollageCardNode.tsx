@@ -1,8 +1,9 @@
 import { memo } from 'react';
-import { Group, Rect, Text } from 'react-konva';
+import { Group, Line, Rect, Text } from 'react-konva';
 import Konva from 'konva';
-import { CARD_SAFE_MARGIN_IN, CARD_UNITS_PER_INCH, CollageCard } from '../types';
+import { CARD_SAFE_MARGIN_IN, CARD_UNITS_PER_INCH, CardSide, CollageCard } from '../types';
 import { CARD_BLEED_UNITS, cardLabel, cardPaperId } from '../utils/card';
+import { addressGuideLayout } from '../utils/cardPair';
 import { useObjectNode, type ObjectNodeProps } from '../hooks/useObjectNode';
 
 const SAFE_UNITS = CARD_SAFE_MARGIN_IN * CARD_UNITS_PER_INCH;
@@ -17,6 +18,10 @@ const LABEL_FONT_PX = 12;
 const LABEL_GAP_PX = 6;
 // Generous, so the thin trim line is easy to grab.
 const TRIM_HIT_PX = 14;
+const ADDRESS_COLOR = '#7E57C2';
+const ADDRESS_STYLE = { stroke: ADDRESS_COLOR, strokeWidth: 1, strokeScaleEnabled: false, listening: false };
+// Printed-size captions: about 1/10 in tall, so they scale with the card.
+const ADDRESS_FONT_UNITS = 10;
 
 // Top-left of a card's paper (trim plus bleed) given the card's centre.
 function paperOrigin(card: Pick<CollageCard, 'width' | 'height'>, x: number, y: number) {
@@ -44,6 +49,7 @@ export const CardPaper = memo(function CardPaper({ card }: { card: CollageCard }
 
 interface FrameProps extends ObjectNodeProps {
   card: CollageCard;
+  side: CardSide | null;
   selected: boolean;
   stageScale: number;
 }
@@ -53,7 +59,7 @@ interface FrameProps extends ObjectNodeProps {
 // clicks fall through to the artwork, and a drag on empty paper starts a
 // marquee like anywhere else on the canvas. Dragging the frame moves only the
 // frame, re-aiming what the card captures.
-export const CardFrame = memo(function CardFrame({ card, selected, stageScale, ...nodeProps }: FrameProps) {
+export const CardFrame = memo(function CardFrame({ card, side, selected, stageScale, ...nodeProps }: FrameProps) {
   const { groupProps } = useObjectNode(card, nodeProps);
   const px = (n: number) => n / stageScale;
 
@@ -83,6 +89,7 @@ export const CardFrame = memo(function CardFrame({ card, selected, stageScale, .
         height={card.height - SAFE_UNITS * 2}
         {...SAFE_STYLE}
       />
+      {side === 'back' && card.addressGuides && <AddressGuides width={card.width} height={card.height} />}
       <Rect
         width={card.width}
         height={card.height}
@@ -95,7 +102,7 @@ export const CardFrame = memo(function CardFrame({ card, selected, stageScale, .
         fillEnabled={false}
       />
       <Text
-        text={cardLabel(card)}
+        text={cardLabel(card, side)}
         x={-CARD_BLEED_UNITS}
         y={-CARD_BLEED_UNITS - px(LABEL_FONT_PX + LABEL_GAP_PX)}
         fontSize={px(LABEL_FONT_PX)}
@@ -105,3 +112,45 @@ export const CardFrame = memo(function CardFrame({ card, selected, stageScale, .
     </Group>
   );
 });
+
+// Where a postcard's address side needs room — divider, address lines, stamp
+// box, and the barcode strip USPS keeps clear — as guides only. Laid out
+// landscape and turned a quarter-turn on a portrait back, since the address
+// always reads along the long side.
+function AddressGuides({ width, height }: { width: number; height: number }) {
+  const portrait = height > width;
+  const long = Math.max(width, height);
+  const short = Math.min(width, height);
+  const { divider, stamp, addressLines, barcodeZone } = addressGuideLayout(long, short);
+  const caption = { fontSize: ADDRESS_FONT_UNITS, fontFamily: 'system-ui, sans-serif', fill: ADDRESS_COLOR, listening: false };
+  return (
+    <Group name="address-guides" listening={false} {...(portrait ? { x: width, rotation: 90 } : {})}>
+      <Line points={[divider.x, divider.y1, divider.x, divider.y2]} {...ADDRESS_STYLE} />
+      <Rect {...stamp} {...ADDRESS_STYLE} dash={[4, 3]} />
+      <Text
+        text="STAMP"
+        x={stamp.x}
+        y={stamp.y + stamp.height / 2 - ADDRESS_FONT_UNITS / 2}
+        width={stamp.width}
+        align="center"
+        {...caption}
+      />
+      {addressLines.map((line) => (
+        <Line key={line.y} points={[line.x1, line.y, line.x2, line.y]} {...ADDRESS_STYLE} />
+      ))}
+      <Text
+        text="ADDRESS"
+        x={addressLines[0]?.x1 ?? divider.x}
+        y={(addressLines[0]?.y ?? short / 2) - ADDRESS_FONT_UNITS * 1.6}
+        {...caption}
+      />
+      <Rect {...barcodeZone} {...ADDRESS_STYLE} dash={[2, 3]} fill="rgba(126, 87, 194, 0.08)" />
+      <Text
+        text="Keep clear for USPS barcode"
+        x={barcodeZone.x + 4}
+        y={barcodeZone.y + barcodeZone.height / 2 - ADDRESS_FONT_UNITS / 2}
+        {...caption}
+      />
+    </Group>
+  );
+}

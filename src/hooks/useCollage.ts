@@ -24,6 +24,7 @@ import type { BgRect } from './useBgRectDrawer';
 import { saveState, loadState } from '../store';
 import { useHistory } from './useHistory';
 import { DEFAULT_FONT_FAMILY } from '../utils/googleFonts';
+import { applyObjectChanges, duplicateObject, linkCardBack, remapIds, removeObjects } from '../utils/cardPair';
 
 // Quiet window for collapsing a burst of edits into a single save. Long
 // enough to swallow most of a gesture, short enough that a tab killed
@@ -216,6 +217,14 @@ export function useCollage() {
     setSelectedIds([card.id]);
   }, [viewportCenter, setImages]);
 
+  // Gives a card a linked back beside it, selected, as one undo step.
+  const addCardBack = useCallback((frontId: string) => {
+    const backId = uuidv4();
+    const zIndex = nextZIndex.current++;
+    setImages((prev) => linkCardBack(prev, frontId, backId, zIndex));
+    setSelectedIds([backId]);
+  }, [setImages]);
+
   // Returns the new object's id so callers (e.g. the Text tool's
   // click-to-place handler) can immediately open it for editing.
   const addText = useCallback((point: { x: number; y: number }): string => {
@@ -237,10 +246,8 @@ export function useCollage() {
 
   const updateImage = useCallback(
     (id: string, changes: ObjectChanges, options?: { coalesce?: boolean; amend?: boolean }) => {
-      setImages(
-        (prev) => prev.map((obj) => (obj.id === id ? ({ ...obj, ...changes } as CollageObject) : obj)),
-        options
-      );
+      // A card's size, orientation and bleed carry over to its other side.
+      setImages((prev) => applyObjectChanges(prev, id, changes), options);
     },
     [setImages]
   );
@@ -284,7 +291,8 @@ export function useCollage() {
 
   const deleteImage = useCallback((id: string | string[]) => {
     const ids = Array.isArray(id) ? id : [id];
-    setImages((prev) => prev.filter((img) => !ids.includes(img.id)));
+    // A pair's surviving side becomes a plain card.
+    setImages((prev) => removeObjects(prev, ids));
     setSelectedIds((prev) => prev.filter((sid) => !ids.includes(sid)));
   }, [setImages]);
 
@@ -353,13 +361,7 @@ export function useCollage() {
     setImages((prev) => {
       const source = prev.find((img) => img.id === id);
       if (!source) return prev;
-      const newImg: CollageObject = {
-        ...source,
-        id: uuidv4(),
-        x: source.x + 20,
-        y: source.y + 20,
-        zIndex: nextZIndex.current++,
-      };
+      const newImg = duplicateObject(source, uuidv4(), nextZIndex.current++);
       setSelectedIds([newImg.id]);
       return [...prev, newImg];
     });
@@ -379,9 +381,9 @@ export function useCollage() {
       // so added objects land above everything already on the canvas.
       const minZ = incoming.reduce((min, obj) => Math.min(min, obj.zIndex), Infinity);
       const zBase = mode === 'add' ? nextZIndex.current : 1;
-      const fresh = incoming.map((obj) => ({
+      // remapIds keeps front/back pairs pointing at each other's new ids.
+      const fresh = remapIds(incoming, () => uuidv4()).map((obj) => ({
         ...obj,
-        id: uuidv4(),
         zIndex: obj.zIndex - minZ + zBase,
       }));
       const maxZ = fresh.reduce((max, obj) => Math.max(max, obj.zIndex), zBase - 1);
@@ -419,6 +421,7 @@ export function useCollage() {
     addText,
     addModel3D,
     addCard,
+    addCardBack,
     updateImage,
     moveImages,
     nudgeImages,

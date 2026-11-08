@@ -3,7 +3,8 @@ import Konva from 'konva';
 import { exportToICP, exportToStaticHTML } from '../store';
 import { loadModelRenderer } from '../utils/loadModelRenderer';
 import { downloadBlob, downloadURL } from '../utils/download';
-import { CARD_EXPORT_SCALE, cardExportSize, cardFileName, cardPaperId, cardPrintSizeIn, cardRect } from '../utils/card';
+import { CARD_EXPORT_SCALE, cardExportSize, cardPaperId, cardPrintSizeIn, cardRect } from '../utils/card';
+import { cardExportFilenames, expandCardPairs } from '../utils/cardPair';
 import { setPngDpi } from '../utils/pngDpi';
 import { setJpegDpi } from '../utils/jpegDpi';
 import { jpegToPdf } from '../utils/jpegPdf';
@@ -160,7 +161,10 @@ export function useExports({ stageRef, images, selectedIds, stagePosition, stage
     const stage = stageRef.current;
     if (!stage) return;
     const allCards = images.filter((obj): obj is CollageCard => obj.kind === 'card');
-    const targets = ids ? allCards.filter((card) => ids.includes(card.id)) : allCards;
+    // Either side of a front/back pair brings the other along.
+    const wanted = ids ? expandCardPairs(ids, images) : null;
+    const targets = wanted ? allCards.filter((card) => wanted.includes(card.id)) : allCards;
+    const names = cardExportFilenames(images);
     if (targets.length === 0) return;
 
     const layer = stage.findOne<Konva.Layer>('.content')!;
@@ -209,7 +213,7 @@ export function useExports({ stageRef, images, selectedIds, stagePosition, stage
       const format = card.exportFormat ?? 'png';
       const file = await encodeCard(canvas, card, format);
       if (!file) continue;
-      downloadBlob(file, cardFileName(card, allCards.indexOf(card), format));
+      downloadBlob(file, names.get(card.id)!);
       // Browsers can drop downloads fired in the same tick as each other.
       await new Promise((resolve) => setTimeout(resolve, 100));
     }

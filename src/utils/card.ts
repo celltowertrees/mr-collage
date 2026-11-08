@@ -4,6 +4,7 @@ import {
   CARD_SIZES,
   CARD_UNITS_PER_INCH,
   CardExportFormat,
+  CardSide,
   CardSizeId,
   CollageCard,
 } from '../types';
@@ -52,11 +53,16 @@ export function cardSizeText(sizeId: CardSizeId) {
   return `${text} ${unit}`;
 }
 
-export function cardLabel(card: Pick<CollageCard, 'sizeId'>) {
-  return `${CARD_SIZES[card.sizeId].label} ${cardSizeText(card.sizeId)}`;
+export function cardLabel(card: Pick<CollageCard, 'sizeId'>, side?: CardSide | null) {
+  const label = `${CARD_SIZES[card.sizeId].label} ${cardSizeText(card.sizeId)}`;
+  return side ? `${label} · ${side === 'front' ? 'Front' : 'Back'}` : label;
 }
 
 const FORMAT_EXTENSIONS: Record<CardExportFormat, string> = { png: 'png', jpeg: 'jpg', pdf: 'pdf' };
+
+export function cardFileExtension(format: CardExportFormat) {
+  return FORMAT_EXTENSIONS[format];
+}
 
 // "card-2-5x7in.jpg": numbered by the card's place among all cards.
 export function cardFileName(card: Pick<CollageCard, 'sizeId'>, index: number, format: CardExportFormat) {

@@ -1177,4 +1177,56 @@ Feature: More Card Sizes and Print Formats
     Given one card is set to PDF and another is left at PNG
     When the app is reloaded and the user clicks "Export All Cards"
     Then each card downloads in its own format, and the choice also round-trips through ICP JSON
+
+### Front and Back Cards
+- **Requested:** 2026-11-08
+- **Ask:** Let a card have a linked back side, labelled Front/Back, that exports together with it, plus an optional postcard address layout on the back showing where USPS needs space.
+
+```gherkin
+Feature: Front and Back Cards
+  # src/types.ts, src/utils/cardPair.ts, src/utils/card.ts, src/components/CollageCardNode.tsx, src/components/Canvas.tsx, src/components/toolbar/CardSection.tsx, src/components/Toolbar.tsx, src/hooks/useCollage.ts, src/hooks/useExports.ts, src/store/exportICP.ts, src/store/importICP.ts, src/App.tsx — tested in src/__tests__/cardPairs.test.ts, e2e/card-back.spec.ts
+
+  Scenario: Add a back to a card
+    Given a card is selected
+    When the user clicks "Add Back"
+    Then a card of the same size and orientation appears beside it and is selected, the two are labelled Front and Back, and neither offers another back
+
+  Scenario: Exporting either side exports both
+    Given a card has a back
+    When the user clicks "Export Card" on either side, or "Export All Cards"
+    Then both sides download, named like card-1-front.png and card-1-back.png
+
+  Scenario: Orientation and bleed stay in step
+    Given a card has a back
+    When the user switches either side to portrait, or toggles Include Bleed
+    Then both sides change together, and one undo puts both back
+
+  Scenario: Moving one side leaves the other where it is
+    Given a card has a back
+    When the user drags one side's frame
+    Then only that side moves
+
+  Scenario: Deleting one side leaves a plain card
+    Given a card has a back
+    When the user deletes either side
+    Then the other side stays where it is as an ordinary, unlabelled card that can take a new back and exports under its usual name
+
+  Scenario: Duplicating one side makes a plain card
+    Given a card has a back
+    When the user duplicates either side
+    Then the copy is an ordinary card and the original pair stays linked
+
+  Scenario: A pair survives undo, reload, and ICP round-trips
+    Given a card has a back
+    When the user undoes adding it, reloads the app, or exports and imports the collage as ICP JSON
+    Then one undo removes the back and unlinks the front; a reload or import brings back both sides still linked, with fresh ids on import
+
+  Scenario: Show the postcard address layout on a back
+    Given a back is selected
+    When the user checks "Address Layout"
+    Then guides for a centre divider, address lines, a stamp box, and the USPS barcode clear zone are drawn on the back, turned to run along the long side of a portrait card, and never appear in an export
+
+  Scenario: The address layout is only offered on a back
+    Given an unpaired card or a front is selected
+    Then no Address Layout control is offered
 ```

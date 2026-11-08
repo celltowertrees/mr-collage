@@ -6,6 +6,7 @@ import { CollageImageNode } from './CollageImageNode';
 import { CollageTextNode } from './CollageTextNode';
 import { CollageModel3DNode } from './CollageModel3DNode';
 import { CardFrame, CardPaper } from './CollageCardNode';
+import { cardSide } from '../utils/cardPair';
 import { Model3DRotationGizmo } from './Model3DRotationGizmo';
 import { RegenerateButton } from './RegenerateButton';
 import { useMaskDrawer } from '../hooks/useMaskDrawer';
@@ -592,6 +593,7 @@ export function Canvas({
               key={card.id}
               {...nodeHandlers}
               card={card}
+              side={cardSide(card, images)}
               selected={selectedIds.includes(card.id)}
               stageScale={stageScale}
             />

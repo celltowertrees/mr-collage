@@ -1,4 +1,4 @@
-import { CARD_EXPORT_FORMATS, CardExportFormat, CollageCard } from '../../types';
+import { CARD_EXPORT_FORMATS, CardExportFormat, CardSide, CollageCard } from '../../types';
 import { DeleteIcon } from '../ToolbarIcons';
 import { ToolButton } from './primitives';
 import type { UpdateObject } from './types';
@@ -7,14 +7,17 @@ const FORMAT_LABELS: Record<CardExportFormat, string> = { png: 'PNG', jpeg: 'JPE
 
 interface Props {
   card: CollageCard;
+  side: CardSide | null;
+  onAddBack: (frontId: string) => void;
   onUpdate: UpdateObject;
   onExport: (id: string) => void;
   onDelete: (id: string) => void;
 }
 
 // A card has a fixed print size, so instead of the object and effect
-// controls it gets orientation, bleed, and its own export.
-export function CardSection({ card, onUpdate, onExport, onDelete }: Props) {
+// controls it gets orientation, bleed, and its own export. Orientation and
+// bleed apply to both sides of a pair, and exporting either side exports both.
+export function CardSection({ card, side, onAddBack, onUpdate, onExport, onDelete }: Props) {
   const portrait = card.height > card.width;
 
   const setPortrait = (wantPortrait: boolean) => {
@@ -38,6 +41,21 @@ export function CardSection({ card, onUpdate, onExport, onDelete }: Props) {
         />
         <span>Include Bleed</span>
       </label>
+      {side === null && (
+        <ToolButton onClick={() => onAddBack(card.id)} title="Add Back" className="export-btn">
+          Add Back
+        </ToolButton>
+      )}
+      {side === 'back' && (
+        <label className="toolbar-field" title="Show where USPS needs the address, stamp and barcode (guides only, never exported)">
+          <input
+            type="checkbox"
+            checked={!!card.addressGuides}
+            onChange={(e) => onUpdate(card.id, { addressGuides: e.target.checked })}
+          />
+          <span>Address Layout</span>
+        </label>
+      )}
       <div className="toolbar-divider" />
       <label className="toolbar-field" title="Print file type">
         <span>Format</span>
@@ -54,7 +72,7 @@ export function CardSection({ card, onUpdate, onExport, onDelete }: Props) {
         </select>
       </label>
       <ToolButton onClick={() => onExport(card.id)} title="Export Card" className="export-btn">
-        Export Card
+        {side ? 'Export Front & Back' : 'Export Card'}
       </ToolButton>
       <ToolButton onClick={() => onDelete(card.id)} title="Delete" danger>
         <DeleteIcon />
