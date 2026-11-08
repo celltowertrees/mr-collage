@@ -3,6 +3,10 @@ import { v4 as uuidv4 } from 'uuid';
 import {
   BaseObject,
   CanvasState,
+  CARD_SIZES,
+  CARD_UNITS_PER_INCH,
+  CardSizeId,
+  CollageCard,
   CollageImage,
   CollageModel3D,
   CollageObject,
@@ -190,6 +194,26 @@ export function useCollage() {
     };
     setImages((prev) => [...prev, model]);
     setSelectedIds([model.id]);
+  }, [viewportCenter, setImages]);
+
+  // A card lands landscape at the middle of the view, at its true print size
+  // in canvas units.
+  const addCard = useCallback((sizeId: CardSizeId) => {
+    const size = CARD_SIZES[sizeId];
+    const card: CollageCard = {
+      ...newObjectBase({
+        ...viewportCenter(),
+        width: size.widthIn * CARD_UNITS_PER_INCH,
+        height: size.heightIn * CARD_UNITS_PER_INCH,
+        zIndex: nextZIndex.current++,
+        name: size.label,
+      }),
+      kind: 'card',
+      sizeId,
+      includeBleed: true,
+    };
+    setImages((prev) => [...prev, card]);
+    setSelectedIds([card.id]);
   }, [viewportCenter, setImages]);
 
   // Returns the new object's id so callers (e.g. the Text tool's
@@ -394,6 +418,7 @@ export function useCollage() {
     addBackground,
     addText,
     addModel3D,
+    addCard,
     updateImage,
     moveImages,
     nudgeImages,

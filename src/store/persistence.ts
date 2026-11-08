@@ -1,4 +1,4 @@
-import { CanvasState, CollageImage, CollageModel3D, CollageObject, CollageText } from '../types';
+import { CanvasState, CollageCard, CollageImage, CollageModel3D, CollageObject, CollageText } from '../types';
 import { idbGetMany, idbSyncBlobs } from './db';
 
 const STORAGE_KEY = 'mr-collage-state';
@@ -20,7 +20,7 @@ type StoredModel3D = Omit<CollageModel3D, 'material'> & {
   };
 };
 
-type MetadataEntry = Omit<CollageImage, 'src'> | CollageText | StoredModel3D;
+type MetadataEntry = Omit<CollageImage, 'src'> | CollageText | StoredModel3D | CollageCard;
 
 // Objects keyed by their own id in the blob store: an image's source, or a 3D
 // object's uploaded texture. Ids are unique across kinds, so one keyspace
@@ -86,12 +86,17 @@ export async function loadState(): Promise<CanvasState | null> {
     // with no `kind`) and textured 3D objects — fetched in one go.
     const blobs = await idbGetMany(
       meta.images
-        .filter((entry) => entry.kind !== 'text' && (entry.kind !== 'model3d' || entry.material.texture?.source === 'image'))
+        .filter(
+          (entry) =>
+            entry.kind !== 'text' &&
+            entry.kind !== 'card' &&
+            (entry.kind !== 'model3d' || entry.material.texture?.source === 'image')
+        )
         .map((entry) => entry.id)
     );
     const images: CollageObject[] = [];
     for (const entry of meta.images) {
-      if (entry.kind === 'text') {
+      if (entry.kind === 'text' || entry.kind === 'card') {
         images.push(entry);
         continue;
       }

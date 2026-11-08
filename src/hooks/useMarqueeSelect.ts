@@ -80,8 +80,11 @@ export function useMarqueeSelect({
       height: Math.abs(currentContent.y - startContent.y),
     };
 
+    // Cards are left out: a sweep over the artwork on a card is about the
+    // artwork, and taking the frame along would drag it with the group.
     const overlapped = images
       .filter((img) => {
+        if (img.kind === 'card') return false;
         const node = stage.findOne(`#${img.id}`);
         const box = node?.getClientRect({ relativeTo: stage });
         return box ? Konva.Util.haveIntersection(rect, box) : false;

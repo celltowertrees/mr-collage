@@ -203,3 +203,10 @@ export const LightIcon = () => (
     <path d="M8 1v1.8M8 13.2V15M1 8h1.8M13.2 8H15M3.1 3.1l1.3 1.3M11.6 11.6l1.3 1.3M12.9 3.1l-1.3 1.3M4.4 11.6l-1.3 1.3" />
   </svg>
 );
+
+export const CardIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4">
+    <rect x="1.5" y="3.5" width="13" height="9" rx="0.5" />
+    <rect x="3.5" y="5.5" width="9" height="5" strokeDasharray="1.5 1.5" strokeWidth="1" />
+  </svg>
+);

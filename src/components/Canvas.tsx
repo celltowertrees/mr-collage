@@ -5,6 +5,7 @@ import { CollageObject, GradientMask, MaskData, ObjectChanges, Rotation3D, Tool 
 import { CollageImageNode } from './CollageImageNode';
 import { CollageTextNode } from './CollageTextNode';
 import { CollageModel3DNode } from './CollageModel3DNode';
+import { CardFrame, CardPaper } from './CollageCardNode';
 import { Model3DRotationGizmo } from './Model3DRotationGizmo';
 import { RegenerateButton } from './RegenerateButton';
 import { useMaskDrawer } from '../hooks/useMaskDrawer';
@@ -185,9 +186,13 @@ export function Canvas({
     const stage = stageRef.current;
     const tr = trRef.current;
     if (!stage || !tr) return;
+    // Cards stay out: they have a fixed print size, so no handles, and the
+    // Transformer makes its whole box grabbable — over a card that would turn
+    // every marquee started on its paper into a drag of the frame. A selected
+    // card highlights its own frame instead.
     const nodes = selectedIds
       .map((id) => stage.findOne<Konva.Node>(`#${id}`))
-      .filter((n): n is Konva.Node => n != null);
+      .filter((n): n is Konva.Node => n != null && n.name() !== 'card-frame');
     const current = tr.nodes();
     if (current.length === nodes.length && current.every((n, i) => n === nodes[i])) return;
     tr.nodes(nodes);
@@ -461,6 +466,7 @@ export function Canvas({
   };
 
   const sorted = useMemo(() => [...images].sort((a, b) => a.zIndex - b.zIndex), [images]);
+  const cards = useMemo(() => images.filter((obj) => obj.kind === 'card'), [images]);
 
   // Render mask preview shape
   const preview = maskDrawer.getPreview();
@@ -555,7 +561,12 @@ export function Canvas({
         style={{ cursor: getCursor() }}
       >
         <Layer name="content">
+          {/* Card paper sits under every object, whatever its zIndex. */}
+          {cards.map((card) => (
+            <CardPaper key={card.id} card={card} />
+          ))}
           {sorted.map((obj) => {
+            if (obj.kind === 'card') return null;
             if (obj.kind === 'text') {
               return (
                 <CollageTextNode
@@ -576,6 +587,15 @@ export function Canvas({
             so drawing a marquee or mask outline frame by frame repaints only
             these few shapes instead of every object (and its shadow) below. */}
         <Layer name="overlay">
+          {cards.map((card) => (
+            <CardFrame
+              key={card.id}
+              {...nodeHandlers}
+              card={card}
+              selected={selectedIds.includes(card.id)}
+              stageScale={stageScale}
+            />
+          ))}
           <Transformer
             ref={trRef}
             padding={selectionHasText ? 8 : 0}

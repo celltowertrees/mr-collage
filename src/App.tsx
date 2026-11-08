@@ -32,6 +32,7 @@ function App() {
     addBackground,
     addText,
     addModel3D,
+    addCard,
     updateImage,
     regenerateImage,
     moveImages,
@@ -70,7 +71,7 @@ function App() {
     (images.find((obj): obj is CollageText => obj.kind === 'text' && obj.id === editingTextId) ?? null);
 
   const bg = useBackgroundGeneration({ images, tool, setTool, stageRef, addBackground });
-  const { handleExportJPEG, handleExportPNGs, handleExportJSON, handleExportHTML } = useExports({
+  const { handleExportJPEG, handleExportPNGs, handleExportJSON, handleExportHTML, handleExportCards } = useExports({
     stageRef,
     images,
     selectedIds,
@@ -196,6 +197,7 @@ function App() {
         onToolChange={setTool}
         onUpload={handleUploadClick}
         onAddModel3D={addModel3D}
+        onAddCard={addCard}
         onOpenStickerGenerator={() => setStickerGeneratorOpen(true)}
         visionDetail={bg.visionDetail}
         onVisionDetailChange={bg.setVisionDetail}
@@ -214,7 +216,9 @@ function App() {
         onExportJSON={handleExportJSON}
         onExportHTML={handleExportHTML}
         onExportPNGs={handleExportPNGs}
-        hasSelection={selectedIds.length > 0}
+        onExportCards={handleExportCards}
+        hasSelection={images.some((obj) => obj.kind !== 'card' && selectedIds.includes(obj.id))}
+        hasCards={images.some((obj) => obj.kind === 'card')}
         onImportJSON={importFlow.handleImportJSON}
         hasPendingCrop={cropDrawer.committedRect !== null}
         onApplyCrop={applyCrop}

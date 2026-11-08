@@ -1,4 +1,4 @@
-import { CollageObject, PrimitiveShape, Tool } from '../types';
+import { CardSizeId, CollageObject, PrimitiveShape, Tool } from '../types';
 import type { VisionDetail } from '../utils/generateBackground';
 import { ToolsSection } from './toolbar/ToolsSection';
 import { ObjectSection } from './toolbar/ObjectSection';
@@ -7,6 +7,7 @@ import { Model3DSection } from './toolbar/Model3DSection';
 import { CropSection, MaskSection } from './toolbar/MaskSection';
 import { ShadowSection, VignetteSection } from './toolbar/EffectSections';
 import { ExportSection } from './toolbar/ExportSection';
+import { CardSection } from './toolbar/CardSection';
 import type { UpdateObject } from './toolbar/types';
 
 interface ToolbarProps {
@@ -15,6 +16,7 @@ interface ToolbarProps {
   onToolChange: (tool: Tool) => void;
   onUpload: () => void;
   onAddModel3D: (shape: PrimitiveShape) => void;
+  onAddCard: (sizeId: CardSizeId) => void;
   onOpenStickerGenerator: () => void;
   visionDetail: VisionDetail;
   onVisionDetailChange: (detail: VisionDetail) => void;
@@ -33,7 +35,9 @@ interface ToolbarProps {
   onExportJSON: () => void;
   onExportHTML: () => void;
   onExportPNGs: () => void;
+  onExportCards: (ids?: string[]) => void;
   hasSelection: boolean;
+  hasCards: boolean;
   onImportJSON: () => void;
   hasPendingCrop: boolean;
   onApplyCrop: () => void;
@@ -51,6 +55,7 @@ export function Toolbar(props: ToolbarProps) {
   const image = selected?.kind === 'image' ? selected : null;
   const text = selected?.kind === 'text' ? selected : null;
   const model = selected?.kind === 'model3d' ? selected : null;
+  const card = selected?.kind === 'card' ? selected : null;
 
   return (
     <div className="toolbar">
@@ -63,13 +68,23 @@ export function Toolbar(props: ToolbarProps) {
         onUpload={props.onUpload}
         onOpenStickerGenerator={props.onOpenStickerGenerator}
         onAddModel3D={props.onAddModel3D}
+        onAddCard={props.onAddCard}
         onUndo={props.onUndo}
         onRedo={props.onRedo}
         canUndo={props.canUndo}
         canRedo={props.canRedo}
       />
 
-      {selected && tool !== 'pan' && (
+      {card && tool !== 'pan' && (
+        <CardSection
+          card={card}
+          onUpdate={onUpdateImage}
+          onExport={(id) => props.onExportCards([id])}
+          onDelete={props.onDelete}
+        />
+      )}
+
+      {selected && !card && tool !== 'pan' && (
         <>
           <ObjectSection
             obj={selected}
@@ -108,7 +123,9 @@ export function Toolbar(props: ToolbarProps) {
         onExportJSON={props.onExportJSON}
         onExportHTML={props.onExportHTML}
         onExportPNGs={props.onExportPNGs}
+        onExportCards={() => props.onExportCards()}
         hasSelection={props.hasSelection}
+        hasCards={props.hasCards}
       />
     </div>
   );

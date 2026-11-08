@@ -228,7 +228,34 @@ export interface CollageModel3D extends BaseObject {
   material: Model3DMaterial;
 }
 
-export type CollageObject = CollageImage | CollageText | CollageModel3D;
+// Print sizes a card frame can take, in inches, landscape. Adding a size is
+// one entry here — everything downstream reads width/height off the card.
+export const CARD_SIZES = {
+  postcard: { label: 'Postcard', widthIn: 6, heightIn: 4 },
+} as const;
+
+export type CardSizeId = keyof typeof CARD_SIZES;
+
+// 100 canvas units to the inch keeps a card comfortably sized next to what
+// the app already makes (a new image is capped at 400 units, new text is 32),
+// and 3x of that is print resolution.
+export const CARD_UNITS_PER_INCH = 100;
+export const CARD_EXPORT_DPI = 300;
+export const CARD_BLEED_IN = 0.125;
+// How far inside the trim to keep anything that mustn't be cut off.
+export const CARD_SAFE_MARGIN_IN = 0.125;
+
+// A frame on the canvas marking what prints as a card: not artwork itself,
+// but whatever sits inside it. It shares BaseObject so undo, autosave and
+// ICP come for free; `width`/`height` are the trim size in canvas units
+// (swapped for portrait), and it never takes scale, rotation or effects.
+export interface CollageCard extends BaseObject {
+  kind: 'card';
+  sizeId: CardSizeId;
+  includeBleed: boolean;
+}
+
+export type CollageObject = CollageImage | CollageText | CollageModel3D | CollageCard;
 
 // Partial-of-the-intersection (rather than Partial<CollageObject>, which
 // distributes over the union and would reject a change bag mixing fields
@@ -238,7 +265,7 @@ export type CollageObject = CollageImage | CollageText | CollageModel3D;
 // CollageText['kind'] is `'image' & 'text'`, i.e. `never` — which collapses
 // the *entire* mapped type to `never`, not just that one field.
 export type ObjectChanges = Partial<
-  Omit<CollageImage, 'kind'> & Omit<CollageText, 'kind'> & Omit<CollageModel3D, 'kind'>
+  Omit<CollageImage, 'kind'> & Omit<CollageText, 'kind'> & Omit<CollageModel3D, 'kind'> & Omit<CollageCard, 'kind'>
 >;
 
 export function isTextObject(obj: CollageObject): obj is CollageText {

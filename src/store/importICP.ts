@@ -1,4 +1,7 @@
 import {
+  CARD_SIZES,
+  CardSizeId,
+  CollageCard,
   CollageImage,
   CollageModel3D,
   CollageObject,
@@ -148,6 +151,18 @@ export function parseICP(text: string): ParsedICP {
           ...pick(data, SHARED_EFFECTS),
         };
         return model;
+      }
+      case 'card': {
+        if (typeof data.sizeId !== 'string' || !(data.sizeId in CARD_SIZES)) {
+          throw new ICPImportError(`${label} is a card of an unknown size.`);
+        }
+        const card: CollageCard = {
+          kind: 'card',
+          ...base,
+          sizeId: data.sizeId as CardSizeId,
+          includeBleed: data.includeBleed !== false,
+        };
+        return card;
       }
       default:
         throw new ICPImportError(`${label} has a type this app doesn't know (${String(node.type)}).`);

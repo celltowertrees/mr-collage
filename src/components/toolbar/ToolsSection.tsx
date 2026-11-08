@@ -1,9 +1,9 @@
-import { PRIMITIVE_SHAPES, PrimitiveShape, SHAPE_LABELS, Tool } from '../../types';
+import { CARD_SIZES, CardSizeId, PRIMITIVE_SHAPES, PrimitiveShape, SHAPE_LABELS, Tool } from '../../types';
 import type { VisionDetail } from '../../utils/generateBackground';
 import { loadModelRenderer } from '../../utils/loadModelRenderer';
 import { features } from '../../featureFlags';
 import {
-  SelectIcon, PanIcon, TextToolIcon, UploadIcon, UndoIcon, RedoIcon, SparkleIcon, BgGenIcon, CubeIcon,
+  SelectIcon, PanIcon, TextToolIcon, UploadIcon, UndoIcon, RedoIcon, SparkleIcon, BgGenIcon, CubeIcon, CardIcon,
 } from '../ToolbarIcons';
 import { ToolButton } from './primitives';
 import { usePopupMenu } from './usePopupMenu';
@@ -16,6 +16,7 @@ interface Props {
   onUpload: () => void;
   onOpenStickerGenerator: () => void;
   onAddModel3D: (shape: PrimitiveShape) => void;
+  onAddCard: (sizeId: CardSizeId) => void;
   onUndo: () => void;
   onRedo: () => void;
   canUndo: boolean;
@@ -31,12 +32,14 @@ export function ToolsSection({
   onUpload,
   onOpenStickerGenerator,
   onAddModel3D,
+  onAddCard,
   onUndo,
   onRedo,
   canUndo,
   canRedo,
 }: Props) {
   const shapeMenu = usePopupMenu();
+  const cardMenu = usePopupMenu();
 
   return (
     <div className="toolbar-section">
@@ -126,6 +129,41 @@ export function ToolsSection({
           )}
         </div>
       )}
+      <div className="blend-mode-field">
+        <ToolButton
+          ref={cardMenu.buttonRef}
+          onClick={() => cardMenu.toggle()}
+          title="Add Card"
+          active={!!cardMenu.pos}
+        >
+          <CardIcon />
+        </ToolButton>
+        {cardMenu.pos && (
+          <div
+            ref={cardMenu.menuRef}
+            className="blend-mode-popup"
+            role="menu"
+            style={{ top: cardMenu.pos.top, left: cardMenu.pos.left }}
+          >
+            {(Object.keys(CARD_SIZES) as CardSizeId[]).map((sizeId) => {
+              const size = CARD_SIZES[sizeId];
+              return (
+                <button
+                  key={sizeId}
+                  role="menuitem"
+                  className="blend-mode-option"
+                  onClick={() => {
+                    onAddCard(sizeId);
+                    cardMenu.close();
+                  }}
+                >
+                  {size.label} ({size.heightIn}×{size.widthIn} in)
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </div>
       <div className="toolbar-divider" />
       <ToolButton onClick={onUndo} disabled={!canUndo} title="Undo (Ctrl+Z)">
         <UndoIcon />

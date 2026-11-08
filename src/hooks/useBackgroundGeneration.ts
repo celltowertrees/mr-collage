@@ -74,6 +74,9 @@ export function useBackgroundGeneration({ images, tool, setTool, stageRef, addBa
       // Render the drawn region to a JPEG so the vision model sees how everything
       // is laid out together rather than each image in isolation.
       const scale = stage!.scaleX();
+      // Card guides and selection chrome aren't part of the picture.
+      const overlay = stage!.findOne<Konva.Layer>('.overlay');
+      overlay?.visible(false);
       const compositeJpeg = stage!.toDataURL({
         x: rect.x * scale + stage!.x(),
         y: rect.y * scale + stage!.y(),
@@ -83,6 +86,7 @@ export function useBackgroundGeneration({ images, tool, setTool, stageRef, addBa
         mimeType: 'image/jpeg',
         quality: 0.85,
       });
+      overlay?.visible(true);
 
       setTool('select');
       bgStartedAtRef.current = Date.now();
