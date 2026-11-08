@@ -228,13 +228,33 @@ export interface CollageModel3D extends BaseObject {
   material: Model3DMaterial;
 }
 
-// Print sizes a card frame can take, in inches, landscape. Adding a size is
-// one entry here — everything downstream reads width/height off the card.
-export const CARD_SIZES = {
-  postcard: { label: 'Postcard', widthIn: 6, heightIn: 4 },
-} as const;
+export type CardSizeId = 'postcard' | 'postcardMax' | 'greeting' | 'a6' | 'square';
 
-export type CardSizeId = keyof typeof CARD_SIZES;
+export interface CardSize {
+  label: string;
+  // Landscape trim size in inches; the source of truth for geometry.
+  widthIn: number;
+  heightIn: number;
+  // Set for sizes defined in millimetres, so they read in their own units.
+  mm?: { width: number; height: number };
+}
+
+const MM_PER_INCH = 25.4;
+
+// Print sizes a card frame can take, landscape. Adding a size is one entry
+// here — everything downstream reads width/height off the card.
+export const CARD_SIZES: Record<CardSizeId, CardSize> = {
+  postcard: { label: 'Postcard', widthIn: 6, heightIn: 4 },
+  // The largest card USPS still mails at the postcard rate.
+  postcardMax: { label: 'Max Postcard', widthIn: 6, heightIn: 4.25 },
+  // The classic folded-flat greeting / holiday card (fits an A7 envelope).
+  greeting: { label: 'Greeting Card', widthIn: 7, heightIn: 5 },
+  a6: { label: 'A6', widthIn: 148 / MM_PER_INCH, heightIn: 105 / MM_PER_INCH, mm: { width: 148, height: 105 } },
+  square: { label: 'Square', widthIn: 5, heightIn: 5 },
+};
+
+export const CARD_EXPORT_FORMATS = ['png', 'jpeg', 'pdf'] as const;
+export type CardExportFormat = (typeof CARD_EXPORT_FORMATS)[number];
 
 // 100 canvas units to the inch keeps a card comfortably sized next to what
 // the app already makes (a new image is capped at 400 units, new text is 32),
@@ -253,6 +273,8 @@ export interface CollageCard extends BaseObject {
   kind: 'card';
   sizeId: CardSizeId;
   includeBleed: boolean;
+  // How "Export Card" writes this card; PNG when unset (older saves).
+  exportFormat?: CardExportFormat;
   // Front/back pairing: each side points at the other. A link only counts
   // while it's mutual (see cardPartner), so a dangling one is harmless.
   pair?: CardPair;

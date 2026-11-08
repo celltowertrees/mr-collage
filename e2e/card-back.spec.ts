@@ -30,7 +30,7 @@ async function getCanvasCenter(page: Page) {
 
 async function addPostcardWithBack(page: Page) {
   await page.getByTitle('Add Card').click();
-  await page.getByRole('menuitem', { name: /Postcard/ }).click();
+  await page.getByRole('menuitem', { name: /^Postcard/ }).click();
   await expect.poll(async () => (await cards(page)).length).toBe(1);
   await page.getByTitle('Add Back').click();
   await expect.poll(async () => (await cards(page)).length).toBe(2);
@@ -186,7 +186,7 @@ test.describe('Front and Back Cards', () => {
 
   test('the address layout is only offered on a back', async ({ page }) => {
     await page.getByTitle('Add Card').click();
-    await page.getByRole('menuitem', { name: /Postcard/ }).click();
+    await page.getByRole('menuitem', { name: /^Postcard/ }).click();
     await expect(page.getByTitle('Add Back')).toBeVisible();
     await expect(page.getByLabel('Address Layout')).toHaveCount(0);
 

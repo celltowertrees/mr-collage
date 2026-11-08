@@ -1,5 +1,5 @@
 import { CARD_UNITS_PER_INCH, CardSide, CollageCard, CollageObject, ObjectChanges } from '../types';
-import { cardSizeSlug } from './card';
+import { cardFileExtension, cardSizeSlug } from './card';
 
 // Front/back card pairs. Each side carries `pair: { id, side }` pointing at
 // the other; everything here treats a link as real only while it's mutual,
@@ -126,8 +126,10 @@ export function expandCardPairs(ids: readonly string[], objects: readonly Collag
 
 // Every card's export filename. Cards are numbered in canvas order, a pair
 // taking one number between its two sides: `card-2-front.png` and
-// `card-2-back.png`, next to an unpaired `card-1-4x6in.png`.
+// `card-2-back.png`, next to an unpaired `card-1-4x6in.png`. Each file takes
+// its own card's export format for the extension.
 export function cardExportFilenames(objects: readonly CollageObject[]): Map<string, string> {
+  const ext = (card: CollageCard) => cardFileExtension(card.exportFormat ?? 'png');
   const names = new Map<string, string>();
   let n = 0;
   for (const obj of objects) {
@@ -135,11 +137,11 @@ export function cardExportFilenames(objects: readonly CollageObject[]): Map<stri
     n++;
     const partner = cardPartner(obj, objects);
     if (!partner) {
-      names.set(obj.id, `card-${n}-${cardSizeSlug(obj)}.png`);
+      names.set(obj.id, `card-${n}-${cardSizeSlug(obj)}.${ext(obj)}`);
       continue;
     }
-    names.set(obj.id, `card-${n}-${obj.pair!.side}.png`);
-    names.set(partner.id, `card-${n}-${partner.pair!.side}.png`);
+    names.set(obj.id, `card-${n}-${obj.pair!.side}.${ext(obj)}`);
+    names.set(partner.id, `card-${n}-${partner.pair!.side}.${ext(partner)}`);
   }
   return names;
 }
