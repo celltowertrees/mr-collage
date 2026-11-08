@@ -53,6 +53,12 @@
   --danger-text: #ffffff;
   --danger-border: #dc2626;
 
+  /* ── Print warnings ── */
+  --warning-text: #ffc24a;
+  --warning-strong-text: #ff8a7a;
+  --warning-bg: rgba(255, 194, 74, 0.12);
+  --warning-border: rgba(255, 194, 74, 0.45);
+
   /* ── Mask drawing ── */
   --mask-hint-color: rgba(255, 255, 255, 0.68);
   --mask-preview-stroke: #ff4410;

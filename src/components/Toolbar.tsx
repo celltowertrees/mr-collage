@@ -8,11 +8,15 @@ import { CropSection, MaskSection } from './toolbar/MaskSection';
 import { ShadowSection, VignetteSection } from './toolbar/EffectSections';
 import { ExportSection } from './toolbar/ExportSection';
 import { CardSection } from './toolbar/CardSection';
+import { imagePrintDpi, lowResImagesOnCard, lowResOnAnyCard, PRINT_DPI_LOW, PRINT_DPI_VERY_LOW } from '../utils/printQuality';
 import type { UpdateObject } from './toolbar/types';
 
 interface ToolbarProps {
   tool: Tool;
   selectedImage: CollageObject | null;
+  // Everything on the canvas, for checking print resolution against cards.
+  objects: CollageObject[];
+  onSelect: (ids: string[]) => void;
   onToolChange: (tool: Tool) => void;
   onUpload: () => void;
   onAddModel3D: (shape: PrimitiveShape) => void;
@@ -59,6 +63,7 @@ export function Toolbar(props: ToolbarProps) {
   const text = selected?.kind === 'text' ? selected : null;
   const model = selected?.kind === 'model3d' ? selected : null;
   const card = selected?.kind === 'card' ? selected : null;
+  const imageDpi = image && lowResOnAnyCard(image, props.objects) ? imagePrintDpi(image) : null;
 
   return (
     <div className="toolbar">
@@ -86,6 +91,8 @@ export function Toolbar(props: ToolbarProps) {
           onUpdate={onUpdateImage}
           onExport={(id) => props.onExportCards([id])}
           onDelete={props.onDelete}
+          lowRes={lowResImagesOnCard(card, props.objects)}
+          onSelectImages={props.onSelect}
         />
       )}
 
@@ -99,6 +106,16 @@ export function Toolbar(props: ToolbarProps) {
             onDuplicate={props.onDuplicate}
             onDelete={props.onDelete}
           />
+          {imageDpi !== null && (
+            <div className="toolbar-section">
+              <span
+                className={`print-warning${imageDpi < PRINT_DPI_VERY_LOW ? ' very-low' : ''}`}
+                title={`Below ${PRINT_DPI_LOW}dpi this image will look soft on the printed card. Shrink it, or use a larger original.`}
+              >
+                ⚠ Prints at {Math.round(imageDpi)}dpi
+              </span>
+            </div>
+          )}
           {text && <TextSection text={text} onUpdate={onUpdateImage} />}
           {model && <Model3DSection model={model} tool={tool} onToolChange={onToolChange} onUpdate={onUpdateImage} />}
           <MaskSection

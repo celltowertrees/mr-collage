@@ -512,6 +512,55 @@ body {
   color: #fff;
 }
 
+/* Print-resolution warnings: a chip in the toolbar, and a notice after export */
+.print-warning {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: var(--btn-size);
+  padding: 0 8px;
+  border: 1px solid var(--warning-border);
+  border-radius: var(--btn-radius);
+  background: var(--warning-bg);
+  color: var(--warning-text);
+  font: inherit;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+button.print-warning {
+  cursor: pointer;
+}
+
+button.print-warning:hover {
+  background: rgba(255, 194, 74, 0.2);
+}
+
+.print-warning.very-low {
+  color: var(--warning-strong-text);
+  border-color: var(--warning-strong-text);
+}
+
+.print-notice-toast {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  max-width: 540px;
+  padding: 12px 14px;
+  background: rgba(30, 24, 10, 0.95);
+  border: 1px solid var(--warning-border);
+  border-radius: 10px;
+  box-shadow: 0 8px 28px rgba(0,0,0,0.4);
+  color: var(--warning-text);
+  font-size: 12px;
+  line-height: 1.5;
+  z-index: 200;
+}
+
 /* Sticker Generator Modal */
 .sticker-backdrop {
   position: fixed;
