@@ -1144,3 +1144,40 @@ Feature: Printable Card Frames
     When the app is reloaded, or the collage is exported as ICP JSON and imported
     Then the card comes back with its size, orientation, and bleed setting; one undo removes a newly added card; and the static HTML export leaves cards out
 ```
+
+### Low-Resolution Print Warnings
+- **Requested:** 2026-11-08
+- **Ask:** Warn when a photo on a card is too low-resolution to print well (an AI sticker stretched across a whole 4×6 card lands around 170dpi).
+
+```gherkin
+Feature: Low-Resolution Print Warnings
+  # src/utils/printQuality.ts, src/components/toolbar/CardSection.tsx, src/components/Toolbar.tsx, src/App.tsx, src/App.css, src/theme.css — tested in src/__tests__/printQuality.test.ts, e2e/card-lowres.spec.ts
+
+  Scenario: A card flags its low-resolution images
+    Given an image on a card would print below 150dpi
+    When the card is selected
+    Then its toolbar shows how many images will print soft and the lowest resolution among them
+
+  Scenario: Sharp images and images off the card raise no warning
+    Given every image on a card prints at 150dpi or better, or a low-resolution image sits outside the card
+    Then no warning is shown
+
+  Scenario: A selected low-resolution image shows its print resolution
+    Given an image on a card would print below 150dpi
+    When the image is selected
+    Then the toolbar shows the resolution it will print at
+
+  Scenario: The warning leads to the culprits
+    Given a card shows a low-resolution warning
+    When the user clicks the warning
+    Then the low-resolution images on that card are selected
+
+  Scenario: Exporting never blocks, but says what will print soft
+    Given a card has an image below 150dpi
+    When the user exports it
+    Then the PNG still downloads, and a dismissible notice names the card and its softest image's resolution
+
+  Scenario: Resolution follows how the image is shown
+    Given an image is stretched, cropped, rotated, or only reaches into a card's bleed
+    Then its print resolution is judged by its softer axis and the pixels left after cropping, and it counts as on the card if its rotated footprint reaches the card's printed area
+```

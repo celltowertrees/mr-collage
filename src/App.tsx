@@ -14,6 +14,7 @@ import { useImportFlow } from './hooks/useImportFlow';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 import { BgPromptEditPanel, BgStatusPanel } from './components/BackgroundStatus';
 import { localToStage } from './utils/geometry';
+import { lowResImagesOnCard, PRINT_DPI_LOW } from './utils/printQuality';
 import { CollageText } from './types';
 import './App.css';
 
@@ -78,6 +79,30 @@ function App() {
     stagePosition,
     stageScale,
   });
+  // Exports never block on resolution, but a card about to print soft says so
+  // once the file is on its way, naming the card the way its filename does.
+  const [printNotice, setPrintNotice] = useState<string | null>(null);
+  const exportCards = useCallback(
+    (ids?: string[]) => {
+      const allCards = images.filter((obj) => obj.kind === 'card');
+      const soft = allCards
+        .map((card, i) => ({ name: `card-${i + 1}`, card, lowRes: lowResImagesOnCard(card, images) }))
+        .filter(({ card, lowRes }) => (!ids || ids.includes(card.id)) && lowRes.length > 0);
+      handleExportCards(ids);
+      setPrintNotice(
+        soft.length === 0
+          ? null
+          : soft
+              .map(
+                ({ name, lowRes }) =>
+                  `${name} has ${lowRes.length} ${lowRes.length === 1 ? 'image' : 'images'} below ${PRINT_DPI_LOW}dpi (softest ${Math.round(lowRes[0].dpi)}dpi).`
+              )
+              .join(' ') + " It's exported, but may look soft in print."
+      );
+    },
+    [images, handleExportCards]
+  );
+
   const importFlow = useImportFlow({ hasObjects: images.length > 0, importObjects });
 
   const cropDrawer = useCropDrawer({
@@ -194,6 +219,8 @@ function App() {
       <Toolbar
         tool={tool}
         selectedImage={selectedImage}
+        objects={images}
+        onSelect={setSelectedIds}
         onToolChange={setTool}
         onUpload={handleUploadClick}
         onAddModel3D={addModel3D}
@@ -216,7 +243,7 @@ function App() {
         onExportJSON={handleExportJSON}
         onExportHTML={handleExportHTML}
         onExportPNGs={handleExportPNGs}
-        onExportCards={handleExportCards}
+        onExportCards={exportCards}
         hasSelection={images.some((obj) => obj.kind !== 'card' && selectedIds.includes(obj.id))}
         hasCards={images.some((obj) => obj.kind === 'card')}
         onImportJSON={importFlow.handleImportJSON}
@@ -294,6 +321,12 @@ function App() {
         <div className="bg-error-toast">
           <span>{bg.bgError}</span>
           <button className="bg-error-dismiss" onClick={bg.dismissError}>✕</button>
+        </div>
+      )}
+      {printNotice && (
+        <div className="print-notice-toast" role="status">
+          <span>⚠ {printNotice}</span>
+          <button className="bg-error-dismiss" aria-label="Dismiss" onClick={() => setPrintNotice(null)}>✕</button>
         </div>
       )}
       {importFlow.pendingImport && (

@@ -1,4 +1,5 @@
 import { CollageCard } from '../../types';
+import { LowResImage, PRINT_DPI_LOW, PRINT_DPI_VERY_LOW } from '../../utils/printQuality';
 import { DeleteIcon } from '../ToolbarIcons';
 import { ToolButton } from './primitives';
 import type { UpdateObject } from './types';
@@ -8,11 +9,13 @@ interface Props {
   onUpdate: UpdateObject;
   onExport: (id: string) => void;
   onDelete: (id: string) => void;
+  lowRes: LowResImage[];
+  onSelectImages: (ids: string[]) => void;
 }
 
 // A card has a fixed print size, so instead of the object and effect
 // controls it gets orientation, bleed, and its own export.
-export function CardSection({ card, onUpdate, onExport, onDelete }: Props) {
+export function CardSection({ card, onUpdate, onExport, onDelete, lowRes, onSelectImages }: Props) {
   const portrait = card.height > card.width;
 
   const setPortrait = (wantPortrait: boolean) => {
@@ -36,6 +39,16 @@ export function CardSection({ card, onUpdate, onExport, onDelete }: Props) {
         />
         <span>Include Bleed</span>
       </label>
+      {lowRes.length > 0 && (
+        <button
+          className={`print-warning${lowRes[0].dpi < PRINT_DPI_VERY_LOW ? ' very-low' : ''}`}
+          title="Select Low-Resolution Images"
+          aria-label={`Select the images printing below ${PRINT_DPI_LOW}dpi`}
+          onClick={() => onSelectImages(lowRes.map(({ image }) => image.id))}
+        >
+          ⚠ {lowRes.length} {lowRes.length === 1 ? 'image prints' : 'images print'} soft · {Math.round(lowRes[0].dpi)}dpi
+        </button>
+      )}
       <ToolButton onClick={() => onExport(card.id)} title="Export Card" className="export-btn">
         Export Card
       </ToolButton>
