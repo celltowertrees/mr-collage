@@ -253,6 +253,18 @@ export interface CollageCard extends BaseObject {
   kind: 'card';
   sizeId: CardSizeId;
   includeBleed: boolean;
+  // Front/back pairing: each side points at the other. A link only counts
+  // while it's mutual (see cardPartner), so a dangling one is harmless.
+  pair?: CardPair;
+  // A back's toggleable USPS address guides, drawn on the overlay only.
+  addressGuides?: boolean;
+}
+
+export type CardSide = 'front' | 'back';
+
+export interface CardPair {
+  id: string;
+  side: CardSide;
 }
 
 export type CollageObject = CollageImage | CollageText | CollageModel3D | CollageCard;

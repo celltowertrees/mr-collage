@@ -3,7 +3,8 @@ import Konva from 'konva';
 import { exportToICP, exportToStaticHTML } from '../store';
 import { loadModelRenderer } from '../utils/loadModelRenderer';
 import { downloadBlob, downloadURL } from '../utils/download';
-import { CARD_EXPORT_SCALE, cardExportSize, cardPaperId, cardRect, cardSizeSlug } from '../utils/card';
+import { CARD_EXPORT_SCALE, cardExportSize, cardPaperId, cardRect } from '../utils/card';
+import { cardExportFilenames, expandCardPairs } from '../utils/cardPair';
 import { setPngDpi } from '../utils/pngDpi';
 import { CARD_EXPORT_DPI, CollageCard, CollageImage, CollageModel3D, CollageObject } from '../types';
 
@@ -133,7 +134,10 @@ export function useExports({ stageRef, images, selectedIds, stagePosition, stage
     const stage = stageRef.current;
     if (!stage) return;
     const allCards = images.filter((obj): obj is CollageCard => obj.kind === 'card');
-    const targets = ids ? allCards.filter((card) => ids.includes(card.id)) : allCards;
+    // Either side of a front/back pair brings the other along.
+    const wanted = ids ? expandCardPairs(ids, images) : null;
+    const targets = wanted ? allCards.filter((card) => wanted.includes(card.id)) : allCards;
+    const names = cardExportFilenames(images);
     if (targets.length === 0) return;
 
     const layer = stage.findOne<Konva.Layer>('.content')!;
@@ -171,7 +175,7 @@ export function useExports({ stageRef, images, selectedIds, stagePosition, stage
         ctx.fillStyle = '#ffffff';
         ctx.fillRect(0, 0, size.width, size.height);
         ctx.drawImage(raw, 0, 0, size.width, size.height);
-        captures.push({ name: `card-${allCards.indexOf(card) + 1}-${cardSizeSlug(card)}.png`, canvas });
+        captures.push({ name: names.get(card.id)!, canvas });
       }
     } finally {
       papers.forEach((paper) => paper.visible(true));

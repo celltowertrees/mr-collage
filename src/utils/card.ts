@@ -1,4 +1,4 @@
-import { CARD_BLEED_IN, CARD_EXPORT_DPI, CARD_SIZES, CARD_UNITS_PER_INCH, CollageCard } from '../types';
+import { CARD_BLEED_IN, CARD_EXPORT_DPI, CARD_SIZES, CARD_UNITS_PER_INCH, CardSide, CollageCard } from '../types';
 
 export const CARD_BLEED_UNITS = CARD_BLEED_IN * CARD_UNITS_PER_INCH;
 // Canvas units → printed pixels.
@@ -25,9 +25,10 @@ export function cardSizeSlug(card: Pick<CollageCard, 'sizeId'>) {
   return `${size.heightIn}x${size.widthIn}in`;
 }
 
-export function cardLabel(card: Pick<CollageCard, 'sizeId'>) {
+export function cardLabel(card: Pick<CollageCard, 'sizeId'>, side?: CardSide | null) {
   const size = CARD_SIZES[card.sizeId];
-  return `${size.label} ${size.heightIn}×${size.widthIn} in`;
+  const label = `${size.label} ${size.heightIn}×${size.widthIn} in`;
+  return side ? `${label} · ${side === 'front' ? 'Front' : 'Back'}` : label;
 }
 
 // The id of the white sheet drawn under a card in the content layer.

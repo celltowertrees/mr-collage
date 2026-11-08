@@ -15,6 +15,7 @@ import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 import { BgPromptEditPanel, BgStatusPanel } from './components/BackgroundStatus';
 import { localToStage } from './utils/geometry';
 import { CollageText } from './types';
+import { cardSide } from './utils/cardPair';
 import './App.css';
 
 function App() {
@@ -33,6 +34,7 @@ function App() {
     addText,
     addModel3D,
     addCard,
+    addCardBack,
     updateImage,
     regenerateImage,
     moveImages,
@@ -198,6 +200,8 @@ function App() {
         onUpload={handleUploadClick}
         onAddModel3D={addModel3D}
         onAddCard={addCard}
+        onAddCardBack={addCardBack}
+        selectedCardSide={selectedImage?.kind === 'card' ? cardSide(selectedImage, images) : null}
         onOpenStickerGenerator={() => setStickerGeneratorOpen(true)}
         visionDetail={bg.visionDetail}
         onVisionDetailChange={bg.setVisionDetail}
