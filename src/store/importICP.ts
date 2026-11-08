@@ -1,5 +1,7 @@
 import {
+  CARD_EXPORT_FORMATS,
   CARD_SIZES,
+  CardExportFormat,
   CardSizeId,
   CollageCard,
   CollageImage,
@@ -162,6 +164,9 @@ export function parseICP(text: string): ParsedICP {
           sizeId: data.sizeId as CardSizeId,
           includeBleed: data.includeBleed !== false,
         };
+        if (CARD_EXPORT_FORMATS.includes(data.exportFormat as CardExportFormat)) {
+          card.exportFormat = data.exportFormat as CardExportFormat;
+        }
         return card;
       }
       default:

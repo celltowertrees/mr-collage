@@ -1,3 +1,4 @@
+import { cardSizeText } from '../../utils/card';
 import { CARD_SIZES, CardSizeId, PRIMITIVE_SHAPES, PrimitiveShape, SHAPE_LABELS, Tool } from '../../types';
 import type { VisionDetail } from '../../utils/generateBackground';
 import { loadModelRenderer } from '../../utils/loadModelRenderer';
@@ -146,7 +147,6 @@ export function ToolsSection({
             style={{ top: cardMenu.pos.top, left: cardMenu.pos.left }}
           >
             {(Object.keys(CARD_SIZES) as CardSizeId[]).map((sizeId) => {
-              const size = CARD_SIZES[sizeId];
               return (
                 <button
                   key={sizeId}
@@ -157,7 +157,7 @@ export function ToolsSection({
                     cardMenu.close();
                   }}
                 >
-                  {size.label} ({size.heightIn}×{size.widthIn} in)
+                  {CARD_SIZES[sizeId].label} ({cardSizeText(sizeId)})
                 </button>
               );
             })}

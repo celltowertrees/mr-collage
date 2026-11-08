@@ -1,7 +1,9 @@
-import { CollageCard } from '../../types';
+import { CARD_EXPORT_FORMATS, CardExportFormat, CollageCard } from '../../types';
 import { DeleteIcon } from '../ToolbarIcons';
 import { ToolButton } from './primitives';
 import type { UpdateObject } from './types';
+
+const FORMAT_LABELS: Record<CardExportFormat, string> = { png: 'PNG', jpeg: 'JPEG', pdf: 'PDF' };
 
 interface Props {
   card: CollageCard;
@@ -35,6 +37,21 @@ export function CardSection({ card, onUpdate, onExport, onDelete }: Props) {
           onChange={(e) => onUpdate(card.id, { includeBleed: e.target.checked })}
         />
         <span>Include Bleed</span>
+      </label>
+      <div className="toolbar-divider" />
+      <label className="toolbar-field" title="Print file type">
+        <span>Format</span>
+        <select
+          aria-label="Card Format"
+          value={card.exportFormat ?? 'png'}
+          onChange={(e) => onUpdate(card.id, { exportFormat: e.target.value as CardExportFormat })}
+        >
+          {CARD_EXPORT_FORMATS.map((format) => (
+            <option key={format} value={format}>
+              {FORMAT_LABELS[format]}
+            </option>
+          ))}
+        </select>
       </label>
       <ToolButton onClick={() => onExport(card.id)} title="Export Card" className="export-btn">
         Export Card
