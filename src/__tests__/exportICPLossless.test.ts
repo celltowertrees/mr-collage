@@ -99,6 +99,13 @@ const text: CollageText = {
   underline: true,
   color: '#123456',
   shadow: { ...disabledShadow, enabled: true },
+  align: 'center',
+  letterSpacing: 2,
+  lineHeight: 1.4,
+  gradient: { to: '#ff8800', angle: 90 },
+  outline: { color: '#000000', width: 3 },
+  extrusion: { color: '#333333', depth: 12, angle: 45 },
+  warp: { shape: 'arch-up', amount: 60 },
 };
 
 const model: CollageModel3D = {

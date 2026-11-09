@@ -2,6 +2,8 @@ import { useCallback } from 'react';
 import Konva from 'konva';
 import { exportToICP, exportToStaticHTML } from '../store';
 import { loadModelRenderer } from '../utils/loadModelRenderer';
+import { clearMeasureCache, needsBake, rasterizeWordArt } from '../utils/wordArt';
+import { fontWeightFor, loadGoogleFontFace } from '../utils/googleFonts';
 import { downloadBlob, downloadURL } from '../utils/download';
 import { CARD_EXPORT_SCALE, cardExportSize, cardPaperId, cardPrintSizeIn, cardRect } from '../utils/card';
 import { cardExportFilenames, expandCardPairs } from '../utils/cardPair';
@@ -291,11 +293,24 @@ export function useExports({ stageRef, images, selectedIds, stagePosition, stage
       if (snapshot) modelSnapshots[model.id] = snapshot;
     }
 
+    // Warped or extruded text has no CSS equivalent: draw it once, with its
+    // real font loaded, and embed the picture. Plain, gradient and outlined
+    // text stays live HTML text.
+    const textSnapshots: Record<string, string> = {};
+    for (const text of images) {
+      if (text.kind !== 'text' || !needsBake(text)) continue;
+      await loadGoogleFontFace(text.fontFamily, fontWeightFor(text.bold), text.italic);
+      clearMeasureCache(text.fontFamily);
+      const canvas = rasterizeWordArt(text, Math.max(2, stageScale * 2));
+      if (canvas) textSnapshots[text.id] = canvas.toDataURL('image/png');
+    }
+
     const html = await exportToStaticHTML(
       images,
       { x: stagePosition.x, y: stagePosition.y, scale: stageScale, width: stage.width(), height: stage.height() },
       naturalSizes,
-      modelSnapshots
+      modelSnapshots,
+      textSnapshots
     );
 
     downloadBlob(new Blob([html], { type: 'text/html' }), 'collage.html');

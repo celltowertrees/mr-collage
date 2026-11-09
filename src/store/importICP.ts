@@ -13,6 +13,8 @@ import {
   DEFAULT_ROTATION_3D,
   PRIMITIVE_SHAPES,
   PrimitiveShape,
+  WARP_SHAPES,
+  WarpShape,
 } from '../types';
 import { DEFAULT_FONT_FAMILY } from '../utils/googleFonts';
 import type { ICPViewport } from './exportICP';
@@ -65,6 +67,30 @@ const SHARED_EFFECTS = ['gradientMask', 'shadow', 'blendMode', 'flipX', 'flipY']
 // object's size at a scale of 1 — it looks identical, the split just isn't
 // recoverable. Missing style fields fall back to what a freshly created
 // object of that kind would have.
+// WordArt settings are optional and cosmetic: one that's malformed is left
+// off (the text imports plain) rather than failing the whole file.
+function wordArtFields(data: Record<string, unknown>): Partial<CollageText> {
+  const out: Partial<CollageText> = {};
+  const isNum = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
+  const isStr = (v: unknown): v is string => typeof v === 'string';
+  if (data.align === 'left' || data.align === 'center' || data.align === 'right') out.align = data.align;
+  if (isNum(data.letterSpacing)) out.letterSpacing = data.letterSpacing;
+  if (isNum(data.lineHeight)) out.lineHeight = data.lineHeight;
+  const g = data.gradient;
+  if (isObject(g) && isStr(g.to) && isNum(g.angle)) out.gradient = { to: g.to, angle: g.angle };
+  const o = data.outline;
+  if (isObject(o) && isStr(o.color) && isNum(o.width)) out.outline = { color: o.color, width: o.width };
+  const e = data.extrusion;
+  if (isObject(e) && isStr(e.color) && isNum(e.depth) && isNum(e.angle)) {
+    out.extrusion = { color: e.color, depth: e.depth, angle: e.angle };
+  }
+  const w = data.warp;
+  if (isObject(w) && WARP_SHAPES.includes(w.shape as WarpShape) && isNum(w.amount)) {
+    out.warp = { shape: w.shape as WarpShape, amount: w.amount };
+  }
+  return out;
+}
+
 export function parseICP(text: string): ParsedICP {
   let doc: unknown;
   try {
@@ -129,6 +155,7 @@ export function parseICP(text: string): ParsedICP {
           italic: data.italic === true,
           underline: data.underline === true,
           color: typeof data.color === 'string' ? data.color : '#000000',
+          ...wordArtFields(data),
           ...pick(data, SHARED_EFFECTS),
         };
         return textObj;

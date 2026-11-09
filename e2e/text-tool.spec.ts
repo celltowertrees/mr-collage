@@ -12,7 +12,7 @@ async function getCanvasCenter(page: Page) {
 }
 
 // Places a text object via the Text tool, types content, and commits it
-// (Enter), leaving the new object selected with the Select tool active.
+// (Escape), leaving the new object selected with the Select tool active.
 async function placeText(page: Page, content: string) {
   await page.getByTitle('Text (T)').click();
   const center = await getCanvasCenter(page);
@@ -21,7 +21,7 @@ async function placeText(page: Page, content: string) {
   const overlay = page.locator('textarea.text-edit-overlay');
   await expect(overlay).toBeVisible();
   await overlay.fill(content);
-  await overlay.press('Enter');
+  await overlay.press('Escape');
   await expect(overlay).not.toBeVisible();
 
   await expect.poll(async () => (await readState(page)).images.at(-1)?.text).toBe(content);
@@ -57,20 +57,23 @@ test.describe('Add Text to the Canvas', () => {
     const obj = state.images.at(-1);
     expect(obj.kind).toBe('text');
     expect(obj.text).toBe('Hello Collage');
-    expect(Math.abs(obj.x - center.x)).toBeLessThan(5);
+    // The click marks where the text starts: its left edge, centred vertically.
+    expect(Math.abs(obj.x - obj.width / 2 - center.x)).toBeLessThan(5);
     expect(Math.abs(obj.y - center.y)).toBeLessThan(5);
   });
 
   test('double-clicking an existing text object re-opens it for editing', async ({ page }) => {
-    const center = await placeText(page, 'First');
+    await placeText(page, 'First');
+    const obj = (await readState(page)).images.at(-1);
+    const canvasBox = (await page.locator('canvas').first().boundingBox())!;
 
-    await page.mouse.dblclick(center.x, center.y);
+    await page.mouse.dblclick(canvasBox.x + obj.x, canvasBox.y + obj.y);
     const overlay = page.locator('textarea.text-edit-overlay');
     await expect(overlay).toBeVisible();
     await expect(overlay).toHaveValue('First');
 
     await overlay.fill('Second');
-    await overlay.press('Enter');
+    await overlay.press('Escape');
 
     await expect.poll(async () => (await readState(page)).images.at(-1)?.text).toBe('Second');
   });

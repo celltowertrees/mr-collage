@@ -272,15 +272,62 @@ body {
   color: var(--accent-text);
 }
 
+/* WordArt gallery: a grid of live preset thumbnails. */
+.wordart-gallery {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 4px;
+  max-width: min(320px, calc(100vw - 32px));
+}
+
+.wordart-option {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 4px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: none;
+  color: var(--popup-text);
+  font-family: var(--toolbar-font);
+  font-size: 10px;
+  cursor: pointer;
+}
+
+.wordart-option:hover {
+  background: var(--popup-hover);
+  border-color: var(--popup-border);
+}
+
+.wordart-thumb {
+  display: block;
+  background: #ffffff;
+  border-radius: 4px;
+}
+
+.warp-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 /* Text editing overlay */
+/* The keyboard target for on-canvas text editing. Invisible: the letters and
+   caret are drawn on the canvas itself. 16px keeps iOS from zooming in. */
 .text-edit-overlay {
   position: absolute;
-  resize: none;
-  border: 1px dashed var(--mask-preview-stroke);
-  background: rgba(255, 255, 255, 0.85);
-  outline: none;
+  width: 1px;
+  height: 1px;
   padding: 0;
-  line-height: 1.2;
+  border: 0;
+  margin: 0;
+  opacity: 0;
+  resize: none;
+  overflow: hidden;
+  white-space: pre;
+  font-size: 16px;
+  pointer-events: none;
   z-index: 150;
 }
 

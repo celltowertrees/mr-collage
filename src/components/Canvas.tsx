@@ -1,9 +1,11 @@
-import { useRef, useEffect, useCallback, useReducer, useMemo } from 'react';
+import { useRef, useEffect, useCallback, useReducer, useMemo, useState } from 'react';
 import { Stage, Layer, Circle, Rect, Line, Transformer } from 'react-konva';
 import Konva from 'konva';
 import { CollageObject, GradientMask, MaskData, ObjectChanges, Rotation3D, Tool } from '../types';
 import { CollageImageNode } from './CollageImageNode';
 import { CollageTextNode } from './CollageTextNode';
+import { TextCaret } from './TextCaret';
+import type { WordArtLayout } from '../utils/wordArt';
 import { CollageModel3DNode } from './CollageModel3DNode';
 import { CardFrame, CardPaper } from './CollageCardNode';
 import { cardSide } from '../utils/cardPair';
@@ -22,14 +24,18 @@ interface CanvasProps {
   stagePosition: { x: number; y: number };
   stageScale: number;
   onSelect: (ids: string[]) => void;
-  onUpdateImage: (id: string, changes: ObjectChanges, options?: { coalesce?: boolean; amend?: boolean }) => void;
+  onUpdateImage: (id: string, changes: ObjectChanges, options?: { coalesce?: boolean; amend?: boolean; group?: string }) => void;
   onMoveSelected: (draggedId: string, dx: number, dy: number) => void;
   onStagePositionChange: (pos: { x: number; y: number }) => void;
   onStageScaleChange: (scale: number) => void;
   onDrop: (files: FileList) => void;
   onPaste: (e: ClipboardEvent) => void;
   onAddText: (point: { x: number; y: number }) => void;
-  onStartEditingText: (id: string) => void;
+  onStartEditingText: (id: string, caretIndex?: number) => void;
+  // The text being typed into, and its selection, for drawing the caret.
+  textEditing: { id: string; start: number; end: number } | null;
+  // A click or drag on the text being edited, as a caret index.
+  onEditPointer: (index: number, extend: boolean) => void;
   stageRef: React.RefObject<Konva.Stage | null>;
   cropDrawer: PointerToolHandlers;
   cropPreviewRect: { x: number; y: number; width: number; height: number; rotation: number } | null;
@@ -107,6 +113,8 @@ export function Canvas({
   onPaste,
   onAddText,
   onStartEditingText,
+  textEditing,
+  onEditPointer,
   stageRef,
   cropDrawer,
   cropPreviewRect,
@@ -140,6 +148,21 @@ export function Canvas({
   // Padding pushes them out past the letters; it has to exceed half Konva's
   // 10px anchor to clear them. Images keep their handles on the edge.
   const selectionHasText = images.some((obj) => obj.kind === 'text' && selectedIds.includes(obj.id));
+  // Text resizes by its font size, which only a proportional corner drag maps
+  // onto; side handles would squash the letters.
+  const selectionAllText =
+    selectedIds.length > 0 && images.every((obj) => !selectedIds.includes(obj.id) || obj.kind === 'text');
+
+  // Each text node reports the layout it drew, so the caret can be placed
+  // from the same glyph positions. Kept in state so a new layout redraws the
+  // caret; only the edited text's layout is ever read.
+  const [textLayouts, setTextLayouts] = useState<Record<string, WordArtLayout>>({});
+  const handleTextLayout = useCallback((id: string, layout: WordArtLayout) => {
+    setTextLayouts((prev) => (prev[id] === layout ? prev : { ...prev, [id]: layout }));
+  }, []);
+  const editingTextObj = textEditing
+    ? images.find((obj): obj is Extract<CollageObject, { kind: 'text' }> => obj.kind === 'text' && obj.id === textEditing.id) ?? null
+    : null;
 
   // Tracks start positions of follower nodes during a group drag so they can
   // be moved imperatively to keep up with the dragged node in real time.
@@ -575,6 +598,9 @@ export function Canvas({
                   {...nodeHandlers}
                   textObj={obj}
                   onEditStart={onStartEditingText}
+                  onLayout={handleTextLayout}
+                  editing={textEditing?.id === obj.id}
+                  onEditPointer={onEditPointer}
                 />
               );
             }
@@ -605,6 +631,8 @@ export function Canvas({
             enabledAnchors={
               isMaskTool || isCropTool || isRotate3DTool || tool === 'mask-gradient'
                 ? []
+                : selectionAllText
+                ? ['top-left', 'top-right', 'bottom-left', 'bottom-right']
                 : [
                     'top-left',
                     'top-right',
@@ -621,6 +649,14 @@ export function Canvas({
               return newBox;
             }}
           />
+          {editingTextObj && textLayouts[editingTextObj.id] && textEditing && (
+            <TextCaret
+              textObj={editingTextObj}
+              layout={textLayouts[editingTextObj.id]}
+              selectionStart={textEditing.start}
+              selectionEnd={textEditing.end}
+            />
+          )}
           {selectedModel3D && (
             <Model3DRotationGizmo
               model={selectedModel3D}

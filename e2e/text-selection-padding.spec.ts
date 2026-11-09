@@ -10,18 +10,18 @@ function readState(page: Page) {
 }
 
 // The on-screen boxes of the selected object and of each Transformer handle.
-function selectionGeometry(page: Page, objectClass: 'Text' | 'Image') {
-  return page.evaluate((cls) => {
+function selectionGeometry(page: Page, objectSelector: '.wordart' | 'Image') {
+  return page.evaluate((sel) => {
     type Box = { x: number; y: number; width: number; height: number };
-    const stage = (window as unknown as { Konva: { stages: { find: (s: string) => { getClientRect: () => Box; name: () => string }[] }[] } })
+    const stage = (window as unknown as { Konva: { stages: { find: (s: string) => { getClientRect: () => Box; name: () => string; isVisible: () => boolean }[] }[] } })
       .Konva.stages[0];
-    const object = stage.find(cls)[0].getClientRect();
+    const object = stage.find(sel)[0].getClientRect();
     const anchors = stage
       .find('Rect')
-      .filter((n) => /_anchor$/.test(n.name()) && !/rotater/.test(n.name()))
+      .filter((n) => /_anchor$/.test(n.name()) && !/rotater/.test(n.name()) && n.isVisible())
       .map((n) => ({ name: n.name(), ...n.getClientRect() }));
     return { object, anchors };
-  }, objectClass);
+  }, objectSelector);
 }
 
 function overlaps(a: { x: number; y: number; width: number; height: number }, b: typeof a) {
@@ -41,12 +41,13 @@ test.describe('Selection Handles Clear of Text', () => {
     await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
     const overlay = page.locator('textarea.text-edit-overlay');
     await overlay.fill('hello');
-    await overlay.press('Enter');
+    await overlay.press('Escape');
     await expect.poll(async () => (await readState(page)).images.at(-1)?.text).toBe('hello');
     await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
 
-    const { object, anchors } = await selectionGeometry(page, 'Text');
-    expect(anchors).toHaveLength(8);
+    const { object, anchors } = await selectionGeometry(page, '.wordart');
+    // Text resizes from its corners only (the drag sets its font size).
+    expect(anchors).toHaveLength(4);
     for (const anchor of anchors) {
       expect(overlaps(anchor, object), `${anchor.name} overlaps the text`).toBe(false);
     }

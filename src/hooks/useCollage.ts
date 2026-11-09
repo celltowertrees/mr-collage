@@ -31,6 +31,9 @@ import { applyObjectChanges, duplicateObject, linkCardBack, remapIds, removeObje
 // mid-gesture loses at most this much of it.
 const SAVE_DEBOUNCE_MS = 400;
 
+// What a new text object says until it's typed over (it starts selected).
+export const PLACEHOLDER_TEXT = 'Your Text Here';
+
 // The fields every new object starts with, whatever its kind: a fresh id, no
 // rotation, unit scale, fully opaque.
 function newObjectBase(
@@ -226,26 +229,32 @@ export function useCollage() {
   }, [setImages]);
 
   // Returns the new object's id so callers (e.g. the Text tool's
-  // click-to-place handler) can immediately open it for editing.
-  const addText = useCallback((point: { x: number; y: number }): string => {
-    const textObj: CollageText = {
-      ...newObjectBase({ ...point, width: 200, height: 40, zIndex: nextZIndex.current++, name: 'Text' }),
-      kind: 'text',
-      text: '',
-      fontFamily: DEFAULT_FONT_FAMILY,
-      fontSize: 32,
-      bold: false,
-      italic: false,
-      underline: false,
-      color: '#000000',
-    };
-    setImages((prev) => [...prev, textObj]);
-    setSelectedIds([textObj.id]);
-    return textObj.id;
-  }, [setImages]);
+  // click-to-place handler) can immediately open it for editing. It starts
+  // with no size: the node measures it on first render, centred on `point`.
+  // `style` carries a WordArt preset picked ahead of placing it.
+  const addText = useCallback(
+    (point: { x: number; y: number }, style?: Partial<CollageText>, options?: { group?: string }): string => {
+      const textObj: CollageText = {
+        ...newObjectBase({ ...point, width: 0, height: 0, zIndex: nextZIndex.current++, name: 'Text' }),
+        kind: 'text',
+        text: PLACEHOLDER_TEXT,
+        fontFamily: DEFAULT_FONT_FAMILY,
+        fontSize: 32,
+        bold: false,
+        italic: false,
+        underline: false,
+        color: '#000000',
+        ...style,
+      };
+      setImages((prev) => [...prev, textObj], options);
+      setSelectedIds([textObj.id]);
+      return textObj.id;
+    },
+    [setImages]
+  );
 
   const updateImage = useCallback(
-    (id: string, changes: ObjectChanges, options?: { coalesce?: boolean; amend?: boolean }) => {
+    (id: string, changes: ObjectChanges, options?: { coalesce?: boolean; amend?: boolean; group?: string }) => {
       // A card's size, orientation and bleed carry over to its other side.
       setImages((prev) => applyObjectChanges(prev, id, changes), options);
     },
@@ -289,10 +298,10 @@ export function useCollage() {
     [setImages]
   );
 
-  const deleteImage = useCallback((id: string | string[]) => {
+  const deleteImage = useCallback((id: string | string[], options?: { group?: string }) => {
     const ids = Array.isArray(id) ? id : [id];
     // A pair's surviving side becomes a plain card.
-    setImages((prev) => removeObjects(prev, ids));
+    setImages((prev) => removeObjects(prev, ids), options);
     setSelectedIds((prev) => prev.filter((sid) => !ids.includes(sid)));
   }, [setImages]);
 
