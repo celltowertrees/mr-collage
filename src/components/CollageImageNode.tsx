@@ -3,6 +3,7 @@ import { Image as KonvaImage, Group, Shape } from 'react-konva';
 import { CollageImage } from '../types';
 import { buildClipFunc, buildFadeMaskedCanvas, buildMaskShadowSceneFunc } from '../utils/nodeEffects';
 import { useLoadedImage } from '../utils/imageCache';
+import { buildAlphaHitFunc, buildAlphaMask } from '../utils/alphaHit';
 import { useObjectNode, type ObjectNodeProps } from '../hooks/useObjectNode';
 
 interface Props extends ObjectNodeProps {
@@ -37,6 +38,18 @@ export const CollageImageNode = memo(function CollageImageNode({ image, onNodeMo
     [image.mask]
   );
 
+  // Only the image's visible pixels catch clicks, so a sticker's clear
+  // background lets them through to whatever shows beneath it. The faded
+  // canvas already has the crop applied (and fades baked in), so a faded-out
+  // region stops catching clicks too. Shape masks need nothing here: the
+  // group's clipFunc clips the hit canvas as well.
+  const hitFunc = useMemo(() => {
+    const source = gradientSource ?? img;
+    if (!source) return undefined;
+    const mask = buildAlphaMask(source, gradientSource ? undefined : image.crop);
+    return mask ? buildAlphaHitFunc(mask) : undefined;
+  }, [gradientSource, img, image.crop]);
+
   if (!img) return null;
 
   return (
@@ -61,6 +74,7 @@ export const CollageImageNode = memo(function CollageImageNode({ image, onNodeMo
           width={image.width}
           height={image.height}
           crop={gradientSource ? undefined : image.crop}
+          hitFunc={hitFunc}
           opacity={image.opacity}
           globalCompositeOperation={image.blendMode ?? 'source-over'}
           shadowEnabled={shadowActive && !image.mask}

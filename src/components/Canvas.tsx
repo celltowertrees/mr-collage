@@ -1,4 +1,4 @@
-import { useRef, useEffect, useCallback, useReducer, useMemo, useState } from 'react';
+import { useRef, useEffect, useCallback, useReducer, useMemo, useState, useImperativeHandle } from 'react';
 import { Stage, Layer, Circle, Rect, Line, Transformer } from 'react-konva';
 import Konva from 'konva';
 import { CollageObject, GradientMask, MaskData, ObjectChanges, Rotation3D, Tool } from '../types';
@@ -16,6 +16,13 @@ import { useGradientMaskDrawer } from '../hooks/useGradientMaskDrawer';
 import { useModel3DRotator } from '../hooks/useModel3DRotator';
 import { useMarqueeSelect } from '../hooks/useMarqueeSelect';
 import type { PointerToolHandlers } from '../hooks/pointerTool';
+import { fitBounds, zoomAbout, type View } from '../utils/viewport';
+
+export interface ViewportControls {
+  zoomBy: (factor: number) => void;
+  zoomTo: (scale: number) => void;
+  zoomToFit: () => void;
+}
 
 interface CanvasProps {
   images: CollageObject[];
@@ -45,6 +52,10 @@ interface CanvasProps {
   bgLoadingRect: { x: number; y: number; width: number; height: number } | null;
   // Opens the regenerate dialog for a generated image.
   onRegenerate: (id: string) => void;
+  // Space is held: pan from any tool, without changing the tool.
+  spacePanning: boolean;
+  // Filled in by Canvas so the keyboard shortcuts can drive the view.
+  viewportRef: React.Ref<ViewportControls>;
 }
 
 const BG_RECT_PREVIEW_STYLE = {
@@ -98,10 +109,13 @@ const GRADIENT_HANDLE_RADIUS = 6;
 // handed to React (and so saved, and seen by the text-edit overlay).
 const WHEEL_COMMIT_DELAY_MS = 150;
 
+// Screen px left around everything after Shift+1 (zoom to fit).
+const FIT_PADDING_PX = 64;
+
 export function Canvas({
   images,
   selectedIds,
-  tool,
+  tool: activeTool,
   stagePosition,
   stageScale,
   onSelect,
@@ -122,7 +136,12 @@ export function Canvas({
   bgRectPreview,
   bgLoadingRect,
   onRegenerate,
+  spacePanning,
+  viewportRef,
 }: CanvasProps) {
+  // Holding Space borrows the Pan tool for as long as it's held; the toolbar
+  // keeps showing (and returns to) the tool the user actually picked.
+  const tool: Tool = spacePanning ? 'pan' : activeTool;
   const containerRef = useRef<HTMLDivElement>(null);
   const selectedImage = selectedIds.length === 1 ? images.find((img) => img.id === selectedIds[0]) ?? null : null;
   // Shape masks (unlike gradient fade) only ever apply to images — narrow
@@ -335,53 +354,136 @@ export function Canvas({
     []
   );
 
+  // Moves the stage directly, the way Konva does during a pan drag. React
+  // only hears about it when `commit` is set (or when the wheel settles).
+  const applyView = useCallback(
+    (view: View, commit: boolean) => {
+      const stage = stageRef.current;
+      if (!stage) return;
+      stage.scale({ x: view.scale, y: view.scale });
+      stage.position({ x: view.x, y: view.y });
+      // The Transformer caches its screen-space rect.
+      trRef.current?.forceUpdate();
+      stage.batchDraw();
+      if (commit) {
+        onStageScaleChange(view.scale);
+        onStagePositionChange({ x: view.x, y: view.y });
+      }
+    },
+    [stageRef, onStageScaleChange, onStagePositionChange]
+  );
+
+  const currentView = useCallback((): View | null => {
+    const stage = stageRef.current;
+    return stage ? { x: stage.x(), y: stage.y(), scale: stage.scaleX() } : null;
+  }, [stageRef]);
+
+  // Figma-style: a plain scroll (or two-finger trackpad swipe) pans, in
+  // every tool. Ctrl/Cmd+scroll zooms — and a trackpad pinch arrives as a
+  // ctrlKey wheel, so it zooms too.
   const handleWheel = useCallback((e: Konva.KonvaEventObject<WheelEvent>) => {
     e.evt.preventDefault();
     const stage = stageRef.current;
-    if (!stage) return;
+    const view = currentView();
+    if (!stage || !view) return;
 
-    // With the Pan tool, a plain scroll moves the view instead of zooming.
-    // Ctrl/Cmd still zooms — that's also what a trackpad pinch arrives as.
-    if (tool === 'pan' && !e.evt.ctrlKey && !e.evt.metaKey) {
-      // Firefox can report line-based deltas; scale them to pixels.
-      const unit = e.evt.deltaMode === 1 ? 16 : e.evt.deltaMode === 2 ? stage.height() : 1;
+    // Firefox can report line-based deltas; scale them to pixels.
+    const unit = e.evt.deltaMode === 1 ? 16 : e.evt.deltaMode === 2 ? stage.height() : 1;
+    if (e.evt.ctrlKey || e.evt.metaKey) {
+      const pointer = stage.getPointerPosition();
+      if (!pointer) return;
+      // Proportional, so a pinch's small deltas zoom smoothly; clamped, so a
+      // mouse wheel's big notches don't leap.
+      const dy = Math.max(-10, Math.min(10, e.evt.deltaY * unit));
+      applyView(zoomAbout(view, pointer, Math.exp(-dy * 0.01)), false);
+    } else {
       let dx = e.evt.deltaX * unit;
       let dy = e.evt.deltaY * unit;
       // Shift+wheel means sideways on mice that only have a vertical wheel.
       if (e.evt.shiftKey && dx === 0) [dx, dy] = [dy, 0];
-      stage.position({ x: stage.x() - dx, y: stage.y() - dy });
-    } else {
-      const oldScale = stage.scaleX();
-      const pointer = stage.getPointerPosition();
-      if (!pointer) return;
-
-      const scaleBy = 1.05;
-      const direction = e.evt.deltaY > 0 ? -1 : 1;
-      const newScale = direction > 0 ? oldScale * scaleBy : oldScale / scaleBy;
-      const clampedScale = Math.max(0.05, Math.min(10, newScale));
-
-      const mousePointTo = {
-        x: (pointer.x - stage.x()) / oldScale,
-        y: (pointer.y - stage.y()) / oldScale,
-      };
-
-      stage.scale({ x: clampedScale, y: clampedScale });
-      stage.position({
-        x: pointer.x - mousePointTo.x * clampedScale,
-        y: pointer.y - mousePointTo.y * clampedScale,
-      });
+      applyView({ ...view, x: view.x - dx, y: view.y - dy }, false);
     }
-
-    // What a pan drag's onDragMove does, for the same reason: the
-    // Transformer caches its screen-space rect.
-    trRef.current?.forceUpdate();
-    stage.batchDraw();
 
     lastWheelAt.current = performance.now();
     if (wheelCommitTimer.current === null) {
       wheelCommitTimer.current = window.setTimeout(commitViewport, WHEEL_COMMIT_DELAY_MS);
     }
-  }, [tool, stageRef, commitViewport]);
+  }, [stageRef, currentView, applyView, commitViewport]);
+
+  useImperativeHandle(
+    viewportRef,
+    () => {
+      const centre = () => ({ x: window.innerWidth / 2, y: window.innerHeight / 2 });
+      return {
+        zoomBy: (factor) => {
+          const view = currentView();
+          if (view) applyView(zoomAbout(view, centre(), factor), true);
+        },
+        zoomTo: (scale) => {
+          const view = currentView();
+          if (view) applyView(zoomAbout(view, centre(), scale / view.scale), true);
+        },
+        zoomToFit: () => {
+          const stage = stageRef.current;
+          if (!stage) return;
+          let bounds: { x: number; y: number; width: number; height: number } | null = null;
+          for (const obj of images) {
+            const box = stage.findOne(`#${obj.id}`)?.getClientRect({ relativeTo: stage });
+            if (!box) continue;
+            if (!bounds) {
+              bounds = box;
+            } else {
+              const x = Math.min(bounds.x, box.x);
+              const y = Math.min(bounds.y, box.y);
+              bounds = {
+                x,
+                y,
+                width: Math.max(bounds.x + bounds.width, box.x + box.width) - x,
+                height: Math.max(bounds.y + bounds.height, box.y + box.height) - y,
+              };
+            }
+          }
+          if (!bounds) return;
+          applyView(fitBounds(bounds, { width: stage.width(), height: stage.height() }, FIT_PADDING_PX), true);
+        },
+      };
+    },
+    [images, stageRef, currentView, applyView]
+  );
+
+  // A middle-button drag pans from any tool. Handled on the container with
+  // native pointer events (Konva only drags with the primary button), and
+  // committed to React once on release, like a pan drag.
+  const [panDragging, setPanDragging] = useState(false);
+  const middlePanRef = useRef<{ x: number; y: number } | null>(null);
+  const handleContainerPointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.button !== 1) return;
+    e.preventDefault(); // no autoscroll
+    e.currentTarget.setPointerCapture(e.pointerId);
+    middlePanRef.current = { x: e.clientX, y: e.clientY };
+    setPanDragging(true);
+  }, []);
+  const handleContainerPointerMove = useCallback(
+    (e: React.PointerEvent<HTMLDivElement>) => {
+      const last = middlePanRef.current;
+      const view = currentView();
+      if (!last || !view) return;
+      middlePanRef.current = { x: e.clientX, y: e.clientY };
+      applyView({ ...view, x: view.x + e.clientX - last.x, y: view.y + e.clientY - last.y }, false);
+    },
+    [currentView, applyView]
+  );
+  const handleContainerPointerUp = useCallback(
+    (e: React.PointerEvent<HTMLDivElement>) => {
+      if (!middlePanRef.current) return;
+      middlePanRef.current = null;
+      if (e.currentTarget.hasPointerCapture(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId);
+      setPanDragging(false);
+      const view = currentView();
+      if (view) onStagePositionChange({ x: view.x, y: view.y });
+    },
+    [currentView, onStagePositionChange]
+  );
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -397,6 +499,7 @@ export function Canvas({
 
   // Click handler — only used for selection, not mask drawing
   const handleStageClick = useCallback((e: Konva.KonvaEventObject<MouseEvent>) => {
+    if (e.evt.button !== 0) return; // a middle-button pan isn't a click
     if (isMaskTool || isCropTool || isBgRectTool) return; // use mousedown/mouseup, ignore click
     // A marquee drag's mouseup is immediately followed by a Konva `click` on
     // the same target — swallow that one click so it doesn't clear the
@@ -446,10 +549,36 @@ export function Canvas({
   const selectedIdsRef = useRef(selectedIds);
   selectedIdsRef.current = selectedIds;
 
+  // Set when a press has just selected an object, so the click that follows
+  // the same press doesn't act on it a second time (a Shift-press adding it
+  // and then the Shift-click toggling it straight back out).
+  const pressSelectedRef = useRef<string | null>(null);
+
+  // Mousedown on an object that isn't selected yet selects it (Shift adds),
+  // so pressing and dragging an object picks it up in one motion. Pressing
+  // one that's already selected leaves the selection alone, so a group drag
+  // still moves the whole group.
+  const handleNodePress = useCallback(
+    (id: string, addToSelection: boolean) => {
+      const current = selectedIdsRef.current;
+      if (current.includes(id)) {
+        pressSelectedRef.current = null;
+        return;
+      }
+      pressSelectedRef.current = id;
+      onSelect(addToSelection ? [...current, id] : [id]);
+    },
+    [onSelect]
+  );
+
   // Shared by every kind: shift-click toggles membership in the selection, a
   // plain click replaces it.
   const handleNodeSelect = useCallback(
     (id: string, addToSelection: boolean) => {
+      if (pressSelectedRef.current === id) {
+        pressSelectedRef.current = null;
+        return;
+      }
       const current = selectedIdsRef.current;
       if (addToSelection) {
         onSelect(current.includes(id) ? current.filter((sid) => sid !== id) : [...current, id]);
@@ -475,14 +604,16 @@ export function Canvas({
     () => ({
       tool,
       onSelect: handleNodeSelect,
+      onPress: handleNodePress,
       onChange: onUpdateImage,
       onMove: handleNodeMove,
       onDragStart: handleNodeDragStart,
     }),
-    [tool, handleNodeSelect, onUpdateImage, handleNodeMove, handleNodeDragStart]
+    [tool, handleNodeSelect, handleNodePress, onUpdateImage, handleNodeMove, handleNodeDragStart]
   );
 
   const getCursor = () => {
+    if (panDragging) return 'grabbing';
     if (tool === 'pan') return 'grab';
     if (isRotate3DTool) return 'grab';
     if (isMaskTool || isCropTool || isTextTool || isBgRectTool) return 'crosshair';
@@ -555,6 +686,13 @@ export function Canvas({
       className="canvas-container"
       onDragOver={handleDragOver}
       onDrop={handleDropEvent}
+      onPointerDown={handleContainerPointerDown}
+      onPointerMove={handleContainerPointerMove}
+      onPointerUp={handleContainerPointerUp}
+      onPointerCancel={handleContainerPointerUp}
+      onMouseDown={(e) => {
+        if (e.button === 1) e.preventDefault(); // no autoscroll
+      }}
     >
       <Stage
         ref={stageRef as React.LegacyRef<Konva.Stage>}
@@ -567,11 +705,18 @@ export function Canvas({
         draggable={tool === 'pan'}
         onClick={handleStageClick}
         onTap={handleStageClick}
-        onMouseDown={pointerTool.handleMouseDown}
+        onMouseDown={(e) => {
+          // Only the primary button draws, marquees or orbits; the middle
+          // button pans (see the container's pointer handlers).
+          if (e.evt.button === 0) pointerTool.handleMouseDown(e);
+        }}
         onMouseMove={pointerTool.handleMouseMove}
         onMouseUp={pointerTool.handleMouseUp}
         onDblClick={isMaskTool ? maskDrawer.handleDblClick : undefined}
         onWheel={handleWheel}
+        onDragStart={(e) => {
+          if (e.target === e.target.getStage()) setPanDragging(true);
+        }}
         onDragMove={(e) => {
           // The Transformer caches the selection's screen-space rect; recompute
           // it every pan frame so the handles can't lag behind the content.
@@ -579,6 +724,7 @@ export function Canvas({
         }}
         onDragEnd={(e) => {
           if (e.target === e.target.getStage()) {
+            setPanDragging(false);
             onStagePositionChange({ x: e.target.x(), y: e.target.y() });
           }
         }}

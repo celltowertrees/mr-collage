@@ -10,6 +10,9 @@ import { BaseObject, ObjectChanges, Tool } from '../types';
 // one slider tick on one image re-reconciled the whole collage.
 export interface ObjectNodeHandlers {
   onSelect: (id: string, addToSelection: boolean) => void;
+  // Mousedown on an object: selects it there and then if it isn't already,
+  // so one press-and-drag both picks it up and moves it.
+  onPress: (id: string, addToSelection: boolean) => void;
   onChange: (id: string, changes: ObjectChanges, options?: { coalesce?: boolean; amend?: boolean; group?: string }) => void;
   onMove: (id: string, dx: number, dy: number) => void;
   onDragStart: (id: string) => void;
@@ -23,7 +26,7 @@ export interface ObjectNodeProps extends ObjectNodeHandlers {
 // transform, click/drag selection, the group-drag delta, and committing a
 // resize/rotate from the Transformer. Each node spreads `groupProps` onto its
 // outer <Group> and keeps only its own content rendering.
-export function useObjectNode(obj: BaseObject, { tool, onSelect, onChange, onMove, onDragStart }: ObjectNodeProps) {
+export function useObjectNode(obj: BaseObject, { tool, onSelect, onPress, onChange, onMove, onDragStart }: ObjectNodeProps) {
   const groupRef = useRef<Konva.Group>(null);
   const dragStartRef = useRef({ x: obj.x, y: obj.y });
 
@@ -45,7 +48,12 @@ export function useObjectNode(obj: BaseObject, { tool, onSelect, onChange, onMov
     id: obj.id,
     ...transform,
     draggable: tool === 'select',
-    onClick: (e: Konva.KonvaEventObject<MouseEvent>) => onSelect(obj.id, e.evt.shiftKey),
+    onMouseDown: (e: Konva.KonvaEventObject<MouseEvent>) => {
+      if (tool === 'select' && e.evt.button === 0) onPress(obj.id, e.evt.shiftKey);
+    },
+    onClick: (e: Konva.KonvaEventObject<MouseEvent>) => {
+      if (e.evt.button === 0) onSelect(obj.id, e.evt.shiftKey);
+    },
     onTap: () => onSelect(obj.id, false),
     onDragStart: () => {
       dragStartRef.current = { x: obj.x, y: obj.y };

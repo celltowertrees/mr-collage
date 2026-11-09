@@ -1,6 +1,6 @@
 import { useRef, useCallback, useEffect, useState } from 'react';
 import Konva from 'konva';
-import { Canvas } from './components/Canvas';
+import { Canvas, type ViewportControls } from './components/Canvas';
 import { Toolbar } from './components/Toolbar';
 import { TextEditor, type TextEditorHandle } from './components/TextEditor';
 import { StickerGenerator } from './components/StickerGenerator';
@@ -171,7 +171,24 @@ function App() {
     [loadFromFiles]
   );
 
-  useKeyboardShortcuts({ selectedIds, setTool, deleteImage, nudgeImages, undo, redo });
+  // Holding Space pans from whatever tool is active, without switching it.
+  const [spacePanning, setSpacePanning] = useState(false);
+  const viewportRef = useRef<ViewportControls>(null);
+  const zoomBy = useCallback((factor: number) => viewportRef.current?.zoomBy(factor), []);
+  const zoomTo = useCallback((scale: number) => viewportRef.current?.zoomTo(scale), []);
+  const zoomToFit = useCallback(() => viewportRef.current?.zoomToFit(), []);
+  useKeyboardShortcuts({
+    selectedIds,
+    setTool,
+    deleteImage,
+    nudgeImages,
+    undo,
+    redo,
+    setSpacePanning,
+    zoomBy,
+    zoomTo,
+    zoomToFit,
+  });
 
   useEffect(() => {
     const handleResize = () => {
@@ -326,6 +343,8 @@ function App() {
         bgRectPreview={bg.bgRectDrawer.previewRect}
         bgLoadingRect={bg.bgLoading}
         onRegenerate={setRegeneratingId}
+        spacePanning={spacePanning}
+        viewportRef={viewportRef}
       />
       {editing && editingText && (
         <TextEditor

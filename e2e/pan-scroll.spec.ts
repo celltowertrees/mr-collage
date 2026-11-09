@@ -52,8 +52,10 @@ test.describe('Scroll to Pan with the Pan Tool', () => {
     await expect.poll(async () => (await viewport(page))?.scale).toBeGreaterThan(1);
   });
 
-  test('scrolling with the Select tool still zooms', async ({ page }) => {
-    await page.mouse.wheel(0, -100);
-    await expect.poll(async () => (await viewport(page))?.scale).toBeGreaterThan(1);
+  // Superseded 2026-11-09 by "Figma-Style Canvas Navigation": a plain
+  // scroll pans in every tool, not just under Pan.
+  test('scrolling with the Select tool pans too', async ({ page }) => {
+    await page.mouse.wheel(0, 100);
+    await expect.poll(() => viewport(page)).toEqual({ x: 0, y: -100, scale: 1 });
   });
 });
