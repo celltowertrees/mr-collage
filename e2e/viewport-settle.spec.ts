@@ -22,7 +22,9 @@ test.beforeEach(async ({ page }) => {
 // Maps to CLAUDE.md → "Responsive Canvas Rendering"
 test.describe('Wheel zoom settles before it is saved', () => {
   test('a burst of wheel zooms is saved once, at the zoom it settles on', async ({ page }) => {
+    await page.keyboard.down('Control');
     for (let i = 0; i < 8; i++) await page.mouse.wheel(0, -100);
+    await page.keyboard.up('Control');
     const settled = await stageViewport(page);
     expect(settled.scale).toBeGreaterThan(1.3);
 
@@ -33,7 +35,9 @@ test.describe('Wheel zoom settles before it is saved', () => {
   });
 
   test('the settled zoom survives a reload', async ({ page }) => {
+    await page.keyboard.down('Control');
     for (let i = 0; i < 5; i++) await page.mouse.wheel(0, -100);
+    await page.keyboard.up('Control');
     const settled = await stageViewport(page);
     await expect.poll(async () => (await readState(page)).stageScale).toBeCloseTo(settled.scale, 6);
 

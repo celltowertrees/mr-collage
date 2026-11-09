@@ -25,8 +25,9 @@ Feature: Infinite Canvas Collage Platform
 
   Scenario: Use keyboard shortcuts
     Given no text input is focused
-    When the user presses "V", "H", holds Space, or presses Delete/Backspace
+    When the user presses "V", "H", or Delete/Backspace
     Then the tool switches to select or pan, or the selected image is deleted, respectively
+    # Holding Space no longer switches the tool — see "Figma-Style Canvas Navigation" (2026-11-09)
 
   Scenario: Export the collage as JPEG
     Given at least one image is on the canvas
@@ -983,7 +984,7 @@ Feature: Export Selected Objects as PNGs
 
 ### Scroll to Pan with the Pan Tool
 - **Requested:** 2026-10-28
-- **Ask:** When the Pan tool is selected, pan by scrolling, not just by grabbing.
+- **Ask:** When the Pan tool is selected, pan by scrolling, not just by grabbing. (Widened on 2026-11-09 by "Figma-Style Canvas Navigation": a plain scroll now pans in every tool, so the "Other tools keep scroll-to-zoom" scenario below is superseded — zoom with Ctrl/Cmd+scroll or a pinch.)
 
 ```gherkin
 Feature: Scroll to Pan with the Pan Tool
@@ -1004,10 +1005,10 @@ Feature: Scroll to Pan with the Pan Tool
     When the user scrolls while holding Ctrl or Cmd, or pinches on a trackpad
     Then the view zooms about the pointer, as before
 
-  Scenario: Other tools keep scroll-to-zoom
+  Scenario: Other tools pan on scroll too (superseded 2026-11-09)
     Given the Select tool is active
     When the user scrolls
-    Then the view zooms about the pointer, as before
+    Then the view pans, the same as under the Pan tool
 ```
 
 ### Regenerate a Sticker from Its Prompt
@@ -1368,4 +1369,77 @@ Feature: WordArt Text Styles
     Given a text object is warped or extruded
     When the user exports HTML
     Then it is drawn once with its real font and embedded as a self-contained image at its viewport-relative position, falling back to flat live text if it can't be drawn
+```
+
+### Figma-Style Canvas Navigation
+- **Requested:** 2026-11-09
+- **Ask:** Make panning and selecting feel like Figma, without having to keep switching between the Pan and Select tools.
+
+```gherkin
+Feature: Figma-Style Canvas Navigation
+  # src/components/Canvas.tsx, src/hooks/useKeyboardShortcuts.ts, src/hooks/useObjectNode.ts, src/utils/viewport.ts, src/App.tsx — tested in e2e/figma-navigation.spec.ts, e2e/pan-scroll.spec.ts, src/__tests__/viewport.test.ts
+
+  Scenario: Scrolling pans in every tool
+    Given any tool is active
+    When the user scrolls with a mouse wheel or swipes with two fingers on a trackpad
+    Then the view pans by the scroll amount and the zoom level is unchanged
+
+  Scenario: Ctrl/Cmd+scroll or a pinch zooms
+    Given any tool is active
+    When the user scrolls while holding Ctrl or Cmd, or pinches on a trackpad
+    Then the view zooms about the pointer
+
+  Scenario: Hold Space to pan without switching tool
+    Given any tool is active
+    When the user holds Space and drags, even starting over an object
+    Then the view pans, no object moves or is created, and on releasing Space the same tool is still active
+
+  Scenario: Middle-button drag pans
+    Given any tool is active
+    When the user drags with the middle mouse button
+    Then the view pans and the tool is unchanged
+
+  Scenario: Zoom shortcuts
+    Given no text input is focused
+    When the user presses Ctrl/Cmd+= or Ctrl/Cmd+-, Shift+1, or Shift+0
+    Then the view zooms in or out by 2x about the viewport centre, zooms to fit every object on screen, or returns to 100%, respectively
+
+  Scenario: Press and drag an unselected object
+    Given one object is selected
+    When the user presses on a different, unselected object and drags it
+    Then that object becomes the selection and only it moves
+
+  Scenario: Shift+press adds to the selection
+    Given one object is selected
+    When the user Shift+clicks another object
+    Then both objects are selected
+```
+
+### Pixel-Accurate Selection on Transparent Images
+- **Requested:** 2026-11-09
+- **Ask:** Stop selecting the bounding box of another object by mistake — when an image has a transparent background, only the object itself should be clickable. (Images only for this cut: a 3D object's picture is redrawn on every orbit frame, so it keeps its rectangular hit area; text already hit-tests its letters.)
+
+```gherkin
+Feature: Pixel-Accurate Selection on Transparent Images
+  # src/utils/alphaHit.ts, src/components/CollageImageNode.tsx — tested in e2e/transparent-hit.spec.ts
+
+  Scenario: Clicking through a transparent area selects what's beneath
+    Given a sticker with a transparent background sits on top of another image
+    When the user clicks a transparent part of the sticker over the other image
+    Then the image beneath is selected, not the sticker
+
+  Scenario: Clicking the visible part selects the sticker
+    Given a sticker with a transparent background sits on top of another image
+    When the user clicks the sticker's visible pixels
+    Then the sticker is selected
+
+  Scenario: Transparent area over empty canvas
+    Given a sticker with a transparent background is selected
+    When the user clicks a transparent part of it with nothing beneath
+    Then the selection is cleared, as for a click on empty canvas
+
+  Scenario: Opaque images are unchanged
+    Given an image with no transparency
+    When the user clicks anywhere inside its box
+    Then it is selected
 ```

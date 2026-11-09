@@ -145,7 +145,10 @@ test.describe('Printable Card Frames', () => {
     // Zoomed out, the export is still the card's physical size.
     const center = await getCanvasCenter(page);
     await page.mouse.move(center.x, center.y);
+    // Ctrl+scroll zooms; a plain scroll pans.
+    await page.keyboard.down('Control');
     for (let i = 0; i < 6; i++) await page.mouse.wheel(0, 100);
+    await page.keyboard.up('Control');
     await expect.poll(async () => (await readState(page)).stageScale).toBeLessThan(0.9);
     const [zoomed] = await collectDownloads(page, page.getByTitle('Export All Cards'), 1);
     const zoomedPNG = (await readPNG(zoomed)).png;
