@@ -2,11 +2,12 @@
 // way in: objects it already made (e.g. a saved or imported 3D object) still
 // load, render, and keep their own controls.
 //
-// Flip a default to true to bring a tool back for everyone, or append
+// Flip a default to true to bring a tool back for everyone (as was done for
+// backgroundGeneration on 2026-11-09), or append
 // ?enable=<name>[,<name>] to the URL to try it out (the e2e tests do this).
 const DEFAULTS = {
   model3d: false,
-  backgroundGeneration: false,
+  backgroundGeneration: true,
 };
 
 export type FeatureFlag = keyof typeof DEFAULTS;

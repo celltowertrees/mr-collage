@@ -831,7 +831,7 @@ Feature: Import a Collage from ICP JSON
 
 ### Temporarily Disabled Toolbar Tools
 - **Requested:** 2026-10-19
-- **Ask:** Temporarily disable some toolbar features that aren't as good as others, starting with the 3D object creation tool and the background generation tool.
+- **Ask:** Temporarily disable some toolbar features that aren't as good as others, starting with the 3D object creation tool and the background generation tool. (Background generation was switched back on for everyone on 2026-11-09 — see "Generate Background Tool Restored" — so only the 3D object tool is still off.)
 
 ```gherkin
 Feature: Temporarily Disabled Toolbar Tools
@@ -841,13 +841,13 @@ Feature: Temporarily Disabled Toolbar Tools
     Given the canvas is open
     Then the toolbar has no "Add 3D Object" button
 
-  Scenario: The background generation tool is not offered
+  Scenario: The background generation tool is offered again (restored 2026-11-09)
     Given the canvas is open
-    Then the toolbar has no "Generate Background" button
+    Then the toolbar has a "Generate Background" button
 
   Scenario: A disabled tool can be switched back on from the URL
-    Given the app is opened with ?enable=model3d,backgroundGeneration
-    Then the toolbar offers the 3D object and background generation tools again
+    Given the app is opened with ?enable=model3d
+    Then the toolbar offers the 3D object tool again
 
   Scenario: A 3D object already on the canvas still works
     Given a 3D object was saved to the collage before its tool was disabled
@@ -1442,4 +1442,42 @@ Feature: Pixel-Accurate Selection on Transparent Images
     Given an image with no transparency
     When the user clicks anywhere inside its box
     Then it is selected
+```
+
+### Generate Background Tool Restored
+- **Requested:** 2026-11-09
+- **Ask:** Bring back the feature that generates a background for a given selection of objects. (It had been hidden behind a feature flag since 2026-10-19; the flag now defaults on, and the flow gets its first end-to-end tests.)
+
+```gherkin
+Feature: Generate Background Tool Restored
+  # src/featureFlags.ts, src/hooks/useBackgroundGeneration.ts, src/hooks/useBgRectDrawer.ts, src/utils/generateBackground.ts, src/components/BackgroundStatus.tsx, src/components/toolbar/ToolsSection.tsx — tested in e2e/background-generation.spec.ts, e2e/feature-flags.spec.ts
+
+  Scenario: The toolbar offers Generate Background by default
+    Given the canvas is open
+    Then the toolbar has a "Generate Background" button, with no URL flag needed
+
+  Scenario: Drawing over objects proposes a prompt to edit
+    Given an image is on the canvas and an OpenAI API key is saved
+    When the user picks Generate Background and drags a rectangle over the image
+    Then the drawn region is described by the vision model, and its suggested prompt is shown for editing before any image is generated
+
+  Scenario: Generating slots the background in beneath the objects
+    Given the suggested prompt is shown
+    When the user edits it and clicks Generate
+    Then the edited prompt is sent at the size matching the rectangle's shape, and the result is added filling the drawn rectangle, stacked below the objects it was drawn over
+
+  Scenario: Cancelling at the prompt adds nothing
+    Given the suggested prompt is shown
+    When the user clicks Cancel
+    Then no image is requested and the canvas is unchanged
+
+  Scenario: A rectangle over empty canvas is explained, not sent
+    Given an image is on the canvas
+    When the user drags the Generate Background rectangle over an area with no images
+    Then an error says no images were found in the drawn area, and nothing is sent to OpenAI
+
+  Scenario: A missing API key is explained, not sent
+    Given no OpenAI API key has been saved
+    When the user drags the Generate Background rectangle over an image
+    Then an error says no key was found and points to the sticker generator, and nothing is sent to OpenAI
 ```
