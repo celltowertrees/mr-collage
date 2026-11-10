@@ -831,7 +831,7 @@ Feature: Import a Collage from ICP JSON
 
 ### Temporarily Disabled Toolbar Tools
 - **Requested:** 2026-10-19
-- **Ask:** Temporarily disable some toolbar features that aren't as good as others, starting with the 3D object creation tool and the background generation tool.
+- **Ask:** Temporarily disable some toolbar features that aren't as good as others, starting with the 3D object creation tool and the background generation tool. (Background generation was switched back on for everyone on 2026-11-09 — see "Generate Background Tool Restored" — so only the 3D object tool is still off.)
 
 ```gherkin
 Feature: Temporarily Disabled Toolbar Tools
@@ -841,13 +841,13 @@ Feature: Temporarily Disabled Toolbar Tools
     Given the canvas is open
     Then the toolbar has no "Add 3D Object" button
 
-  Scenario: The background generation tool is not offered
+  Scenario: The background generation tool is offered again (restored 2026-11-09)
     Given the canvas is open
-    Then the toolbar has no "Generate Background" button
+    Then the toolbar has a "Generate Background" button
 
   Scenario: A disabled tool can be switched back on from the URL
-    Given the app is opened with ?enable=model3d,backgroundGeneration
-    Then the toolbar offers the 3D object and background generation tools again
+    Given the app is opened with ?enable=model3d
+    Then the toolbar offers the 3D object tool again
 
   Scenario: A 3D object already on the canvas still works
     Given a 3D object was saved to the collage before its tool was disabled
@@ -1442,4 +1442,71 @@ Feature: Pixel-Accurate Selection on Transparent Images
     Given an image with no transparency
     When the user clicks anywhere inside its box
     Then it is selected
+```
+
+### Generate Background Tool Restored
+- **Requested:** 2026-11-09
+- **Ask:** Bring back the feature that generates a background for a given selection of objects. (It had been hidden behind a feature flag since 2026-10-19; the flag now defaults on, and the flow gets its first end-to-end tests.)
+
+```gherkin
+Feature: Generate Background Tool Restored
+  # src/featureFlags.ts, src/hooks/useBackgroundGeneration.ts, src/hooks/useBgRectDrawer.ts, src/utils/generateBackground.ts, src/components/BackgroundStatus.tsx, src/components/toolbar/ToolsSection.tsx — tested in e2e/background-generation.spec.ts, e2e/feature-flags.spec.ts
+
+  Scenario: The toolbar offers Generate Background by default
+    Given the canvas is open
+    Then the toolbar has a "Generate Background" button, with no URL flag needed
+
+  Scenario: Drawing over objects proposes a prompt to edit
+    Given an image is on the canvas and an OpenAI API key is saved
+    When the user picks Generate Background and drags a rectangle over the image
+    Then the drawn region is described by the vision model, and its suggested prompt is shown for editing before any image is generated
+
+  Scenario: Generating slots the background in beneath the objects
+    Given the suggested prompt is shown
+    When the user edits it and clicks Generate
+    Then the edited prompt is sent at the size matching the rectangle's shape, and the result is added filling the drawn rectangle, stacked below the objects it was drawn over
+
+  Scenario: Cancelling at the prompt adds nothing
+    Given the suggested prompt is shown
+    When the user clicks Cancel
+    Then no image is requested and the canvas is unchanged
+
+  Scenario: A rectangle over empty canvas is explained, not sent
+    Given an image is on the canvas
+    When the user drags the Generate Background rectangle over an area with no images
+    Then an error says no images were found in the drawn area, and nothing is sent to OpenAI
+
+  Scenario: A missing API key is explained, not sent
+    Given no OpenAI API key has been saved
+    When the user drags the Generate Background rectangle over an image
+    Then an error says no key was found and points to the sticker generator, and nothing is sent to OpenAI
+```
+
+### Content-Aware Background Generation
+- **Requested:** 2026-11-10
+- **Ask:** The generated background isn't content aware — it's a generic image thematically inspired by the selection, with no space or dimension for the objects themselves. Make it actually content aware. (The image model is now handed the objects as they sit on the canvas, with a mask marking which pixels are theirs, and paints the scene into the empty canvas around them through the image-edit endpoint, instead of generating from a text description alone. The vision step still proposes the editable scene prompt.)
+
+```gherkin
+Feature: Content-Aware Background Generation
+  # src/utils/backgroundFrame.ts, src/utils/generateBackground.ts, src/hooks/useBackgroundGeneration.ts — tested in src/__tests__/backgroundFrame.test.ts, e2e/background-generation.spec.ts
+
+  Scenario: The model is shown the objects where they sit
+    Given an image is on the canvas and the suggested prompt is shown
+    When the user clicks Generate
+    Then the image model is sent a picture of the drawn area with the objects in place on white, a mask that is opaque over the objects and transparent over the empty canvas, and a prompt telling it to keep each object exactly where it is and fit the scene around them — and no text-only generation is requested
+
+  Scenario: A rectangle that is not an output shape is fitted, not stretched
+    Given the drawn rectangle is wider or taller than any shape the image model returns
+    When a background is generated
+    Then the model is sent a frame grown evenly around the rectangle to the nearest output shape, and what comes back is trimmed to the rectangle and laid over it at one scale, so the scene stays lined up under the objects
+
+  Scenario: An earlier background is not treated as an object
+    Given a generated background is already on the canvas
+    When the user draws the Generate Background rectangle over it
+    Then it is left out of what the model is sent, and a rectangle over it alone is reported as having no images in it
+
+  Scenario: Objects that fill the drawn area are explained, not sent
+    Given the drawn rectangle lies wholly inside an object
+    When the user finishes drawing it
+    Then an error says there is no empty canvas to paint a background into, and nothing is sent to OpenAI
 ```

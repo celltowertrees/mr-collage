@@ -13,15 +13,16 @@ test.describe('Temporarily Disabled Toolbar Tools', () => {
     await expect(page.getByTitle('Add 3D Object')).toHaveCount(0);
   });
 
-  test('the background generation tool is not offered', async ({ page }) => {
+  // Background generation was switched back on for everyone on 2026-11-09 —
+  // see background-generation.spec.ts.
+  test('the background generation tool is offered again', async ({ page }) => {
     await expect(page.getByTitle('Upload Image')).toBeVisible();
-    await expect(page.getByTitle(/^Generate Background/)).toHaveCount(0);
+    await expect(page.getByTitle(/^Generate Background/)).toBeVisible();
   });
 
   test('a disabled tool can be switched back on from the URL', async ({ page }) => {
-    await page.goto('/?enable=model3d,backgroundGeneration');
+    await page.goto('/?enable=model3d');
     await expect(page.getByTitle('Add 3D Object')).toBeVisible();
-    await expect(page.getByTitle(/^Generate Background/)).toBeVisible();
   });
 
   test('a 3D object already on the canvas still works', async ({ page }) => {
