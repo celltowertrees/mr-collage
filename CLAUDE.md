@@ -1481,3 +1481,32 @@ Feature: Generate Background Tool Restored
     When the user drags the Generate Background rectangle over an image
     Then an error says no key was found and points to the sticker generator, and nothing is sent to OpenAI
 ```
+
+### Content-Aware Background Generation
+- **Requested:** 2026-11-10
+- **Ask:** The generated background isn't content aware — it's a generic image thematically inspired by the selection, with no space or dimension for the objects themselves. Make it actually content aware. (The image model is now handed the objects as they sit on the canvas, with a mask marking which pixels are theirs, and paints the scene into the empty canvas around them through the image-edit endpoint, instead of generating from a text description alone. The vision step still proposes the editable scene prompt.)
+
+```gherkin
+Feature: Content-Aware Background Generation
+  # src/utils/backgroundFrame.ts, src/utils/generateBackground.ts, src/hooks/useBackgroundGeneration.ts — tested in src/__tests__/backgroundFrame.test.ts, e2e/background-generation.spec.ts
+
+  Scenario: The model is shown the objects where they sit
+    Given an image is on the canvas and the suggested prompt is shown
+    When the user clicks Generate
+    Then the image model is sent a picture of the drawn area with the objects in place on white, a mask that is opaque over the objects and transparent over the empty canvas, and a prompt telling it to keep each object exactly where it is and fit the scene around them — and no text-only generation is requested
+
+  Scenario: A rectangle that is not an output shape is fitted, not stretched
+    Given the drawn rectangle is wider or taller than any shape the image model returns
+    When a background is generated
+    Then the model is sent a frame grown evenly around the rectangle to the nearest output shape, and what comes back is trimmed to the rectangle and laid over it at one scale, so the scene stays lined up under the objects
+
+  Scenario: An earlier background is not treated as an object
+    Given a generated background is already on the canvas
+    When the user draws the Generate Background rectangle over it
+    Then it is left out of what the model is sent, and a rectangle over it alone is reported as having no images in it
+
+  Scenario: Objects that fill the drawn area are explained, not sent
+    Given the drawn rectangle lies wholly inside an object
+    When the user finishes drawing it
+    Then an error says there is no empty canvas to paint a background into, and nothing is sent to OpenAI
+```
